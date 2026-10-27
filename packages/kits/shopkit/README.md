@@ -68,8 +68,7 @@ The package ships ES modules with type declarations; peer dependencies
   card code; copies for the shop on new orders, late payments, low stock.
 - **HS-Soft (WaWiAssist)**: products imported from the articles (price
   category, special prices, image, declaration, allergens, nutrition,
-  delivery days), orders sent to WaWiAssist once they are placed – like the
-  WooHS plugin for WooCommerce.
+  delivery days), orders sent to WaWiAssist once they are placed.
 
 Next / planned (not built yet): Swiss Post labels and live tariffs,
 refunds through the zahls.ch API,
@@ -213,9 +212,8 @@ Theming: `.my-app :is(.sk-root, .sk-add) { --sk-primary: #f97316; --sk-radius: 4
 
 ### HS-Soft (WaWiAssist)
 
-For bakeries and confectioners with the WaWiAssist ERP of HS-Soft – what the
-WooHS plugin does for WooCommerce: products come from WaWiAssist, orders go
-there. Needs the API key of your WaWiAssist (from HS-Soft, [API
+For bakeries and confectioners with the WaWiAssist ERP of HS-Soft: products
+come from WaWiAssist, orders go there. Needs the API key of your WaWiAssist (from HS-Soft, [API
 reference](https://api.hssoft.com/rest/docs)).
 
 ```ts

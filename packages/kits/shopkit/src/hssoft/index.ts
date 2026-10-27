@@ -87,8 +87,7 @@ export type HsSoftImage = {
 
 export type HsSoftProductOptions = {
   /**
-   * Import only these marketing groups (as in WooHS); default every active
-   * article.
+   * Import only these marketing groups; default every active article.
    */
   marketingGroupIds?: number[];
   /** Further check per article (`false` → skipped). */
@@ -314,7 +313,7 @@ export function hsSoftOrderSync(order: Order): HsSoftOrderSync | null {
 }
 
 /**
- * HS-Soft (WaWiAssist) for the shop, like the WooHS plugin for WooCommerce:
+ * HS-Soft (WaWiAssist) for the shop:
  *
  * - `importProducts()`: articles → products (price category, special
  *   prices, weight, image, declaration, allergens, nutrition). Run it daily
@@ -1323,7 +1322,7 @@ function orderDate(value: Date | string) {
 
 /**
  * The HS-Soft API cannot store emojis and other characters outside the
- * Basic Multilingual Plane (as WooHS, they are removed).
+ * Basic Multilingual Plane: they are removed.
  */
 function clean(value: string, multiline = false) {
   const stripped = value

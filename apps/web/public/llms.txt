@@ -37,7 +37,7 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   `<OrderHistory />`, `useCart()`. Config: `createShop({ database, provider,
   shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
   sends payment reminders; invoice orders are booked from camt.053 / camt.054.
-  HS-Soft (WaWiAssist, bakery ERP) from `/hssoft`, like the WooHS plugin:
+  HS-Soft (WaWiAssist, bakery ERP) from `/hssoft`:
   `createHsSoftSync({ shop, apiKey })` imports articles as products (price
   category, special prices, image, declaration, allergens, nutrition) with
   `importProducts()` and sends orders to WaWiAssist (`onEvent` for the shop,
