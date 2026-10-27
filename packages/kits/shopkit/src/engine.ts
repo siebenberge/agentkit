@@ -17,7 +17,7 @@ import {
   shippingAmount,
   shipsTo,
 } from './pricing';
-import type { PaymentProvider, ProviderEvent } from './provider';
+import type { ChargeResult, PaymentProvider, ProviderEvent } from './provider';
 import type {
   Address,
   AppliedGiftCard,
@@ -32,6 +32,7 @@ import type {
   OrderPaymentMethod,
   OrderRefund,
   OrderStatus,
+  PaymentMethod,
   PaymentStatus,
   Product,
   ProductKind,
@@ -228,6 +229,79 @@ export type CartSummary = {
 export type CheckoutResult =
   | { type: 'redirect'; url: string; order: Order }
   | { type: 'placed'; order: Order };
+
+export type CheckoutParams = {
+  token: string;
+  paymentMethod: CheckoutPaymentMethod;
+  giftCardCodes?: string[];
+  /** Where the payment page returns to; a function gets the new order. */
+  urls?: OrderRedirectUrls;
+  /** Signed-in customer placing the order (overrides the cart's). */
+  customerExternalId?: string | null;
+  /**
+   * Online payment of a signed-in customer: also save the payment method
+   * (card, TWINT) for later orders. Needs a provider with `chargeToken`;
+   * ask the customer first.
+   */
+  savePaymentMethod?: boolean;
+};
+
+/** A saved payment method as customers and agents see it (no token). */
+export type PaymentMethodView = Omit<PaymentMethod, 'token'>;
+
+/** Order line of `quoteOrder` / `placeOrder`: by variant id or SKU. */
+export type OrderItemInput = {
+  variantId?: string;
+  sku?: string;
+  quantity: number;
+};
+
+/** An order in one call (agents, MCP) instead of a cart built step by step. */
+export type OrderInput = {
+  /** Signed-in customer; `null` for a guest. */
+  customerExternalId: string | null;
+  email: string;
+  items: OrderItemInput[];
+  shippingRateId?: string | null;
+  /** Not needed for pickup. */
+  shippingAddress?: Address | null;
+  billingAddress?: Address | null;
+  note?: string | null;
+  discountCode?: string | null;
+  locale?: string | null;
+};
+
+export type OrderQuote = Omit<CartSummary, 'cart'> & {
+  /** The customer's saved payment method (`null` → pay on the payment page). */
+  savedPaymentMethod: PaymentMethodView | null;
+};
+
+/** Outcome of a charge of a saved payment method. */
+export type SavedMethodPayment =
+  | { status: 'paid'; order: Order }
+  /** Accepted by the provider; the webhook marks the order paid. */
+  | { status: 'processing'; order: Order }
+  | {
+      status: 'failed';
+      order: Order;
+      error: string;
+      /** The provider could not be reached – not the customer's fault. */
+      providerError: boolean;
+    };
+
+export type PlaceOrderResult = {
+  order: Order;
+  payment:
+    | { status: 'paid' }
+    | { status: 'processing' }
+    | { status: 'invoice' }
+    | {
+        status: 'payment_page';
+        url: string;
+        /** Why the saved payment method could not be charged. */
+        savedMethodError?: string;
+      };
+};
 
 /** What `reconcileBankPayments()` did with each payment of a bank file. */
 export type BankReconciliation = {
@@ -1645,15 +1719,23 @@ export function createShop(options: ShopOptions) {
    * code, takes the gift card balances – all or nothing. Online payment →
    * redirect to the provider; invoice or nothing left to pay → placed.
    */
-  async function checkout(params: {
-    token: string;
-    paymentMethod: CheckoutPaymentMethod;
-    giftCardCodes?: string[];
-    /** Where the payment page returns to; a function gets the new order. */
-    urls?: OrderRedirectUrls;
-    /** Signed-in customer placing the order (overrides the cart's). */
-    customerExternalId?: string | null;
-  }): Promise<CheckoutResult> {
+  async function checkout(params: CheckoutParams): Promise<CheckoutResult> {
+    const result = await placeFromCart(params);
+
+    if (result.type === 'payment_required') {
+      throw new Error('placeFromCart deferred a payment it was not asked to');
+    }
+
+    return result;
+  }
+
+  /**
+   * `checkout`; `deferPayment` leaves an online order pending without a
+   * payment page (paid with a saved payment method right after).
+   */
+  async function placeFromCart(
+    params: CheckoutParams & { deferPayment?: boolean },
+  ): Promise<CheckoutResult | { type: 'payment_required'; order: Order }> {
     const cart = await getCart(params.token);
 
     if (!cart) throw new ShopError('CART_NOT_FOUND', 'Unknown cart');
@@ -1708,7 +1790,7 @@ export function createShop(options: ShopOptions) {
         `${method} is not offered`,
       );
     }
-    if (method === 'online' && !params.urls)
+    if (method === 'online' && !params.urls && !params.deferPayment)
       invalid('urls are required for online payment');
 
     const customerExternalId =
@@ -1894,8 +1976,15 @@ export function createShop(options: ShopOptions) {
       return { type: 'placed', order };
     }
 
+    if (params.deferPayment) {
+      await emit(events);
+      return { type: 'payment_required', order };
+    }
+
     try {
-      const { url, order: updated } = await startPayment(order, params.urls!);
+      const { url, order: updated } = await startPayment(order, params.urls!, {
+        save: params.savePaymentMethod,
+      });
 
       await emit(events);
 
@@ -1916,11 +2005,19 @@ export function createShop(options: ShopOptions) {
     }
   }
 
-  async function startPayment(order: Order, orderUrls: OrderRedirectUrls) {
-    if (!provider)
-      throw new ShopError('PAYMENT_METHOD_UNAVAILABLE', 'No payment provider');
+  /**
+   * Claims the next payment attempt of an unpaid order: its number makes
+   * the provider reference unique (two tabs paying the same order get two
+   * pages), and a pending order gets the full time again. `charge` marks a
+   * charge of a saved payment method in flight: no other payment of the
+   * order starts until it is resolved.
+   */
+  async function claimPaymentAttempt(
+    order: Order,
+    params: { charge?: boolean } = {},
+  ) {
+    await settlePendingCharge(order);
 
-    // claim an attempt number (two tabs paying the same order get two pages)
     let claimed: Order | null = null;
 
     for (let attempt = 0; attempt < CAS_ATTEMPTS && !claimed; attempt++) {
@@ -1935,6 +2032,12 @@ export function createShop(options: ShopOptions) {
       ) {
         throw new ShopError('INVALID_STATE', 'Order cannot be paid');
       }
+      if (pendingChargeOf(current)) {
+        throw new ShopError(
+          'INVALID_STATE',
+          'A payment of this order is still processing',
+        );
+      }
 
       // the status is part of the compare-and-set: an order that expires
       // meanwhile gets no payment page (its gift cards were given back)
@@ -1948,6 +2051,17 @@ export function createShop(options: ShopOptions) {
         ],
         {
           paymentAttempts: current.paymentAttempts + 1,
+          ...(params.charge
+            ? {
+                metadata: {
+                  ...current.metadata,
+                  pendingCharge: {
+                    transactionId: null,
+                    startedAt: now().toISOString(),
+                  },
+                },
+              }
+            : {}),
           // a new payment page gets the full time again
           ...(current.status === 'pending'
             ? { expiresAt: new Date(now().getTime() + checkoutHours * HOUR) }
@@ -1959,6 +2073,31 @@ export function createShop(options: ShopOptions) {
 
     if (!claimed) throw new ShopError('BUSY', 'Order is changing, try again');
 
+    return claimed;
+  }
+
+  function paymentReference(order: Order) {
+    return `${ORDER_PREFIX}${order.id}_${order.paymentAttempts}`;
+  }
+
+  /** The payment method is saved only for signed-in customers. */
+  function savesPaymentMethod(order: Order, save: boolean | undefined) {
+    return (
+      save === true &&
+      order.customerExternalId !== null &&
+      typeof provider?.chargeToken === 'function'
+    );
+  }
+
+  async function startPayment(
+    order: Order,
+    orderUrls: OrderRedirectUrls,
+    params: { save?: boolean } = {},
+  ) {
+    if (!provider)
+      throw new ShopError('PAYMENT_METHOD_UNAVAILABLE', 'No payment provider');
+
+    const claimed = await claimPaymentAttempt(order);
     const urls =
       typeof orderUrls === 'function' ? await orderUrls(claimed) : orderUrls;
     const m = getMessages(claimed.locale);
@@ -1967,8 +2106,10 @@ export function createShop(options: ShopOptions) {
 
     try {
       page = await provider.createHostedPayment({
-        mode: 'charge',
-        referenceId: `${ORDER_PREFIX}${claimed.id}_${claimed.paymentAttempts}`,
+        mode: savesPaymentMethod(claimed, params.save)
+          ? 'charge_and_save'
+          : 'charge',
+        referenceId: paymentReference(claimed),
         amount: claimed.amountDue,
         currency: claimed.currency,
         purpose: interpolate(m.payment.purpose, { number: claimed.number }),
@@ -2004,6 +2145,8 @@ export function createShop(options: ShopOptions) {
   async function payOrder(params: {
     orderId: string;
     urls: OrderRedirectUrls;
+    /** Also save the payment method (signed-in customers, see `checkout`). */
+    savePaymentMethod?: boolean;
   }) {
     const order = await db.findOne('order', [
       { field: 'id', value: params.orderId },
@@ -2024,9 +2167,540 @@ export function createShop(options: ShopOptions) {
       );
     }
 
-    const { url } = await startPayment(order, params.urls);
+    const { url } = await startPayment(order, params.urls, {
+      save: params.savePaymentMethod,
+    });
 
     return { url };
+  }
+
+  // ------------------------------------------------- saved payment methods
+
+  function toView(method: PaymentMethod): PaymentMethodView {
+    const { token: _token, ...view } = method;
+
+    return view;
+  }
+
+  /** The customer's saved payment methods (active first). Tokens included. */
+  async function listPaymentMethods(customerExternalId: string) {
+    const methods = await db.findMany('paymentMethod', {
+      where: [{ field: 'customerExternalId', value: customerExternalId }],
+      sortBy: { field: 'createdAt', direction: 'desc' },
+    });
+
+    return methods.sort(
+      (a, b) => Number(b.status === 'active') - Number(a.status === 'active'),
+    );
+  }
+
+  async function activePaymentMethod(
+    customerExternalId: string,
+    paymentMethodId?: string | null,
+  ) {
+    return db.findOne('paymentMethod', [
+      { field: 'customerExternalId', value: customerExternalId },
+      { field: 'status', value: 'active' },
+      ...(paymentMethodId
+        ? [{ field: 'id' as const, value: paymentMethodId }]
+        : []),
+    ]);
+  }
+
+  /** The customer removes a saved payment method (it is kept as inactive). */
+  async function removePaymentMethod(params: {
+    customerExternalId: string;
+    paymentMethodId: string;
+  }) {
+    const removed = await db.update(
+      'paymentMethod',
+      [
+        { field: 'id', value: params.paymentMethodId },
+        { field: 'customerExternalId', value: params.customerExternalId },
+      ],
+      { status: 'inactive', updatedAt: now() },
+    );
+
+    if (!removed) {
+      throw new ShopError('PAYMENT_METHOD_NOT_FOUND', 'Unknown payment method');
+    }
+
+    return removed;
+  }
+
+  /**
+   * Token of a `charge_and_save` page: becomes the customer's active payment
+   * method (the previous one is deactivated). Guest orders save nothing.
+   */
+  async function savePaymentMethodOf(
+    event: Extract<ProviderEvent, { type: 'payment_method.saved' }>,
+  ) {
+    if (!provider) return;
+
+    const orderId = orderIdFromReference(event.referenceId);
+    const order = orderId
+      ? await db.findOne('order', [{ field: 'id', value: orderId }])
+      : null;
+    const customerExternalId = order?.customerExternalId;
+
+    if (!order || !customerExternalId) return;
+
+    // a redelivered notification
+    if (
+      await db.findOne('paymentMethod', [
+        { field: 'token', value: event.token },
+      ])
+    ) {
+      return;
+    }
+
+    const date = now();
+    let saved: PaymentMethod;
+
+    try {
+      saved = await transaction(async (d) => {
+        // the insert comes first: a concurrent delivery of the same token
+        // fails on the unique token instead of deactivating this one
+        const method = await d.create('paymentMethod', {
+          id: generateId(),
+          customerExternalId,
+          provider: provider.id,
+          token: event.token,
+          status: 'active',
+          brand: event.details.brand,
+          last4: event.details.last4,
+          expiry: event.details.expiry,
+          createdAt: date,
+          updatedAt: date,
+        });
+
+        await d.update(
+          'paymentMethod',
+          [
+            { field: 'customerExternalId', value: customerExternalId },
+            { field: 'status', value: 'active' },
+            { field: 'id', operator: 'ne', value: method.id },
+          ],
+          { status: 'inactive', updatedAt: date },
+        );
+
+        return method;
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) return;
+      throw error;
+    }
+
+    await emit([{ type: 'payment_method.saved', paymentMethod: saved, order }]);
+  }
+
+  type PendingCharge = { transactionId: string | null; startedAt: string };
+
+  function pendingChargeOf(order: Order) {
+    const pending = order.metadata.pendingCharge as PendingCharge | undefined;
+
+    return pending && typeof pending.startedAt === 'string' ? pending : null;
+  }
+
+  async function setPendingCharge(order: Order, pending: PendingCharge | null) {
+    const { pendingCharge: _previous, ...metadata } = order.metadata;
+
+    return (
+      (await db.update('order', [{ field: 'id', value: order.id }], {
+        metadata: pending ? { ...metadata, pendingCharge: pending } : metadata,
+        updatedAt: now(),
+      })) ?? order
+    );
+  }
+
+  /**
+   * A charge of a saved payment method that is not resolved yet blocks
+   * every new payment of the order (no double charge): confirmed meanwhile
+   * → the order is settled; declined, or a request that never came back
+   * (5 minutes) → paying again is fine; still processing → `INVALID_STATE`.
+   */
+  async function settlePendingCharge(order: Order) {
+    const pending = pendingChargeOf(order);
+
+    if (!pending) return;
+
+    let status: 'succeeded' | 'pending' | 'failed' = 'pending';
+
+    if (pending.transactionId === null) {
+      const age = now().getTime() - new Date(pending.startedAt).getTime();
+
+      if (age > 5 * 60 * 1000) status = 'failed';
+    } else if (provider?.getTransactionStatus) {
+      try {
+        status = await provider.getTransactionStatus(pending.transactionId);
+      } catch (error) {
+        logger.error(
+          { error, orderId: order.id },
+          'shop: charge status unknown',
+        );
+      }
+    }
+
+    if (status === 'succeeded' && pending.transactionId) {
+      await settle(order.id, {
+        via: 'provider',
+        transactionId: pending.transactionId,
+      });
+      throw new ShopError('INVALID_STATE', 'Order is paid');
+    }
+    if (status === 'pending') {
+      throw new ShopError(
+        'INVALID_STATE',
+        'A payment of this order is still processing',
+      );
+    }
+
+    await setPendingCharge(order, null);
+  }
+
+  /**
+   * Pays an unpaid order of a signed-in customer with their saved payment
+   * method – no payment page. A declined charge leaves the order payable
+   * (offer `payOrder`'s page); a token the provider refuses for good is
+   * deactivated.
+   */
+  async function payOrderWithSavedMethod(params: {
+    orderId: string;
+    customerExternalId: string;
+    /** Default: the customer's active payment method. */
+    paymentMethodId?: string | null;
+    /** The amount the customer confirmed; another amount due is refused. */
+    expectedAmount?: number;
+  }): Promise<SavedMethodPayment> {
+    if (!provider?.chargeToken || !configuredMethods.includes('online')) {
+      throw new ShopError(
+        'PAYMENT_METHOD_UNAVAILABLE',
+        'Saved payment methods are not offered',
+      );
+    }
+
+    const order = await db.findOne('order', [
+      { field: 'id', value: params.orderId },
+    ]);
+
+    if (order?.customerExternalId !== params.customerExternalId) {
+      throw new ShopError('ORDER_NOT_FOUND', 'Unknown order');
+    }
+    if (
+      order.paymentStatus !== 'unpaid' ||
+      (order.status !== 'pending' && order.status !== 'confirmed') ||
+      order.amountDue <= 0
+    ) {
+      throw new ShopError('INVALID_STATE', 'Order cannot be paid');
+    }
+    if (
+      params.expectedAmount !== undefined &&
+      params.expectedAmount !== order.amountDue
+    ) {
+      throw new ShopError(
+        'AMOUNT_CHANGED',
+        `The amount due is ${order.amountDue}, not ${params.expectedAmount}`,
+      );
+    }
+
+    const method = await activePaymentMethod(
+      params.customerExternalId,
+      params.paymentMethodId,
+    );
+
+    if (!method) {
+      throw new ShopError(
+        'PAYMENT_METHOD_NOT_FOUND',
+        'No saved payment method',
+      );
+    }
+
+    const claimed = await claimPaymentAttempt(order, { charge: true });
+    const m = getMessages(claimed.locale);
+    let result: ChargeResult;
+
+    try {
+      result = await provider.chargeToken({
+        token: method.token,
+        amount: claimed.amountDue,
+        currency: claimed.currency,
+        referenceId: paymentReference(claimed),
+        purpose: interpolate(m.payment.purpose, { number: claimed.number }),
+      });
+    } catch (error) {
+      result = {
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    if (result.status === 'succeeded') {
+      // `null`: the webhook of the charge was faster
+      const paid = await settle(claimed.id, {
+        via: 'provider',
+        transactionId: result.transactionId,
+      });
+
+      return { status: 'paid', order: paid ?? (await getOrder(claimed.id))! };
+    }
+
+    if (result.status === 'pending') {
+      return {
+        status: 'processing',
+        order: await setPendingCharge(claimed, {
+          transactionId: result.transactionId,
+          startedAt: now().toISOString(),
+        }),
+      };
+    }
+
+    const released = await setPendingCharge(claimed, null);
+
+    logger.info(
+      { orderId: claimed.id, error: result.error },
+      'shop: charge of a saved payment method failed',
+    );
+
+    if (result.status === 'failed' && !result.retryable) {
+      await db.update(
+        'paymentMethod',
+        [
+          { field: 'id', value: method.id },
+          { field: 'status', value: 'active' },
+        ],
+        { status: 'inactive', updatedAt: now() },
+      );
+    }
+
+    return {
+      status: 'failed',
+      order: released,
+      error: result.error,
+      providerError: result.status === 'error',
+    };
+  }
+
+  // ------------------------------------------------- orders in one call
+
+  /** Validated cart fields of an `OrderInput` (items merged by variant). */
+  async function cartFields(input: OrderInput) {
+    if (!Array.isArray(input.items) || input.items.length === 0) {
+      throw new ShopError('CART_EMPTY', 'No items');
+    }
+    if (input.items.length > maxItems) {
+      throw new ShopError('INVALID_QUANTITY', `At most ${maxItems} items`);
+    }
+
+    const items: CartItem[] = [];
+
+    for (const item of input.items) {
+      checkQuantity(item.quantity, false);
+
+      let variantId = item.variantId;
+
+      if (!variantId && item.sku) {
+        const bySku = await db.findOne('variant', [
+          { field: 'sku', value: item.sku },
+        ]);
+
+        if (!bySku) {
+          throw new ShopError('VARIANT_NOT_FOUND', `Unknown SKU ${item.sku}`);
+        }
+        variantId = bySku.id;
+      }
+      if (!variantId) invalid('every item needs a variantId or a sku');
+
+      const variant = await sellableVariant(variantId);
+      const existing = items.find((each) => each.variantId === variant.id);
+      const quantity = Math.min(
+        maxQuantity,
+        (existing?.quantity ?? 0) + item.quantity,
+      );
+
+      checkAvailable(variant, quantity);
+
+      if (existing) existing.quantity = quantity;
+      else items.push({ variantId: variant.id, quantity });
+    }
+
+    const email = input.email?.trim().toLowerCase() ?? '';
+
+    if (!isEmail(email)) invalid('invalid email');
+
+    if (
+      input.shippingRateId !== undefined &&
+      input.shippingRateId !== null &&
+      !rateIds.has(input.shippingRateId)
+    ) {
+      throw new ShopError('SHIPPING_RATE_UNAVAILABLE', 'Unknown shipping rate');
+    }
+
+    const note = input.note?.trim().slice(0, 1000) ?? '';
+    const code = input.discountCode
+      ? normalizeDiscountCode(input.discountCode)
+      : '';
+
+    return {
+      items,
+      email,
+      discountCode: code ? code : null,
+      shippingRateId: input.shippingRateId ?? null,
+      shippingAddress: cleanAddress(input.shippingAddress),
+      billingAddress: cleanAddress(input.billingAddress),
+      note: note ? note : null,
+      locale: resolveLocale(input.locale),
+    } satisfies Partial<Cart>;
+  }
+
+  /**
+   * Prices an order without placing it: lines, VAT, shipping options, what
+   * is still missing, and the saved payment method a signed-in customer can
+   * pay with. Nothing is stored or reserved.
+   */
+  async function quoteOrder(input: OrderInput): Promise<OrderQuote> {
+    const fields = await cartFields(input);
+    const date = now();
+    const { cart: _cart, ...summary } = await summarize({
+      id: 'quote',
+      token: '',
+      customerExternalId: input.customerExternalId,
+      status: 'active',
+      orderId: null,
+      expiresAt: date,
+      createdAt: date,
+      updatedAt: date,
+      ...fields,
+    });
+    const saved =
+      input.customerExternalId && provider?.chargeToken
+        ? await activePaymentMethod(input.customerExternalId)
+        : null;
+
+    return { ...summary, savedPaymentMethod: saved ? toView(saved) : null };
+  }
+
+  /**
+   * Places an order in one call (agents, MCP): online orders get a payment
+   * page, or are charged to the customer's saved payment method right away
+   * (`useSavedPaymentMethod`; a declined charge falls back to the page).
+   */
+  async function placeOrder(
+    input: OrderInput & {
+      paymentMethod: CheckoutPaymentMethod;
+      urls: OrderRedirectUrls;
+      giftCardCodes?: string[];
+      /** Save the payment method used on the page (signed-in customers). */
+      savePaymentMethod?: boolean;
+      /** Charge the saved payment method (id, or `true` for the active one). */
+      useSavedPaymentMethod?: boolean | string;
+      /** Required with `useSavedPaymentMethod`: the amount the customer confirmed. */
+      expectedAmount?: number;
+    },
+  ): Promise<PlaceOrderResult> {
+    const useSaved = input.useSavedPaymentMethod
+      ? input.useSavedPaymentMethod
+      : null;
+
+    if (useSaved) {
+      if (!input.customerExternalId) {
+        throw new ShopError(
+          'PAYMENT_METHOD_NOT_FOUND',
+          'Guests have no saved payment method',
+        );
+      }
+      if (input.paymentMethod !== 'online') {
+        invalid('a saved payment method pays online');
+      }
+      if (input.expectedAmount === undefined) {
+        invalid('expectedAmount is required to charge a saved payment method');
+      }
+      if (!provider?.chargeToken) {
+        throw new ShopError(
+          'PAYMENT_METHOD_UNAVAILABLE',
+          'Saved payment methods are not offered',
+        );
+      }
+      if (
+        !(await activePaymentMethod(
+          input.customerExternalId,
+          typeof useSaved === 'string' ? useSaved : null,
+        ))
+      ) {
+        throw new ShopError(
+          'PAYMENT_METHOD_NOT_FOUND',
+          'No saved payment method',
+        );
+      }
+    }
+
+    const fields = await cartFields(input);
+    const cart = await createCart({
+      customerExternalId: input.customerExternalId,
+      locale: fields.locale,
+    });
+
+    await mutateCart(cart.token, () => fields);
+
+    const result = await placeFromCart({
+      token: cart.token,
+      paymentMethod: input.paymentMethod,
+      customerExternalId: input.customerExternalId,
+      giftCardCodes: input.giftCardCodes,
+      urls: input.urls,
+      savePaymentMethod: input.savePaymentMethod,
+      deferPayment: useSaved !== null,
+    });
+
+    if (result.type === 'redirect') {
+      return {
+        order: result.order,
+        payment: { status: 'payment_page', url: result.url },
+      };
+    }
+
+    if (result.type === 'placed') {
+      return {
+        order: result.order,
+        payment: {
+          status: result.order.paymentStatus === 'paid' ? 'paid' : 'invoice',
+        },
+      };
+    }
+
+    // the saved payment method pays – only the amount the customer confirmed
+    if (result.order.amountDue !== input.expectedAmount) {
+      await releaseOrder(result.order.id, 'canceled', 'amount changed');
+
+      throw new ShopError(
+        'AMOUNT_CHANGED',
+        `The amount due is ${result.order.amountDue}, not ${input.expectedAmount}`,
+      );
+    }
+
+    const charge = await payOrderWithSavedMethod({
+      orderId: result.order.id,
+      customerExternalId: input.customerExternalId!,
+      paymentMethodId: typeof useSaved === 'string' ? useSaved : null,
+      expectedAmount: input.expectedAmount,
+    });
+
+    if (charge.status !== 'failed') {
+      return { order: charge.order, payment: { status: charge.status } };
+    }
+
+    // declined: the customer pays on the page instead
+    const page = await startPayment(charge.order, input.urls, {
+      save: input.savePaymentMethod,
+    });
+
+    return {
+      order: page.order,
+      payment: {
+        status: 'payment_page',
+        url: page.url,
+        savedMethodError: charge.error,
+      },
+    };
   }
 
   // ------------------------------------------------------------ payment
@@ -2277,7 +2951,18 @@ export function createShop(options: ShopOptions) {
     );
   }
 
+  function isSavedMethodEvent(
+    event: ProviderEvent,
+  ): event is Extract<ProviderEvent, { type: 'payment_method.saved' }> {
+    return event.type === 'payment_method.saved' && 'token' in event;
+  }
+
   async function applyProviderEvent(event: ProviderEvent) {
+    if (isSavedMethodEvent(event)) {
+      await savePaymentMethodOf(event);
+      return;
+    }
+
     if (!isPaymentEvent(event)) return;
 
     const orderId = orderIdFromReference(event.referenceId);
@@ -3108,6 +3793,12 @@ export function createShop(options: ShopOptions) {
     getCartSummary,
     checkout,
     payOrder,
+    // orders in one call (agents) & saved payment methods
+    quoteOrder,
+    placeOrder,
+    payOrderWithSavedMethod,
+    listPaymentMethods,
+    removePaymentMethod,
     // orders
     getOrder,
     getOrderWithToken,

@@ -37,6 +37,10 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   `<OrderHistory />`, `useCart()`. Config: `createShop({ database, provider,
   shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
   sends payment reminders; invoice orders are booked from camt.053 / camt.054.
+  Signed-in customers can save their payment method (card, TWINT) while
+  paying (`savePaymentMethod`) and pay later orders with it, no payment page
+  (`payOrderWithSavedMethod`). Orders in one call for agents: `quoteOrder`,
+  `placeOrder`.
   Next: Swiss Post labels and live tariffs, digital downloads.
 
 ## Test sites
@@ -129,6 +133,14 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   Mounted as a POST route, your `authorize` on every request (`'read-only'`
   hides the tools that change data). Payment and guest-link tokens never
   reach the model.
+- MCP for your shop's customers: `createShopCustomerMcpHandler` from
+  `@agentkit.ch/shopkit/mcp` – the customer's agent searches products, quotes
+  and places orders and gets a zahls.ch payment link back; with a saved
+  payment method it pays directly, only for the amount the customer
+  confirmed (`expectedAmount`). Your `identify` returns the signed-in
+  customer on every request; tools: `search_products`, `get_product`,
+  `quote_order`, `place_order`, `pay_order`, `list_my_orders`,
+  `get_my_order`, `list_payment_methods`, `remove_payment_method`.
 
 ## Website languages
 

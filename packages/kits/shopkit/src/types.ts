@@ -336,6 +336,30 @@ export type Order = {
   updatedAt: Date;
 };
 
+/**
+ * A signed-in customer's tokenized payment method (card, TWINT), saved when
+ * they paid an order on a `charge_and_save` page. Orders of that customer
+ * can then be paid without the payment page.
+ */
+export type PaymentMethod = {
+  id: string;
+  /** Your id of the customer (`customerExternalId` of the order). */
+  customerExternalId: string;
+  /** Provider that issued the token (`zahls`). */
+  provider: string;
+  /** Secret of the provider – never shown to customers or agents. Unique. */
+  token: string;
+  /** One active payment method per customer; a new one replaces it. */
+  status: 'active' | 'inactive';
+  /** `Visa`, `TWINT`, … */
+  brand: string | null;
+  last4: string | null;
+  /** `MM/YY` */
+  expiry: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type ModelMap = {
   product: Product;
   variant: Variant;
@@ -343,6 +367,7 @@ export type ModelMap = {
   discount: Discount;
   giftCard: GiftCard;
   order: Order;
+  paymentMethod: PaymentMethod;
 };
 
 export type ModelName = keyof ModelMap;
@@ -364,5 +389,7 @@ export type ShopEvent =
    */
   | { type: 'order.late_payment'; order: Order }
   | { type: 'gift_card.issued'; giftCard: GiftCard; order: Order | null }
+  /** A customer saved a payment method while paying `order`. */
+  | { type: 'payment_method.saved'; paymentMethod: PaymentMethod; order: Order }
   /** Stock of a tracked variant fell to `lowStockThreshold` or below. */
   | { type: 'stock.low'; variant: Variant; product: Product };

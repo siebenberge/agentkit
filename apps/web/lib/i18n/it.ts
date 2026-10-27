@@ -457,6 +457,16 @@ export const it: Dict = {
           'Il metodo di pagamento (online o fattura) non è offerto per questo shop o questo ordine, oppure non è configurato alcun fornitore.',
         fix: 'Configura il fornitore e i metodi di pagamento in `createShop()`, oppure scegli un altro metodo.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'Il cliente non ha (questo) metodo di pagamento salvato: nessuno ancora salvato, rimosso, rifiutato dal fornitore e disattivato, oppure appartiene a un altro cliente.',
+        fix: 'Ordina senza `useSavedPaymentMethod` (link di pagamento) e lascia che il cliente ne salvi uno con `savePaymentMethod: true`.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'L’importo dovuto è diverso da quello confermato dal cliente (`expectedAmount`), ad esempio perché è cambiato un prezzo, uno sconto o la spedizione. Non è stato addebitato nulla.',
+        fix: 'Ricalcola l’ordine (`quoteOrder` / `quote_order`), mostra al cliente il nuovo importo e ordina di nuovo con l’importo confermato.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'Nessun ordine con questo id, oppure il token del link dell’ordine non corrisponde.',

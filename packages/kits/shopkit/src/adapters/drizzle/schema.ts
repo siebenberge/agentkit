@@ -24,6 +24,7 @@ import type {
   OrderRefund,
   OrderShipping,
   OrderStatus,
+  PaymentMethod,
   PaymentStatus,
   ProductKind,
   ProductStatus,
@@ -241,6 +242,30 @@ export const shop_orders = pgTable(
   ],
 );
 
+/** Saved payment methods (new, additive) – generate a migration when you upgrade. */
+export const shop_payment_methods = pgTable(
+  'shop_payment_methods',
+  {
+    id: text('id').primaryKey(),
+    customerExternalId: text('customer_external_id').notNull(),
+    provider: text('provider').notNull(),
+    token: text('token').notNull(),
+    status: text('status').$type<PaymentMethod['status']>().notNull(),
+    brand: text('brand'),
+    last4: text('last4'),
+    expiry: text('expiry'),
+    createdAt: timestamptz('created_at').notNull(),
+    updatedAt: timestamptz('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('shop_payment_methods_token_key').on(table.token),
+    index('ix_shop_payment_methods_customer').on(
+      table.customerExternalId,
+      table.status,
+    ),
+  ],
+);
+
 export const shopTables = {
   product: shop_products,
   variant: shop_variants,
@@ -248,4 +273,5 @@ export const shopTables = {
   discount: shop_discounts,
   giftCard: shop_gift_cards,
   order: shop_orders,
+  paymentMethod: shop_payment_methods,
 };

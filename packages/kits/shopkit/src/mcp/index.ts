@@ -26,7 +26,14 @@ export {
   createMcpHandler,
   type McpServerOptions,
   type McpTool,
+  type ToolContext,
 } from './server';
+export {
+  createShopCustomerMcpHandler,
+  customerTools,
+  type McpCustomer,
+  type ShopCustomerMcpOptions,
+} from './customer';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -35,7 +42,8 @@ export type ShopMcpOptions = {
   /**
    * Whether the caller may run the tools – your staff or API-token check.
    * `'read-only'` offers only the tools that read. The tools act on the
-   * whole shop: never hand this endpoint to customers.
+   * whole shop: never hand this endpoint to customers (they get
+   * `createShopCustomerMcpHandler`).
    */
   authorize: (request: Request) => MaybePromise<boolean | 'read-only'>;
   /** Browser origins allowed besides the endpoint's own (default none). */

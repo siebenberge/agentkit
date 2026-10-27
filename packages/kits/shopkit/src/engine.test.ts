@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { memoryAdapter } from './adapters/memory';
 import { type ShopOptions, createShop } from './engine';
 import type {
+  ChargeResult,
+  ChargeTokenParams,
   CreateHostedPaymentParams,
   PaymentProvider,
   ProviderEvent,
@@ -42,7 +44,18 @@ function fakeProvider() {
   const pages: CreateHostedPaymentParams[] = [];
   const refunds: RefundParams[] = [];
   const verified: string[] = [];
-  const state = { failPage: false, failRefund: false };
+  const charges: ChargeTokenParams[] = [];
+  const state: {
+    failPage: boolean;
+    failRefund: boolean;
+    charge: ChargeResult | 'throw';
+    transactionStatus: 'succeeded' | 'pending' | 'failed';
+  } = {
+    failPage: false,
+    failRefund: false,
+    charge: { status: 'succeeded', transactionId: 'tx_charge' },
+    transactionStatus: 'pending',
+  };
 
   const provider: PaymentProvider = {
     id: 'fake',
@@ -69,6 +82,14 @@ function fakeProvider() {
 
       return known;
     },
+    chargeToken(params) {
+      charges.push(params);
+
+      if (state.charge === 'throw') return Promise.reject(new Error('down'));
+
+      return Promise.resolve(state.charge);
+    },
+    getTransactionStatus: () => Promise.resolve(state.transactionStatus),
     refund(params) {
       if (state.failRefund) return Promise.reject(new Error('refused'));
 
@@ -78,7 +99,7 @@ function fakeProvider() {
     },
   };
 
-  return { provider, pages, refunds, verified, state };
+  return { provider, pages, refunds, verified, charges, state };
 }
 
 async function setup(overrides: Partial<ShopOptions> = {}) {
@@ -1313,5 +1334,431 @@ describe('orders and jobs', () => {
     await expect(
       shop.checkout({ token: cart.token, paymentMethod: 'online', urls }),
     ).rejects.toMatchObject({ code: 'PAYMENT_METHOD_UNAVAILABLE' });
+  });
+});
+
+describe('saved payment methods and orders in one call', () => {
+  const pickupOrder = (variantId: string, quantity = 1) => ({
+    customerExternalId: 'user_1',
+    email: 'Anna@Example.ch',
+    items: [{ variantId, quantity }],
+    shippingRateId: 'pickup',
+  });
+
+  /** Anna pays a first order on the page and saves her card. */
+  async function withSavedCard() {
+    const context = await setup();
+    const { shop, products, variant, fake, webhook } = context;
+    const first = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+      savePaymentMethod: true,
+    });
+
+    expect(first.payment).toEqual({
+      status: 'payment_page',
+      url: 'https://pay.example/1',
+    });
+    expect(fake.pages[0]?.mode).toBe('charge_and_save');
+
+    const reference = fake.pages[0]!.referenceId;
+
+    await webhook([
+      {
+        type: 'payment_method.saved',
+        referenceId: reference,
+        token: 'tok_visa',
+        details: { brand: 'Visa', last4: '4242', expiry: '12/29' },
+      },
+      {
+        type: 'payment.succeeded',
+        referenceId: reference,
+        transactionId: 'tx_first',
+        amount: 3_900,
+        currency: 'CHF',
+      },
+    ]);
+
+    return { ...context, first };
+  }
+
+  it('quotes an order without storing anything', async () => {
+    const { shop, products, variant, database } = await setup();
+    const quote = await shop.quoteOrder({
+      ...pickupOrder(variant(products.book), 2),
+      shippingRateId: null,
+    });
+
+    expect(quote.pricing.total).toBe(7_800);
+    expect(quote.missing).toEqual(['shipping_rate', 'shipping_address']);
+    expect(quote.shippingOptions.map((option) => option.id)).toEqual([
+      'post',
+      'pickup',
+    ]);
+    expect(quote.savedPaymentMethod).toBeNull();
+    expect(database.tables.cart).toHaveLength(0);
+  });
+
+  it('finds variants by SKU and needs no address for pickup', async () => {
+    const { shop } = await setup();
+    const result = await shop.placeOrder({
+      customerExternalId: null,
+      email: 'gast@example.ch',
+      items: [
+        { sku: 'BOOK', quantity: 1 },
+        { sku: 'BOOK', quantity: 2 },
+      ],
+      shippingRateId: 'pickup',
+      paymentMethod: 'invoice',
+      urls,
+    });
+
+    expect(result.payment).toEqual({ status: 'invoice' });
+    expect(result.order).toMatchObject({
+      status: 'confirmed',
+      shippingAddress: null,
+      total: 11_700,
+      email: 'gast@example.ch',
+    });
+    await expect(
+      shop.quoteOrder({
+        customerExternalId: null,
+        email: 'gast@example.ch',
+        items: [{ sku: 'NOPE', quantity: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'VARIANT_NOT_FOUND' });
+  });
+
+  it('saves the payment method of a signed-in customer', async () => {
+    const { shop, first, types } = await withSavedCard();
+    const methods = await shop.listPaymentMethods('user_1');
+
+    expect(methods).toHaveLength(1);
+    expect(methods[0]).toMatchObject({
+      customerExternalId: 'user_1',
+      provider: 'fake',
+      token: 'tok_visa',
+      status: 'active',
+      brand: 'Visa',
+      last4: '4242',
+    });
+    expect((await shop.getOrder(first.order.id))?.paymentStatus).toBe('paid');
+    expect(types()).toEqual([
+      'payment_method.saved',
+      'order.placed',
+      'order.paid',
+    ]);
+  });
+
+  it('saves nothing for guests or without consent', async () => {
+    const { shop, products, variant, fake, webhook } = await setup();
+
+    await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      customerExternalId: null,
+      paymentMethod: 'online',
+      urls,
+      savePaymentMethod: true,
+    });
+    await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+    });
+
+    expect(fake.pages.map((page) => page.mode)).toEqual(['charge', 'charge']);
+
+    await webhook([
+      {
+        type: 'payment_method.saved',
+        referenceId: fake.pages[0]!.referenceId,
+        token: 'tok_guest',
+        details: { brand: null, last4: null, expiry: null },
+      },
+    ]);
+
+    expect(await shop.listPaymentMethods('user_1')).toEqual([]);
+  });
+
+  it('pays the next order with the saved payment method', async () => {
+    const { shop, products, variant, fake, events } = await withSavedCard();
+    const quote = await shop.quoteOrder(pickupOrder(variant(products.book)));
+
+    expect(quote.savedPaymentMethod).toMatchObject({
+      brand: 'Visa',
+      last4: '4242',
+    });
+    expect(quote.savedPaymentMethod).not.toHaveProperty('token');
+
+    const result = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+      useSavedPaymentMethod: true,
+      expectedAmount: quote.pricing.total,
+    });
+
+    expect(result.payment).toEqual({ status: 'paid' });
+    expect(result.order).toMatchObject({
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      providerTransactionId: 'tx_charge',
+    });
+    expect(fake.pages).toHaveLength(1);
+    expect(fake.charges).toEqual([
+      {
+        token: 'tok_visa',
+        amount: 3_900,
+        currency: 'CHF',
+        referenceId: `so_${result.order.id}_1`,
+        purpose: `Bestellung ${result.order.number}`,
+      },
+    ]);
+    expect(events.at(-1)?.type).toBe('order.paid');
+  });
+
+  it('refuses another amount than the confirmed one', async () => {
+    const { shop, products, variant, fake, stockOf } = await withSavedCard();
+
+    await expect(
+      shop.placeOrder({
+        ...pickupOrder(variant(products.shoe)),
+        paymentMethod: 'online',
+        urls,
+        useSavedPaymentMethod: true,
+        expectedAmount: 100,
+      }),
+    ).rejects.toMatchObject({ code: 'AMOUNT_CHANGED' });
+
+    expect(fake.charges).toEqual([]);
+    expect(await stockOf(variant(products.shoe))).toBe(5);
+    await expect(
+      shop.placeOrder({
+        ...pickupOrder(variant(products.book)),
+        paymentMethod: 'online',
+        urls,
+        useSavedPaymentMethod: true,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('falls back to the payment page when the charge is declined', async () => {
+    const { shop, products, variant, fake } = await withSavedCard();
+
+    fake.state.charge = {
+      status: 'failed',
+      error: 'card expired',
+      retryable: false,
+    };
+
+    const result = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+      useSavedPaymentMethod: true,
+      expectedAmount: 3_900,
+      savePaymentMethod: true,
+    });
+
+    expect(result.payment).toEqual({
+      status: 'payment_page',
+      url: 'https://pay.example/2',
+      savedMethodError: 'card expired',
+    });
+    expect(result.order).toMatchObject({
+      status: 'pending',
+      paymentStatus: 'unpaid',
+      paymentAttempts: 2,
+    });
+    expect(fake.pages[1]).toMatchObject({
+      mode: 'charge_and_save',
+      referenceId: `so_${result.order.id}_2`,
+    });
+    // the token is refused for good: deactivated
+    expect((await shop.listPaymentMethods('user_1'))[0]?.status).toBe(
+      'inactive',
+    );
+    expect(
+      (await shop.quoteOrder(pickupOrder(variant(products.book))))
+        .savedPaymentMethod,
+    ).toBeNull();
+  });
+
+  it('keeps the payment method when the provider is down', async () => {
+    const { shop, products, variant, fake } = await withSavedCard();
+    const { order } = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+    });
+
+    fake.state.charge = 'throw';
+
+    const payment = await shop.payOrderWithSavedMethod({
+      orderId: order.id,
+      customerExternalId: 'user_1',
+    });
+
+    expect(payment).toMatchObject({ status: 'failed', providerError: true });
+    expect((await shop.listPaymentMethods('user_1'))[0]?.status).toBe('active');
+
+    // a pending charge is settled by its webhook
+    fake.state.charge = { status: 'pending', transactionId: 'tx_later' };
+
+    const pending = await shop.payOrderWithSavedMethod({
+      orderId: order.id,
+      customerExternalId: 'user_1',
+      expectedAmount: 3_900,
+    });
+
+    expect(pending.status).toBe('processing');
+    expect(fake.charges.at(-1)?.referenceId).toBe(`so_${order.id}_3`);
+  });
+
+  it('only charges the customer’s own orders and methods', async () => {
+    const { shop, products, variant, first } = await withSavedCard();
+    const { order } = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+    });
+
+    await expect(
+      shop.payOrderWithSavedMethod({
+        orderId: order.id,
+        customerExternalId: 'user_2',
+      }),
+    ).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
+    await expect(
+      shop.payOrderWithSavedMethod({
+        orderId: first.order.id,
+        customerExternalId: 'user_1',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+
+    const [method] = await shop.listPaymentMethods('user_1');
+
+    await expect(
+      shop.removePaymentMethod({
+        customerExternalId: 'user_2',
+        paymentMethodId: method!.id,
+      }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_METHOD_NOT_FOUND' });
+
+    await shop.removePaymentMethod({
+      customerExternalId: 'user_1',
+      paymentMethodId: method!.id,
+    });
+
+    await expect(
+      shop.payOrderWithSavedMethod({
+        orderId: order.id,
+        customerExternalId: 'user_1',
+      }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_METHOD_NOT_FOUND' });
+  });
+
+  it('replaces the active payment method with a newly saved one', async () => {
+    const { shop, products, variant, fake, webhook } = await withSavedCard();
+
+    await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+      savePaymentMethod: true,
+    });
+    await webhook([
+      {
+        type: 'payment_method.saved',
+        referenceId: fake.pages[1]!.referenceId,
+        token: 'tok_twint',
+        details: { brand: 'TWINT', last4: null, expiry: null },
+      },
+    ]);
+    // redelivered: nothing new
+    await webhook([
+      {
+        type: 'payment_method.saved',
+        referenceId: fake.pages[1]!.referenceId,
+        token: 'tok_twint',
+        details: { brand: 'TWINT', last4: null, expiry: null },
+      },
+    ]);
+
+    const methods = await shop.listPaymentMethods('user_1');
+
+    expect(methods.map((method) => [method.brand, method.status])).toEqual([
+      ['TWINT', 'active'],
+      ['Visa', 'inactive'],
+    ]);
+  });
+
+  it('never charges an order twice while a charge is processing', async () => {
+    const { shop, products, variant, fake, clock, database } =
+      await withSavedCard();
+    const { order } = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+    });
+
+    fake.state.charge = { status: 'pending', transactionId: 'tx_slow' };
+
+    const pay = () =>
+      shop.payOrderWithSavedMethod({
+        orderId: order.id,
+        customerExternalId: 'user_1',
+      });
+
+    expect((await pay()).status).toBe('processing');
+
+    // still processing: neither a second charge nor a payment page
+    await expect(pay()).rejects.toMatchObject({ code: 'INVALID_STATE' });
+    await expect(
+      shop.payOrder({ orderId: order.id, urls }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+    expect(fake.charges).toHaveLength(1);
+
+    // declined after all: paying again is fine
+    fake.state.transactionStatus = 'failed';
+    fake.state.charge = { status: 'pending', transactionId: 'tx_slow_2' };
+    expect((await pay()).status).toBe('processing');
+    expect(fake.charges).toHaveLength(2);
+
+    // confirmed: the order is settled instead of charged again
+    fake.state.transactionStatus = 'succeeded';
+    await expect(pay()).rejects.toMatchObject({ code: 'INVALID_STATE' });
+    expect(fake.charges).toHaveLength(2);
+    expect(await shop.getOrder(order.id)).toMatchObject({
+      paymentStatus: 'paid',
+      providerTransactionId: 'tx_slow_2',
+    });
+
+    // a request that never came back blocks only for a few minutes
+    const second = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+    });
+    const paySecond = () =>
+      shop.payOrderWithSavedMethod({
+        orderId: second.order.id,
+        customerExternalId: 'user_1',
+      });
+
+    await database.update('order', [{ field: 'id', value: second.order.id }], {
+      metadata: {
+        pendingCharge: {
+          transactionId: null,
+          startedAt: clock.now.toISOString(),
+        },
+      },
+    });
+    await expect(paySecond()).rejects.toMatchObject({ code: 'INVALID_STATE' });
+
+    clock.now = new Date(clock.now.getTime() + 6 * 60 * 1000);
+    fake.state.charge = { status: 'succeeded', transactionId: 'tx_ok' };
+    expect((await paySecond()).status).toBe('paid');
   });
 });

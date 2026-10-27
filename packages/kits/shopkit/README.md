@@ -58,6 +58,10 @@ The package ships ES modules with type declarations; peer dependencies
   invoice with QR-bill (payment term, reminders after the due date,
   `invoice.allow` decides who may buy on invoice); orders fully covered by
   gift cards need no payment.
+- **Saved payment methods**: signed-in customers save their card or TWINT
+  while paying (`savePaymentMethod: true`, zahls.ch tokenization) and pay
+  later orders with it, without the payment page
+  (`payOrderWithSavedMethod`); a declined charge falls back to the page.
 - **Orders**: numbers, guest links with access token, statuses for order,
   payment and fulfillment; shipped (tracking), delivered / picked up,
   canceled; refunds in parts (provider first, then gift cards); late
@@ -241,6 +245,50 @@ Tools: `list_orders`, `get_order`, `mark_order_paid`, `ship_order`,
 `set_stock`, `list_discounts`, `set_discount_active`, `list_gift_cards`,
 `issue_gift_card`, `disable_gift_card`. Guest-link tokens are removed from
 orders; listed gift card codes show only their last 4 characters.
+
+### MCP server for your customers
+
+Let your customers order through their own agent: it finds products, prices
+the order, places it and gets a zahls.ch payment link back. A customer who
+saved a payment method pays directly – only the amount they confirmed.
+
+```ts
+// app/api/shop-agent/route.ts
+import { createShopCustomerMcpHandler } from '@agentkit.ch/shopkit/mcp';
+import { shop } from '@/lib/shop';
+
+export const POST = createShopCustomerMcpHandler({
+  shop,
+  // the signed-in customer of the request (OAuth access token, personal
+  // API key of their account …); null → 401
+  identify: async (request) => {
+    const user = await userFromBearerToken(request.headers.get('authorization'));
+    return user ? { externalId: user.id, email: user.email, name: user.name } : null;
+  },
+  orderUrl: (order) => `https://acme.ch/bestellung/${order.id}?token=${order.accessToken}`,
+  locale: 'de',
+});
+```
+
+Tools: `search_products`, `get_product`, `quote_order` (lines, VAT, total,
+shipping / pickup options, the saved payment method), `place_order`,
+`pay_order`, `list_my_orders`, `get_my_order`, `list_payment_methods`,
+`remove_payment_method`. Every tool acts only for the customer `identify`
+returns; payment tokens and guest-link tokens never reach the model.
+
+- `place_order` with `payWith: "payment_link"` (default) returns `paymentUrl`.
+  `savePaymentMethod: true` (only when the customer asks) saves the card /
+  TWINT used on that page for later orders.
+- `payWith: "saved_payment_method"` charges the saved payment method at once
+  and needs `expectedAmount`, the total the customer confirmed – another
+  amount fails with `AMOUNT_CHANGED` before anything is charged. A declined
+  charge returns a `paymentUrl` instead.
+- The same works without MCP: `shop.quoteOrder()`, `shop.placeOrder()`,
+  `shop.payOrderWithSavedMethod()`, `shop.listPaymentMethods()`.
+
+Saved payment methods need a provider with `chargeToken` (`zahlsProvider`
+has it) and the new table `shop_payment_methods` – generate a migration
+from `@agentkit.ch/shopkit/drizzle/schema` when you upgrade (additive).
 
 ## Development
 

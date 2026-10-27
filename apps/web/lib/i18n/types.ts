@@ -63,6 +63,8 @@ export const ERROR_DOC_KEYS = [
   'shopkit.SHIPPING_RATE_REQUIRED',
   'shopkit.SHIPPING_RATE_UNAVAILABLE',
   'shopkit.PAYMENT_METHOD_UNAVAILABLE',
+  'shopkit.PAYMENT_METHOD_NOT_FOUND',
+  'shopkit.AMOUNT_CHANGED',
   'shopkit.ORDER_NOT_FOUND',
   'shopkit.INVALID_STATE',
   'shopkit.REFUND_TOO_HIGH',

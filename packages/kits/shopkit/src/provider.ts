@@ -1,12 +1,17 @@
 /**
  * Payment provider contract of the shop. It is a subset of subkit's
- * `PaymentProvider` (shops only use one-off payments, `mode: 'charge'`), so
- * one provider instance can serve both kits.
+ * `PaymentProvider`, so one provider instance can serve both kits.
  */
 
+/**
+ * - `charge`: one-off payment, nothing tokenized.
+ * - `charge_and_save`: the customer pays now and the payment method is
+ *   tokenized for later orders (signed-in customers who agreed).
+ */
+export type HostedPaymentMode = 'charge' | 'charge_and_save';
+
 export type CreateHostedPaymentParams = {
-  /** Always `charge` for the shop: one-off payment, nothing tokenized. */
-  mode: 'charge';
+  mode: HostedPaymentMode;
   /** Routes the provider's webhook back to the order. */
   referenceId: string;
   amount: number;
@@ -18,8 +23,38 @@ export type CreateHostedPaymentParams = {
   failedUrl: string;
 };
 
+export type ChargeTokenParams = {
+  token: string;
+  amount: number;
+  currency: string;
+  referenceId: string;
+  purpose: string;
+};
+
+export type ChargeResult =
+  | { status: 'succeeded'; transactionId: string }
+  /** Accepted, final result follows by webhook / `getTransactionStatus`. */
+  | { status: 'pending'; transactionId: string }
+  /** Declined; `retryable: false` when the token cannot be used any more. */
+  | { status: 'failed'; error: string; retryable: boolean }
+  /** The provider could not process the request (outage, credentials). */
+  | { status: 'error'; error: string };
+
+export type SavedPaymentMethodDetails = {
+  brand: string | null;
+  last4: string | null;
+  expiry: string | null;
+};
+
 /** Verified, provider-neutral webhook payload. */
 export type ProviderEvent =
+  /** The payment method of a `charge_and_save` page was tokenized. */
+  | {
+      type: 'payment_method.saved';
+      referenceId: string;
+      token: string;
+      details: SavedPaymentMethodDetails;
+    }
   | {
       type: 'payment.succeeded';
       referenceId: string;
@@ -33,7 +68,7 @@ export type ProviderEvent =
       transactionId: string;
       error: string;
     }
-  /** Other kinds (e.g. subkit's `payment_method.saved`) are ignored. */
+  /** Other kinds are ignored. */
   | { type: string; referenceId: string };
 
 export type WebhookContext = {
@@ -70,6 +105,18 @@ export interface PaymentProvider {
     request: Request,
     context: WebhookContext,
   ): Promise<ProviderEvent[]>;
+
+  /**
+   * Merchant-initiated charge of a saved payment method. Optional: without
+   * it (and `charge_and_save` pages) customers cannot pay with a saved
+   * payment method.
+   */
+  chargeToken?(params: ChargeTokenParams): Promise<ChargeResult>;
+
+  /** Final state of a `pending` charge. */
+  getTransactionStatus?(
+    transactionId: string,
+  ): Promise<'succeeded' | 'pending' | 'failed'>;
 
   /**
    * Pays (part of) a payment back. Optional: without it refunds are made in
