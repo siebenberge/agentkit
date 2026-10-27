@@ -71,6 +71,9 @@ export const ERROR_DOC_KEYS = [
   'shopkit.TOO_LARGE',
   'shopkit.NO_PAYMENT_SLIP',
   'shopkit.INVALID_CAMT',
+  'shopkit.HSSOFT_REJECTED',
+  'shopkit.HSSOFT_UNAVAILABLE',
+  'shopkit.HSSOFT_UNMAPPED',
 ] as const;
 
 export type ErrorDocKey = (typeof ERROR_DOC_KEYS)[number];

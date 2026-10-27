@@ -29,7 +29,13 @@ export type ShopErrorCode =
   | 'INVALID_INPUT'
   | 'WEBHOOK_INVALID'
   /** Refused by the app's rate limit (HTTP 429). */
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  /** HS-Soft (WaWiAssist) refused the request (key, channel, content). */
+  | 'HSSOFT_REJECTED'
+  /** HS-Soft could not be reached or failed transiently. */
+  | 'HSSOFT_UNAVAILABLE'
+  /** An order line or the shipping has no HS-Soft article. */
+  | 'HSSOFT_UNMAPPED';
 
 /** Every error code with its cause and fix, in de / fr / it / en. */
 export const ERRORS_URL = 'https://agentkit.ch/errors';

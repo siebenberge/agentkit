@@ -85,6 +85,7 @@ export const it: Dict = {
           'Magazzino e spese di spedizione secondo il peso',
           'Codici sconto',
           'Buoni regalo',
+          'Collegamento a HS-Soft (WaWiAssist)',
         ],
       },
     },
@@ -494,6 +495,21 @@ export const it: Dict = {
       'shopkit.INVALID_CAMT': {
         cause: 'Il file bancario non è un documento XML camt.053 o camt.054.',
         fix: 'Esporta il camt.054 (o camt.053) in XML dall’e-banking e invialo come `{ "camt": "<?xml …" }`.',
+      },
+      'shopkit.HSSOFT_REJECTED': {
+        cause:
+          'HS-Soft (WaWiAssist) ha rifiutato la richiesta: chiave API non valida, un canale che la chiave non può scrivere, data d’ordine bloccata, ordine già fatturato o articolo sconosciuto. `error.details.type` indica il motivo.',
+        fix: 'Correggi la causa (verifica la chiave API presso HS-Soft, correggi la data o l’articolo) e invia di nuovo l’ordine con `syncOrder(id, { force: true })`. Ripetere senza modifiche non serve.',
+      },
+      'shopkit.HSSOFT_UNAVAILABLE': {
+        cause:
+          'HS-Soft non era raggiungibile o aveva un disturbo temporaneo (503, timeout, errore del gateway).',
+        fix: '`syncOrders()` riprova da solo dopo `retryMinutes`. Se l’ordine è `uncertain`, controlla prima in WaWiAssist se è arrivato – solo dopo invialo di nuovo.',
+      },
+      'shopkit.HSSOFT_UNMAPPED': {
+        cause:
+          'Una posizione o le spese di spedizione dell’ordine non hanno un articolo HS-Soft – il prodotto non proviene dall’importazione.',
+        fix: 'Importa il prodotto da HS-Soft, imposta `orders.articleId` o `orders.shippingArticleId`, oppure escludi l’ordine con `orders.filter`.',
       },
     },
   },

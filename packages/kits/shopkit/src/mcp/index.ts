@@ -1,5 +1,6 @@
 import type { Shop } from '../engine';
 import { isShopError } from '../errors';
+import type { HsSoftSync } from '../hssoft';
 import type {
   FulfillmentStatus,
   OrderStatus,
@@ -42,6 +43,8 @@ export type ShopMcpOptions = {
   allowedOrigins?: string[];
   /** Extra guidance for the model, appended to the built-in instructions. */
   instructions?: string;
+  /** Adds the HS-Soft (WaWiAssist) tools: `createHsSoftSync()` of `/hssoft`. */
+  hssoft?: HsSoftSync;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -80,7 +83,8 @@ const INSTRUCTIONS = `Back office of this shop (shopkit): orders, products and s
  * Tools: list_orders, get_order, mark_order_paid, ship_order,
  * mark_order_delivered, cancel_order, refund_order, list_products,
  * set_stock, list_discounts, set_discount_active, list_gift_cards,
- * issue_gift_card, disable_gift_card.
+ * issue_gift_card, disable_gift_card; with `hssoft` also
+ * hssoft_sync_order and hssoft_import_products.
  */
 export function createShopMcpHandler(options: ShopMcpOptions) {
   return createMcpHandler({
@@ -89,7 +93,10 @@ export function createShopMcpHandler(options: ShopMcpOptions) {
     instructions: options.instructions
       ? `${INSTRUCTIONS}\n\n${options.instructions}`
       : INSTRUCTIONS,
-    tools: shopTools(options.shop),
+    tools: [
+      ...shopTools(options.shop),
+      ...(options.hssoft ? hsSoftTools(options.hssoft) : []),
+    ],
     authorize: options.authorize,
     allowedOrigins: options.allowedOrigins,
     describeError: (error) =>
@@ -502,6 +509,56 @@ export function shopTools(shop: Shop): McpTool[] {
 
         return { giftCard: { ...card, code: `…${card.code.slice(-4)}` } };
       },
+    },
+  ];
+}
+
+/** Tools of the HS-Soft (WaWiAssist) sync. */
+export function hsSoftTools(hssoft: HsSoftSync): McpTool[] {
+  return [
+    {
+      name: 'hssoft_sync_order',
+      title: 'Send an order to HS-Soft',
+      description:
+        "Send a confirmed order to WaWiAssist (HS-Soft). Its state is in the order's metadata.hssoft (synced with the WaWiAssist order number, retry, failed with the error, uncertain). Without force only unsent orders are sent; force sends again – for an uncertain order first ask the user to check WaWiAssist, or the order exists twice.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          orderId,
+          force: { type: 'boolean', default: false },
+        },
+        required: ['orderId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: false },
+      run: async (args) => ({
+        sync: await hssoft.syncOrder(requiredString(args, 'orderId'), {
+          force: optionalBoolean(args, 'force') ?? false,
+        }),
+      }),
+    },
+    {
+      name: 'hssoft_import_products',
+      title: 'Import products from HS-Soft',
+      description:
+        'Load the articles of WaWiAssist (HS-Soft) into the shop: creates and updates products, sets products of missing articles to draft. Returns what was created, updated, skipped (with the reason) and failed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          force: {
+            type: 'boolean',
+            default: false,
+            description: 'Write unchanged articles and load images again.',
+          },
+        },
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+      run: async (args) => ({
+        summary: await hssoft.importProducts({
+          force: optionalBoolean(args, 'force') ?? false,
+        }),
+      }),
     },
   ];
 }

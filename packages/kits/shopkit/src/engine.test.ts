@@ -1283,12 +1283,48 @@ describe('orders and jobs', () => {
       placed[0]!.order.id,
     ]);
 
+    const recent = await shop.listOrders({
+      createdAfter: placed[1]!.order.createdAt,
+    });
+
+    expect(recent.map((order) => order.id)).toEqual([
+      placed[2]!.order.id,
+      placed[1]!.order.id,
+    ]);
+
     const first = placed[0]!.order;
 
     expect(
       await shop.getOrderWithToken(first.id, first.accessToken),
     ).not.toBeNull();
     expect(await shop.getOrderWithToken(first.id, 'x'.repeat(32))).toBeNull();
+  });
+
+  it('changes order metadata without losing a concurrent change', async () => {
+    const { shop, products, variant, readyCart } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    await Promise.all([
+      shop.updateOrderMetadata(order.id, (metadata) => ({ ...metadata, a: 1 })),
+      shop.updateOrderMetadata(order.id, (metadata) => ({ ...metadata, b: 2 })),
+    ]);
+
+    const updated = (await shop.getOrder(order.id))!;
+
+    expect(updated.metadata).toEqual({ a: 1, b: 2 });
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(
+      order.updatedAt.getTime(),
+    );
+    expect(await shop.updateOrderMetadata(order.id, () => null)).toBeNull();
+    await expect(
+      shop.updateOrderMetadata('nope', (metadata) => metadata),
+    ).rejects.toMatchObject({ code: 'ORDER_NOT_FOUND' });
   });
 
   it('abandons old carts', async () => {

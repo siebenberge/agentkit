@@ -423,4 +423,33 @@ describe.skipIf(!url)('drizzleAdapter (postgres) – interleavings', () => {
       refunds: [expect.objectContaining({ amount: 1_000, method: 'provider' })],
     });
   });
+
+  it('keeps every concurrent change of the order metadata', async () => {
+    const { order } = await onlineOrder();
+    const keys = Array.from({ length: 8 }, (_, index) => `k${index}`);
+    const claims = await Promise.all(
+      keys.map((key) =>
+        shop.updateOrderMetadata(order.id, (metadata) => ({
+          ...metadata,
+          [key]: true,
+        })),
+      ),
+    );
+
+    expect(claims.every((claim) => claim !== null)).toBe(true);
+    expect(
+      Object.keys((await shop.getOrder(order.id))!.metadata).sort(),
+    ).toEqual(keys);
+
+    // a claim: only the first of concurrent claimers wins
+    const won = await Promise.all(
+      keys.map((key) =>
+        shop.updateOrderMetadata(order.id, (metadata) =>
+          metadata.owner ? null : { ...metadata, owner: key },
+        ),
+      ),
+    );
+
+    expect(won.filter((claim) => claim !== null)).toHaveLength(1);
+  });
 });
