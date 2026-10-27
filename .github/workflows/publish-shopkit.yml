@@ -48,6 +48,6 @@ jobs:
       # builds dist/, packs it and imports every export with plain Node
       - run: node scripts/check-pack.mjs packages/kits/shopkit --out pack
       # the tarball, not the folder: npm ignores publishConfig.exports
-      - run: npm publish ./pack/*.tgz --access public
+      - run: npm stage publish ./pack/*.tgz --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
