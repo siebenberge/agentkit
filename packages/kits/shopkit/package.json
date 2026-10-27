@@ -1,0 +1,195 @@
+{
+  "name": "@agentkit.ch/shopkit",
+  "version": "0.1.0",
+  "description": "Shop engine for Swiss products: catalog with variants and stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping, orders and refunds. Storefront API, React hooks and components, emails and receipts included. Database- and framework-agnostic (zahls.ch provider included).",
+  "keywords": [
+    "shop",
+    "e-commerce",
+    "checkout",
+    "qr-bill",
+    "swiss",
+    "twint",
+    "zahls",
+    "vat"
+  ],
+  "license": "MIT",
+  "homepage": "https://agentkit.ch",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/siebenberge/agentkit.git",
+    "directory": "packages/kits/shopkit"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./memory": {
+        "types": "./dist/adapters/memory.d.ts",
+        "default": "./dist/adapters/memory.js"
+      },
+      "./drizzle": {
+        "types": "./dist/adapters/drizzle/index.d.ts",
+        "default": "./dist/adapters/drizzle/index.js"
+      },
+      "./drizzle/schema": {
+        "types": "./dist/adapters/drizzle/schema.d.ts",
+        "default": "./dist/adapters/drizzle/schema.js"
+      },
+      "./zahls": {
+        "types": "./dist/providers/zahls.d.ts",
+        "default": "./dist/providers/zahls.js"
+      },
+      "./http": {
+        "types": "./dist/http/index.d.ts",
+        "default": "./dist/http/index.js"
+      },
+      "./mcp": {
+        "types": "./dist/mcp/index.d.ts",
+        "default": "./dist/mcp/index.js"
+      },
+      "./emails": {
+        "types": "./dist/emails/index.d.ts",
+        "default": "./dist/emails/index.js"
+      },
+      "./receipt": {
+        "types": "./dist/receipt/index.d.ts",
+        "default": "./dist/receipt/index.js"
+      },
+      "./swiss-qr-bill": {
+        "types": "./dist/receipt/swiss-qr-bill.d.ts",
+        "default": "./dist/receipt/swiss-qr-bill.js"
+      },
+      "./camt": {
+        "types": "./dist/camt/index.d.ts",
+        "default": "./dist/camt/index.js"
+      },
+      "./i18n": {
+        "types": "./dist/i18n/index.d.ts",
+        "default": "./dist/i18n/index.js"
+      },
+      "./react": {
+        "types": "./dist/react/index.d.ts",
+        "default": "./dist/react/index.js"
+      },
+      "./react/styles.css": "./dist/react/styles.css"
+    },
+    "typesVersions": {
+      "*": {
+        "memory": [
+          "dist/adapters/memory.d.ts"
+        ],
+        "drizzle": [
+          "dist/adapters/drizzle/index.d.ts"
+        ],
+        "drizzle/schema": [
+          "dist/adapters/drizzle/schema.d.ts"
+        ],
+        "zahls": [
+          "dist/providers/zahls.d.ts"
+        ],
+        "http": [
+          "dist/http/index.d.ts"
+        ],
+        "mcp": [
+          "dist/mcp/index.d.ts"
+        ],
+        "emails": [
+          "dist/emails/index.d.ts"
+        ],
+        "receipt": [
+          "dist/receipt/index.d.ts"
+        ],
+        "swiss-qr-bill": [
+          "dist/receipt/swiss-qr-bill.d.ts"
+        ],
+        "camt": [
+          "dist/camt/index.d.ts"
+        ],
+        "i18n": [
+          "dist/i18n/index.d.ts"
+        ],
+        "react": [
+          "dist/react/index.d.ts"
+        ]
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "git clean -xdf .turbo dist node_modules",
+    "format": "prettier --check --ignore-path ../../../.gitignore \"**/*.{ts,tsx}\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:push": "drizzle-kit push --dialect=postgresql --schema=./src/adapters/drizzle/schema.ts --url=\"$TEST_DATABASE_URL\" --force",
+    "prepack": "tsdown",
+    "prepublishOnly": "node -e \"if (!process.env.npm_config_user_agent?.startsWith('pnpm/')) { console.error('npm ignores publishConfig.exports: publish the tarball of pnpm pack (npm publish <file>.tgz) or run pnpm publish'); process.exit(1); }\""
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory": "./src/adapters/memory.ts",
+    "./drizzle": "./src/adapters/drizzle/index.ts",
+    "./drizzle/schema": "./src/adapters/drizzle/schema.ts",
+    "./zahls": "./src/providers/zahls.ts",
+    "./http": "./src/http/index.ts",
+    "./mcp": "./src/mcp/index.ts",
+    "./emails": "./src/emails/index.ts",
+    "./receipt": "./src/receipt/index.ts",
+    "./swiss-qr-bill": "./src/receipt/swiss-qr-bill.ts",
+    "./camt": "./src/camt/index.ts",
+    "./i18n": "./src/i18n/index.ts",
+    "./react": "./src/react/index.ts",
+    "./react/styles.css": "./src/react/styles.css"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.36.0",
+    "react": ">=18",
+    "swissqrbill": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "swissqrbill": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "22.20.5",
+    "@types/react": "19.2.18",
+    "drizzle-kit": "0.31.11",
+    "drizzle-orm": "0.45.3",
+    "jsdom": "26.1.0",
+    "postgres": "3.4.9",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "swissqrbill": "4.4.1",
+    "tsdown": "0.23.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  }
+}

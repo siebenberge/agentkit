@@ -1,0 +1,48 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #5c5c5c;
+  --faint: #8a8a8a;
+  --border: #e4e4e4;
+  --card: #fafafa;
+  --code-bg: #f6f6f6;
+  --signal: #da291c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--border);
+  --color-card: var(--card);
+  --color-code: var(--code-bg);
+  --color-signal: var(--signal);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+html {
+  /* no layout shift when the scrollbar appears */
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* the kits' components follow the demo's tokens */
+.sk-root,
+.sk-add,
+.sb-root {
+  --sk-primary: var(--fg);
+  --sk-border: var(--border);
+  --sk-muted: var(--muted);
+  --sb-primary: var(--fg);
+  --sb-border: var(--border);
+  --sb-muted: var(--muted);
+}

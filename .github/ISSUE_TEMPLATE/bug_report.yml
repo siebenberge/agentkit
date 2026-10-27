@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in subkit, shopkit, the test sites or the website doesn't work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issue? Please don't report it here – see [SECURITY.md](https://github.com/siebenberge/agentkit/blob/main/SECURITY.md).
+        Never paste API keys, webhook secrets or customer data.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - '@agentkit.ch/subkit'
+        - '@agentkit.ch/shopkit'
+        - Test sites (shop.agentkit.ch / sub.agentkit.ch)
+        - Website / docs / llms.txt / MCP
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Package version from npm (or commit), plus runtime and adapter, e.g. 0.2.0, Node 22, Drizzle + Postgres 16
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Configuration and calls, ideally a minimal snippet with the memory adapter.
+      render: ts
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message or logs
+      description: Including the error code (e.g. subkit-…) if there is one.
+      render: text

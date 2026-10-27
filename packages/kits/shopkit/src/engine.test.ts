@@ -1,0 +1,1317 @@
+import { describe, expect, it } from 'vitest';
+
+import { memoryAdapter } from './adapters/memory';
+import { type ShopOptions, createShop } from './engine';
+import type {
+  CreateHostedPaymentParams,
+  PaymentProvider,
+  ProviderEvent,
+  RefundParams,
+} from './provider';
+import type { Address, ShippingRate, ShopEvent } from './types';
+
+const rates: ShippingRate[] = [
+  {
+    id: 'post',
+    name: 'PostPac Economy',
+    translations: { fr: 'PostPac Economy (FR)' },
+    amount: 900,
+    tiers: [
+      { maxWeightGrams: 2000, amount: 900 },
+      { maxWeightGrams: 10_000, amount: 1100 },
+    ],
+    freeAbove: 30_000,
+  },
+  { id: 'pickup', name: 'Abholung im Laden', amount: 0, pickup: true },
+];
+
+const address: Address = {
+  name: 'Anna Muster',
+  line1: 'Bahnhofstrasse 1',
+  postalCode: '8001',
+  city: 'Zürich',
+  country: 'CH',
+};
+
+const urls = {
+  successUrl: 'https://shop.example/done',
+  cancelUrl: 'https://shop.example/cart',
+};
+
+function fakeProvider() {
+  const pages: CreateHostedPaymentParams[] = [];
+  const refunds: RefundParams[] = [];
+  const verified: string[] = [];
+  const state = { failPage: false, failRefund: false };
+
+  const provider: PaymentProvider = {
+    id: 'fake',
+    createHostedPayment(params) {
+      if (state.failPage) return Promise.reject(new Error('down'));
+
+      pages.push(params);
+
+      return Promise.resolve({
+        url: `https://pay.example/${pages.length}`,
+        reference: `gw_${pages.length}`,
+      });
+    },
+    async parseWebhook(request, context) {
+      const events = (await request.json()) as ProviderEvent[];
+      const known: ProviderEvent[] = [];
+
+      for (const event of events) {
+        if (!(await context.isKnownReference(event.referenceId))) continue;
+
+        verified.push(event.referenceId);
+        known.push(event);
+      }
+
+      return known;
+    },
+    refund(params) {
+      if (state.failRefund) return Promise.reject(new Error('refused'));
+
+      refunds.push(params);
+
+      return Promise.resolve({ refundId: `rf_${refunds.length}` });
+    },
+  };
+
+  return { provider, pages, refunds, verified, state };
+}
+
+async function setup(overrides: Partial<ShopOptions> = {}) {
+  const clock = { now: new Date('2026-10-15T08:00:00.000Z') };
+  const events: ShopEvent[] = [];
+  const fake = fakeProvider();
+  const database = memoryAdapter();
+
+  const shop = createShop({
+    database,
+    provider: fake.provider,
+    shipping: { rates },
+    now: () => new Date(clock.now),
+    onEvent: (event) => {
+      events.push(event);
+    },
+    ...overrides,
+  });
+
+  const shoe = await shop.createProduct({
+    slug: 'wanderschuh',
+    name: 'Wanderschuh',
+    translations: { fr: { name: 'Chaussure de randonnée' } },
+    variants: [
+      { sku: 'SHOE-42', name: '42', price: 15_000, stock: 5, weightGrams: 900 },
+      { sku: 'SHOE-43', name: '43', price: 15_000, stock: 1, weightGrams: 900 },
+    ],
+  });
+  const book = await shop.createProduct({
+    slug: 'wanderbuch',
+    name: 'Wanderbuch',
+    taxRateBps: 260,
+    variants: [
+      { sku: 'BOOK', price: 3_900, trackStock: false, weightGrams: 400 },
+    ],
+  });
+  const voucher = await shop.createProduct({
+    slug: 'gutschein',
+    name: 'Geschenkgutschein',
+    kind: 'gift_card',
+    variants: [{ sku: 'GC-50', name: 'CHF 50', price: 5_000 }],
+  });
+  const ebook = await shop.createProduct({
+    slug: 'routen-pdf',
+    name: 'Routen (PDF)',
+    kind: 'digital',
+    variants: [{ sku: 'PDF', price: 1_000 }],
+  });
+
+  const variant = (product: typeof shoe, index = 0) =>
+    product.variants[index]!.id;
+
+  /** A cart ready for checkout. */
+  async function readyCart(
+    items: { variantId: string; quantity: number }[],
+    details: { shippingRateId?: string | null; email?: string } = {},
+  ) {
+    const cart = await shop.createCart({ locale: 'de-CH' });
+
+    for (const item of items) await shop.addToCart(cart.token, item);
+
+    await shop.updateCartDetails(cart.token, {
+      email: details.email ?? 'anna@example.ch',
+      shippingAddress: address,
+      shippingRateId:
+        details.shippingRateId === undefined ? 'post' : details.shippingRateId,
+    });
+
+    return cart;
+  }
+
+  function webhook(events: ProviderEvent[]) {
+    return shop.handleWebhook(
+      new Request('https://shop.example/api/shop/webhook', {
+        method: 'POST',
+        body: JSON.stringify(events),
+      }),
+    );
+  }
+
+  async function payOnline(orderId: string, amount: number) {
+    const page = fake.pages.at(-1)!;
+
+    return webhook([
+      {
+        type: 'payment.succeeded',
+        referenceId: page.referenceId,
+        transactionId: `tx_${orderId}`,
+        amount,
+        currency: 'CHF',
+      },
+    ]);
+  }
+
+  const stockOf = async (variantId: string) =>
+    (await database.findOne('variant', [{ field: 'id', value: variantId }]))!
+      .stock;
+
+  return {
+    shop,
+    clock,
+    events,
+    fake,
+    database,
+    products: { shoe, book, voucher, ebook },
+    variant,
+    readyCart,
+    webhook,
+    payOnline,
+    stockOf,
+    types: () => events.map((event) => event.type),
+  };
+}
+
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+
+describe('catalog', () => {
+  it('creates products with variants and rejects duplicates', async () => {
+    const { shop, products } = await setup();
+
+    expect(products.shoe.variants).toHaveLength(2);
+    expect(products.shoe.variants[0]?.trackStock).toBe(true);
+    expect(products.ebook.variants[0]?.trackStock).toBe(false);
+
+    await expect(
+      shop.createProduct({ slug: 'wanderschuh', name: 'Doppelt' }),
+    ).rejects.toMatchObject({ code: 'DUPLICATE' });
+    await expect(
+      shop.createVariant(products.book.id, { sku: 'SHOE-42', price: 1 }),
+    ).rejects.toMatchObject({ code: 'DUPLICATE' });
+    await expect(
+      shop.createProduct({ slug: 'Kein Slug!', name: 'x' }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('lists active products and finds them by slug', async () => {
+    const { shop, products } = await setup();
+
+    await shop.updateProduct(products.ebook.id, { status: 'draft' });
+
+    const active = await shop.listProducts({ status: 'active' });
+
+    expect(active.map((product) => product.slug).sort()).toEqual([
+      'gutschein',
+      'wanderbuch',
+      'wanderschuh',
+    ]);
+    expect((await shop.getProduct('wanderschuh'))?.id).toBe(products.shoe.id);
+    expect((await shop.getProduct(products.book.id))?.slug).toBe('wanderbuch');
+  });
+
+  it('adjusts stock and reports low stock once', async () => {
+    const { shop, products, variant, events } = await setup();
+
+    await shop.adjustStock({ variantId: variant(products.shoe), delta: -2 });
+    expect(events.map((event) => event.type)).toEqual(['stock.low']);
+
+    const updated = await shop.setStock({
+      variantId: variant(products.shoe),
+      stock: 20,
+    });
+
+    expect(updated.stock).toBe(20);
+  });
+});
+
+describe('cart', () => {
+  it('adds, merges and removes items within stock', async () => {
+    const { shop, products, variant } = await setup();
+    const cart = await shop.createCart();
+
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 2,
+    });
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+
+    let current = await shop.getCart(cart.token);
+
+    expect(current?.items).toEqual([
+      { variantId: variant(products.shoe), quantity: 3 },
+    ]);
+
+    await expect(
+      shop.addToCart(cart.token, {
+        variantId: variant(products.shoe, 1),
+        quantity: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'OUT_OF_STOCK' });
+    await expect(
+      shop.addToCart(cart.token, {
+        variantId: variant(products.shoe),
+        quantity: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_QUANTITY' });
+
+    await shop.setCartQuantity(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 0,
+    });
+    current = await shop.getCart(cart.token);
+
+    expect(current?.items).toEqual([]);
+  });
+
+  it('refuses products that are not for sale', async () => {
+    const { shop, products, variant } = await setup();
+    const cart = await shop.createCart();
+
+    await shop.updateProduct(products.book.id, { status: 'archived' });
+
+    await expect(
+      shop.addToCart(cart.token, {
+        variantId: variant(products.book),
+        quantity: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOR_SALE' });
+  });
+
+  it('summarizes prices, shipping options and what is missing', async () => {
+    const { shop, products, variant } = await setup();
+    const cart = await shop.createCart({ locale: 'fr' });
+
+    let summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.missing).toEqual(['items', 'email']);
+
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.book),
+      quantity: 1,
+    });
+    summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.lines[0]?.productName).toBe('Chaussure de randonnée');
+    expect(summary.missing).toEqual([
+      'email',
+      'shipping_rate',
+      'shipping_address',
+    ]);
+    expect(summary.shippingOptions).toEqual([
+      expect.objectContaining({
+        id: 'post',
+        amount: 900,
+        name: 'PostPac Economy (FR)',
+      }),
+      expect.objectContaining({ id: 'pickup', amount: 0, pickup: true }),
+    ]);
+
+    await shop.updateCartDetails(cart.token, {
+      email: 'Anna@Example.ch',
+      shippingRateId: 'pickup',
+    });
+    summary = await shop.getCartSummary(cart.token);
+
+    // pickup needs no address
+    expect(summary.missing).toEqual([]);
+    expect(summary.cart.email).toBe('anna@example.ch');
+    expect(summary.pricing.total).toBe(18_900);
+    expect(summary.paymentMethods).toEqual(['online', 'invoice']);
+  });
+
+  it('offers no shipping for digital goods and none abroad', async () => {
+    const { shop, products, variant } = await setup();
+    const cart = await shop.createCart();
+
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.ebook),
+      quantity: 1,
+    });
+    await shop.updateCartDetails(cart.token, { email: 'anna@example.ch' });
+
+    let summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.shippingOptions).toEqual([]);
+    expect(summary.missing).toEqual([]);
+
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+    await shop.updateCartDetails(cart.token, {
+      shippingAddress: { ...address, country: 'DE' },
+    });
+    summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.shippingOptions.map((option) => option.id)).toEqual([
+      'pickup',
+    ]);
+  });
+
+  it('validates discount codes against the cart', async () => {
+    const { shop, products, variant, clock } = await setup();
+    const cart = await shop.createCart();
+
+    await shop.createDiscount({ code: 'sommer', type: 'percent', value: 1000 });
+    await shop.createDiscount({
+      code: 'GROSS',
+      type: 'fixed',
+      value: 2000,
+      minSubtotal: 50_000,
+    });
+    await shop.createDiscount({
+      code: 'ALT',
+      type: 'percent',
+      value: 500,
+      endsAt: new Date(clock.now.getTime() - DAY),
+    });
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+
+    await expect(
+      shop.applyDiscountCode(cart.token, 'nope'),
+    ).rejects.toMatchObject({
+      code: 'DISCOUNT_INVALID',
+    });
+    await expect(
+      shop.applyDiscountCode(cart.token, 'alt'),
+    ).rejects.toMatchObject({
+      code: 'DISCOUNT_INVALID',
+    });
+    await expect(
+      shop.applyDiscountCode(cart.token, 'gross'),
+    ).rejects.toMatchObject({
+      code: 'DISCOUNT_NOT_APPLICABLE',
+    });
+
+    await shop.applyDiscountCode(cart.token, ' Sommer ');
+
+    const summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.cart.discountCode).toBe('SOMMER');
+    expect(summary.pricing.discountTotal).toBe(1_500);
+  });
+
+  it('merges a guest cart into the customer cart on sign-in', async () => {
+    const { shop, products, variant } = await setup();
+    const old = await shop.createCart({ customerExternalId: 'user_1' });
+
+    await shop.addToCart(old.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+
+    const guest = await shop.createCart();
+
+    await shop.addToCart(guest.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+    await shop.addToCart(guest.token, {
+      variantId: variant(products.book),
+      quantity: 1,
+    });
+
+    const merged = await shop.claimCart(guest.token, 'user_1');
+
+    expect(merged.customerExternalId).toBe('user_1');
+    expect(merged.items).toEqual([
+      { variantId: variant(products.shoe), quantity: 2 },
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    expect((await shop.getCart(old.token))?.status).toBe('abandoned');
+    expect((await shop.findCustomerCart('user_1'))?.id).toBe(guest.id);
+  });
+});
+
+describe('checkout on invoice', () => {
+  it('places the order, reserves stock and uses the code', async () => {
+    const { shop, products, variant, readyCart, stockOf, events, database } =
+      await setup();
+
+    await shop.createDiscount({
+      code: 'ZEHN',
+      type: 'percent',
+      value: 1000,
+      usageLimit: 1,
+    });
+
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 2 },
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+
+    await shop.applyDiscountCode(cart.token, 'ZEHN');
+
+    const result = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    expect(result.type).toBe('placed');
+
+    const order = result.order;
+
+    expect(order).toMatchObject({
+      status: 'confirmed',
+      paymentStatus: 'unpaid',
+      fulfillmentStatus: 'unfulfilled',
+      paymentMethod: 'invoice',
+      email: 'anna@example.ch',
+      itemsSubtotal: 33_900,
+      discountTotal: 3_390,
+      // free shipping from CHF 300 after the discount
+      shippingTotal: 0,
+      total: 30_510,
+      amountDue: 30_510,
+      discountCode: 'ZEHN',
+    });
+    expect(order.taxLines.map((line) => line.rateBps)).toEqual([810, 260]);
+    expect(order.dueAt?.toISOString()).toBe('2026-11-14T08:00:00.000Z');
+    expect(order.shippingAddress?.city).toBe('Zürich');
+    expect(order.billingAddress?.city).toBe('Zürich');
+    expect(await stockOf(variant(products.shoe))).toBe(3);
+    // 5 → 3 reaches the low stock threshold
+    expect(events.map((event) => event.type)).toEqual([
+      'stock.low',
+      'order.placed',
+    ]);
+
+    const discount = await database.findOne('discount', [
+      { field: 'code', value: 'ZEHN' },
+    ]);
+
+    expect(discount?.usageCount).toBe(1);
+    expect((await shop.getCart(cart.token))?.status).toBe('converted');
+
+    // the same cart cannot be ordered twice
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'CART_CLOSED' });
+
+    // the code is used up for the next cart
+    const next = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+
+    await expect(
+      shop.applyDiscountCode(next.token, 'ZEHN'),
+    ).rejects.toMatchObject({
+      code: 'DISCOUNT_INVALID',
+    });
+  });
+
+  it('checks what is missing', async () => {
+    const { shop, products, variant } = await setup();
+    const cart = await shop.createCart();
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'CART_EMPTY' });
+
+    await shop.addToCart(cart.token, {
+      variantId: variant(products.shoe),
+      quantity: 1,
+    });
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'EMAIL_REQUIRED' });
+
+    await shop.updateCartDetails(cart.token, { email: 'a@b.ch' });
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'SHIPPING_RATE_REQUIRED' });
+
+    await shop.updateCartDetails(cart.token, { shippingRateId: 'post' });
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'ADDRESS_REQUIRED' });
+  });
+
+  it('lets the app decide who may buy on invoice', async () => {
+    const { shop, products, variant, readyCart } = await setup({
+      invoice: {
+        allow: ({ customerExternalId }) => customerExternalId !== null,
+      },
+    });
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+
+    expect((await shop.getCartSummary(cart.token)).paymentMethods).toEqual([
+      'online',
+    ]);
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_METHOD_UNAVAILABLE' });
+
+    const order = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+      customerExternalId: 'user_1',
+    });
+
+    expect(order.order.customerExternalId).toBe('user_1');
+  });
+
+  it('gives the last unit to one cart only and rolls back the other', async () => {
+    const { shop, products, variant, readyCart, stockOf } = await setup();
+    const last = variant(products.shoe, 1);
+    const first = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+      { variantId: last, quantity: 1 },
+    ]);
+    const second = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+      { variantId: last, quantity: 1 },
+    ]);
+
+    const results = await Promise.allSettled([
+      shop.checkout({ token: first.token, paymentMethod: 'invoice' }),
+      shop.checkout({ token: second.token, paymentMethod: 'invoice' }),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      'fulfilled',
+      'rejected',
+    ]);
+    expect(
+      results.find((result) => result.status === 'rejected')?.reason,
+    ).toMatchObject({ code: 'OUT_OF_STOCK' });
+    expect(await stockOf(last)).toBe(0);
+    // the losing cart's other line was given back, its cart stays open
+    expect(await stockOf(variant(products.shoe))).toBe(5);
+    expect((await shop.getCart(second.token))?.status).toBe('active');
+  });
+
+  it('sends payment reminders after the due date', async () => {
+    const { shop, products, variant, readyCart, clock, events } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    clock.now = new Date(order.dueAt!.getTime() + 9 * DAY);
+    expect((await shop.runDue()).reminders).toBe(0);
+
+    clock.now = new Date(order.dueAt!.getTime() + 10 * DAY);
+    expect((await shop.runDue()).reminders).toBe(1);
+    expect((await shop.runDue()).reminders).toBe(0);
+
+    clock.now = new Date(order.dueAt!.getTime() + 20 * DAY);
+    expect((await shop.runDue()).reminders).toBe(1);
+
+    clock.now = new Date(order.dueAt!.getTime() + 60 * DAY);
+    expect((await shop.runDue()).reminders).toBe(0);
+
+    const reminders = events.filter(
+      (event) => event.type === 'order.payment_reminder',
+    );
+
+    expect(reminders.map((event) => 'level' in event && event.level)).toEqual([
+      1, 2,
+    ]);
+
+    const paid = await shop.markPaid({
+      orderId: order.id,
+      reference: 'camt-1',
+    });
+
+    expect(paid).toMatchObject({
+      paymentStatus: 'paid',
+      paidVia: 'manual',
+      paymentReference: 'camt-1',
+    });
+    await expect(shop.markPaid({ orderId: order.id })).rejects.toMatchObject({
+      code: 'INVALID_STATE',
+    });
+  });
+});
+
+describe('checkout online', () => {
+  it('redirects, then the webhook confirms the order', async () => {
+    const { shop, products, variant, readyCart, fake, payOnline, types } =
+      await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+
+    const result = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      urls,
+    });
+
+    expect(result.type).toBe('redirect');
+    expect(result.type === 'redirect' && result.url).toBe(
+      'https://pay.example/1',
+    );
+    expect(result.order).toMatchObject({
+      status: 'pending',
+      paymentAttempts: 1,
+    });
+    expect(fake.pages[0]).toMatchObject({
+      mode: 'charge',
+      referenceId: `so_${result.order.id}_1`,
+      amount: 15_900,
+      currency: 'CHF',
+      purpose: `Bestellung ${result.order.number}`,
+      customer: { email: 'anna@example.ch', name: 'Anna Muster' },
+    });
+    expect(types()).toEqual([]);
+
+    const response = await payOnline(result.order.id, 15_900);
+
+    expect(response.status).toBe(200);
+
+    const order = await shop.getOrder(result.order.id);
+
+    expect(order).toMatchObject({
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      providerTransactionId: `tx_${result.order.id}`,
+      expiresAt: null,
+    });
+    expect(types()).toEqual(['order.placed', 'order.paid']);
+
+    // the provider delivers again: nothing happens twice
+    await payOnline(result.order.id, 15_900);
+    expect(types()).toEqual(['order.placed', 'order.paid']);
+  });
+
+  it('ignores unknown references and payments that do not match', async () => {
+    const { shop, products, variant, readyCart, fake, webhook } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      urls,
+    });
+
+    await webhook([
+      {
+        type: 'payment.succeeded',
+        referenceId: 'so_unknown_1',
+        transactionId: 'x',
+        amount: 1,
+        currency: 'CHF',
+      },
+      {
+        type: 'payment.succeeded',
+        referenceId: `so_${order.id}_1`,
+        transactionId: 'x',
+        amount: 100,
+        currency: 'CHF',
+      },
+    ]);
+
+    expect(fake.verified).toEqual([`so_${order.id}_1`]);
+    expect((await shop.getOrder(order.id))?.paymentStatus).toBe('unpaid');
+  });
+
+  it('starts a new payment page for a pending order', async () => {
+    const { shop, products, variant, readyCart, fake } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      urls,
+    });
+
+    const again = await shop.payOrder({ orderId: order.id, urls });
+
+    expect(again.url).toBe('https://pay.example/2');
+    expect(fake.pages[1]?.referenceId).toBe(`so_${order.id}_2`);
+  });
+
+  it('gives the cart back when the payment page fails', async () => {
+    const { shop, products, variant, readyCart, fake, stockOf } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+
+    fake.state.failPage = true;
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'online', urls }),
+    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+    expect(await stockOf(variant(products.shoe))).toBe(5);
+    expect((await shop.getCart(cart.token))?.status).toBe('active');
+  });
+
+  it('expires unpaid orders and releases everything', async () => {
+    const {
+      shop,
+      products,
+      variant,
+      readyCart,
+      clock,
+      stockOf,
+      database,
+      types,
+    } = await setup();
+
+    await shop.createDiscount({ code: 'ZEHN', type: 'percent', value: 1000 });
+
+    const card = await shop.issueGiftCard({ amount: 2_000 });
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 2 },
+    ]);
+
+    await shop.applyDiscountCode(cart.token, 'ZEHN');
+
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      giftCardCodes: [card.code.toLowerCase()],
+      urls,
+    });
+
+    expect(order).toMatchObject({
+      total: 27_900,
+      giftCardTotal: 2_000,
+      amountDue: 25_900,
+    });
+    // used up: no balance to report
+    expect(await shop.getGiftCardBalance(card.code)).toBeNull();
+
+    clock.now = new Date(clock.now.getTime() + 23 * HOUR);
+    expect((await shop.runDue()).expiredOrders).toBe(0);
+
+    clock.now = new Date(clock.now.getTime() + 2 * HOUR);
+    expect((await shop.runDue()).expiredOrders).toBe(1);
+
+    expect((await shop.getOrder(order.id))?.status).toBe('expired');
+    expect(await stockOf(variant(products.shoe))).toBe(5);
+    expect((await shop.getGiftCardBalance(card.code))?.balance).toBe(2_000);
+    expect(
+      (await database.findOne('discount', [{ field: 'code', value: 'ZEHN' }]))
+        ?.usageCount,
+    ).toBe(0);
+    expect((await shop.getCart(cart.token))?.status).toBe('active');
+    expect(types()).toEqual(['gift_card.issued', 'stock.low', 'order.expired']);
+  });
+
+  it('reports a payment that arrives after expiry and refunds only it', async () => {
+    const {
+      shop,
+      products,
+      variant,
+      readyCart,
+      clock,
+      payOnline,
+      types,
+      fake,
+    } = await setup();
+    const card = await shop.issueGiftCard({ amount: 2_000 });
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      giftCardCodes: [card.code],
+      urls,
+    });
+
+    clock.now = new Date(clock.now.getTime() + 25 * HOUR);
+    await shop.runDue();
+    await payOnline(order.id, order.amountDue);
+
+    const late = await shop.getOrder(order.id);
+
+    expect(late).toMatchObject({ status: 'expired', paymentStatus: 'paid' });
+    expect(types()).toContain('order.late_payment');
+    expect(types()).not.toContain('order.paid');
+
+    const { refund } = await shop.refundOrder({ orderId: order.id });
+
+    // the gift card got its balance back when the order expired
+    expect(refund).toMatchObject({
+      amount: 13_900,
+      toPayment: 13_900,
+      toGiftCards: 0,
+    });
+    expect(fake.refunds[0]).toMatchObject({
+      amount: 13_900,
+      transactionId: `tx_${order.id}`,
+    });
+    expect((await shop.getGiftCardBalance(card.code))?.balance).toBe(2_000);
+    expect((await shop.getOrder(order.id))?.paymentStatus).toBe('refunded');
+  });
+});
+
+describe('gift cards', () => {
+  it('issues cards for bought vouchers and redeems them across orders', async () => {
+    const { shop, products, variant, readyCart, events } = await setup();
+    const buy = await readyCart(
+      [{ variantId: variant(products.voucher), quantity: 2 }],
+      {
+        shippingRateId: null,
+      },
+    );
+
+    const bought = await shop.checkout({
+      token: buy.token,
+      paymentMethod: 'invoice',
+    });
+
+    expect(bought.order).toMatchObject({
+      fulfillmentStatus: 'not_required',
+      taxTotal: 0,
+      total: 10_000,
+    });
+    expect(
+      events.filter((event) => event.type === 'gift_card.issued'),
+    ).toHaveLength(0);
+
+    await shop.markPaid({ orderId: bought.order.id });
+
+    const issued = events.flatMap((event) =>
+      event.type === 'gift_card.issued' ? [event.giftCard] : [],
+    );
+
+    expect(issued).toHaveLength(2);
+    expect(issued[0]).toMatchObject({
+      balance: 5_000,
+      orderId: bought.order.id,
+    });
+    expect(issued[0]?.code).toMatch(/^[A-Z2-9]{16}$/);
+
+    // card covers everything → placed and paid without a payment method
+    const small = await readyCart(
+      [{ variantId: variant(products.ebook), quantity: 1 }],
+      {
+        shippingRateId: null,
+      },
+    );
+    const free = await shop.checkout({
+      token: small.token,
+      paymentMethod: 'online',
+      giftCardCodes: [issued[0]!.code],
+      urls,
+    });
+
+    expect(free.type).toBe('placed');
+    expect(free.order).toMatchObject({
+      paymentMethod: 'none',
+      paymentStatus: 'paid',
+      amountDue: 0,
+      giftCardTotal: 1_000,
+    });
+    expect((await shop.getGiftCardBalance(issued[0]!.code))?.balance).toBe(
+      4_000,
+    );
+
+    // disabled cards are rejected
+    await shop.disableGiftCard(issued[1]!.id);
+
+    const next = await readyCart(
+      [{ variantId: variant(products.ebook), quantity: 1 }],
+      {
+        shippingRateId: null,
+      },
+    );
+
+    await expect(
+      shop.checkout({
+        token: next.token,
+        paymentMethod: 'invoice',
+        giftCardCodes: [issued[1]!.code],
+      }),
+    ).rejects.toMatchObject({ code: 'GIFT_CARD_INVALID' });
+  });
+});
+
+describe('fulfillment and refunds', () => {
+  it('ships, delivers and refuses to cancel shipped orders', async () => {
+    const { shop, products, variant, readyCart, types } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    const shipped = await shop.markShipped({
+      orderId: order.id,
+      carrier: 'Die Post',
+      trackingNumber: '99.00.123456.12345678',
+    });
+
+    expect(shipped).toMatchObject({
+      fulfillmentStatus: 'shipped',
+      carrier: 'Die Post',
+    });
+    await expect(shop.cancelOrder({ orderId: order.id })).rejects.toMatchObject(
+      {
+        code: 'INVALID_STATE',
+      },
+    );
+
+    await shop.markDelivered({ orderId: order.id });
+    expect(types()).toEqual([
+      'order.placed',
+      'order.shipped',
+      'order.delivered',
+    ]);
+  });
+
+  it('cancels unpaid orders and gives back stock and gift cards', async () => {
+    const { shop, products, variant, readyCart, stockOf } = await setup();
+    const card = await shop.issueGiftCard({ amount: 1_000 });
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 2 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+      giftCardCodes: [card.code],
+    });
+
+    expect(await stockOf(variant(products.shoe))).toBe(3);
+
+    const canceled = await shop.cancelOrder({
+      orderId: order.id,
+      reason: 'Kunde',
+    });
+
+    expect(canceled).toMatchObject({
+      status: 'canceled',
+      cancelReason: 'Kunde',
+      reserved: false,
+    });
+    expect(await stockOf(variant(products.shoe))).toBe(5);
+    expect((await shop.getGiftCardBalance(card.code))?.balance).toBe(1_000);
+    await expect(shop.cancelOrder({ orderId: order.id })).rejects.toMatchObject(
+      {
+        code: 'INVALID_STATE',
+      },
+    );
+  });
+
+  it('refunds in parts: provider first, then the gift cards', async () => {
+    const { shop, products, variant, readyCart, payOnline, fake, stockOf } =
+      await setup();
+    const card = await shop.issueGiftCard({ amount: 5_000 });
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      giftCardCodes: [card.code],
+      urls,
+    });
+
+    await payOnline(order.id, order.amountDue);
+
+    const first = await shop.refundOrder({
+      orderId: order.id,
+      amount: 5_000,
+      reason: 'Kulanz',
+    });
+
+    expect(first.refund).toMatchObject({
+      method: 'provider',
+      toPayment: 5_000,
+      toGiftCards: 0,
+      providerRefundId: 'rf_1',
+    });
+    expect(first.order.paymentStatus).toBe('partially_refunded');
+
+    await expect(
+      shop.refundOrder({ orderId: order.id, amount: 20_000 }),
+    ).rejects.toMatchObject({ code: 'REFUND_TOO_HIGH' });
+
+    const rest = await shop.refundOrder({ orderId: order.id, restock: true });
+
+    expect(rest.refund).toMatchObject({
+      amount: 10_900,
+      toPayment: 5_900,
+      toGiftCards: 5_000,
+    });
+    expect(rest.order).toMatchObject({
+      paymentStatus: 'refunded',
+      refundedTotal: 15_900,
+    });
+    expect(fake.refunds.map((refund) => refund.amount)).toEqual([5_000, 5_900]);
+    expect((await shop.getGiftCardBalance(card.code))?.balance).toBe(5_000);
+    expect(await stockOf(variant(products.shoe))).toBe(5);
+  });
+
+  it('takes the refund back when the provider refuses it', async () => {
+    const { shop, products, variant, readyCart, payOnline, fake } =
+      await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      urls,
+    });
+
+    await payOnline(order.id, order.amountDue);
+    fake.state.failRefund = true;
+
+    await expect(shop.refundOrder({ orderId: order.id })).rejects.toMatchObject(
+      {
+        code: 'PROVIDER_UNAVAILABLE',
+      },
+    );
+    expect(await shop.getOrder(order.id)).toMatchObject({
+      paymentStatus: 'paid',
+      refundedTotal: 0,
+      refunds: [],
+    });
+  });
+
+  it('records refunds of invoice orders as manual', async () => {
+    const { shop, products, variant, readyCart } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    await expect(shop.refundOrder({ orderId: order.id })).rejects.toMatchObject(
+      {
+        code: 'INVALID_STATE',
+      },
+    );
+
+    await shop.markPaid({ orderId: order.id });
+
+    const { refund } = await shop.refundOrder({
+      orderId: order.id,
+      amount: 1_000,
+    });
+
+    expect(refund).toMatchObject({ method: 'manual', toPayment: 1_000 });
+  });
+});
+
+describe('refund routes', () => {
+  it('refunds through the provider when an invoice was paid online', async () => {
+    const { shop, products, variant, readyCart, fake, webhook } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    await shop.payOrder({ orderId: order.id, urls });
+    await webhook([
+      {
+        type: 'payment.succeeded',
+        referenceId: fake.pages.at(-1)!.referenceId,
+        transactionId: 'tx_invoice',
+        amount: order.amountDue,
+        currency: 'CHF',
+      },
+    ]);
+
+    const { refund } = await shop.refundOrder({
+      orderId: order.id,
+      amount: 1_000,
+    });
+
+    expect(refund.method).toBe('provider');
+    expect(fake.refunds[0]).toMatchObject({
+      transactionId: 'tx_invoice',
+      amount: 1_000,
+    });
+  });
+
+  it('records refunds of payments taken by hand as manual', async () => {
+    const { shop, products, variant, readyCart, fake } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      urls,
+    });
+
+    // paid by bank transfer instead of the payment page
+    await shop.markPaid({ orderId: order.id, reference: 'Bank 123' });
+
+    const { refund } = await shop.refundOrder({ orderId: order.id });
+
+    expect(refund.method).toBe('manual');
+    expect(fake.refunds).toEqual([]);
+    expect(await shop.getOrder(order.id)).toMatchObject({
+      paidVia: 'manual',
+      paymentReference: 'Bank 123',
+      providerTransactionId: null,
+    });
+  });
+
+  it('takes the balance of bought gift cards back, goods first', async () => {
+    const { shop, products, variant, readyCart, events } = await setup();
+    const cart = await readyCart(
+      [
+        { variantId: variant(products.voucher), quantity: 1 },
+        { variantId: variant(products.ebook), quantity: 1 },
+      ],
+      { shippingRateId: null },
+    );
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    await shop.markPaid({ orderId: order.id });
+
+    const card = events.flatMap((event) =>
+      event.type === 'gift_card.issued' ? [event.giftCard] : [],
+    )[0]!;
+
+    // the e-book first: the card stays untouched
+    const first = await shop.refundOrder({ orderId: order.id, amount: 1_000 });
+
+    expect(first.refund.fromIssuedGiftCards).toBe(0);
+    expect((await shop.getGiftCardBalance(card.code))?.balance).toBe(5_000);
+
+    // spend part of the card elsewhere
+    const other = await readyCart(
+      [{ variantId: variant(products.ebook), quantity: 1 }],
+      {
+        shippingRateId: null,
+      },
+    );
+
+    await shop.checkout({
+      token: other.token,
+      paymentMethod: 'invoice',
+      giftCardCodes: [card.code],
+    });
+
+    // only the unspent CHF 40 can come back
+    await expect(shop.refundOrder({ orderId: order.id })).rejects.toMatchObject(
+      {
+        code: 'REFUND_TOO_HIGH',
+      },
+    );
+
+    const voucher = await shop.refundOrder({
+      orderId: order.id,
+      amount: 4_000,
+    });
+
+    expect(voucher.refund.fromIssuedGiftCards).toBe(4_000);
+    expect(await shop.getGiftCardBalance(card.code)).toBeNull();
+  });
+});
+
+describe('orders and jobs', () => {
+  it('lists the orders of a customer, newest first, and checks guest tokens', async () => {
+    const { shop, products, variant, readyCart, clock } = await setup();
+    const placed = [];
+
+    for (let index = 0; index < 3; index++) {
+      const cart = await readyCart([
+        { variantId: variant(products.book), quantity: 1 },
+      ]);
+
+      placed.push(
+        await shop.checkout({
+          token: cart.token,
+          paymentMethod: 'invoice',
+          customerExternalId: 'user_1',
+        }),
+      );
+      clock.now = new Date(clock.now.getTime() + HOUR);
+    }
+
+    const orders = await shop.listOrders({
+      customerExternalId: 'user_1',
+      limit: 2,
+      offset: 1,
+    });
+
+    expect(orders.map((order) => order.id)).toEqual([
+      placed[1]!.order.id,
+      placed[0]!.order.id,
+    ]);
+
+    const first = placed[0]!.order;
+
+    expect(
+      await shop.getOrderWithToken(first.id, first.accessToken),
+    ).not.toBeNull();
+    expect(await shop.getOrderWithToken(first.id, 'x'.repeat(32))).toBeNull();
+  });
+
+  it('abandons old carts', async () => {
+    const { shop, clock } = await setup();
+    const cart = await shop.createCart();
+
+    clock.now = new Date(clock.now.getTime() + 31 * DAY);
+
+    expect((await shop.runDue()).abandonedCarts).toBe(1);
+    expect((await shop.getCart(cart.token))?.status).toBe('abandoned');
+  });
+
+  it('needs a provider for online payment', async () => {
+    const { shop, products, variant, readyCart } = await setup({
+      provider: null,
+    });
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+
+    expect(shop.settings.paymentMethods).toEqual(['invoice']);
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'online', urls }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_METHOD_UNAVAILABLE' });
+  });
+});

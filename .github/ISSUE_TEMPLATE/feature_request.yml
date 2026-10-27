@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something the kits should do.
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - '@agentkit.ch/subkit'
+        - '@agentkit.ch/shopkit'
+        - Adapters / providers
+        - Website / docs
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The use case – what your product needs and why the kit can't do it today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How it could look (options, API, UI). Optional.

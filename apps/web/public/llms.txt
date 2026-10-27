@@ -1,0 +1,141 @@
+# agentkit
+
+> The billing framework for Swiss software. Business building blocks for
+> Swiss products: subscriptions and shop with Swiss QR-bill, TWINT, Swiss VAT
+> (MWST/TVA/IVA) and de/fr/it/en built in. The logic runs inside your app as a TypeScript/JavaScript
+> library, the data stays in your own database through adapters (Drizzle for
+> Postgres; Prisma and Kysely planned). No hosted service in between.
+
+Status: early, open source (MIT). subkit 0.2 (extracted from production
+code) and shopkit 0.1 (preview) are on npm – the two kits we focus on. npm
+scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
+
+## Install
+
+- `npm i @agentkit.ch/subkit` – subscriptions and invoices
+- `npm i @agentkit.ch/shopkit` – shop
+- ES modules with type declarations. Peer dependencies only for the entry
+  points that use them: `drizzle-orm` (`/drizzle`), `react` (`/react`),
+  `swissqrbill` (`/swiss-qr-bill`).
+- Each package README lists every entry point and a five-minute setup:
+  https://www.npmjs.com/package/@agentkit.ch/subkit,
+  https://www.npmjs.com/package/@agentkit.ch/shopkit
+
+## Kits
+
+- subkit (`@agentkit.ch/subkit`, preview): subscriptions, plans, trials, proration,
+  card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`),
+  lifecycle emails, printable invoices, Swiss QR-bill, bank reconciliation
+  (camt.053 / camt.054), React `<BillingPortal />`.
+- shopkit (`@agentkit.ch/shopkit`, preview): products and variants (physical,
+  digital, gift cards) with translations, stock reserved at checkout, cart for
+  guests and signed-in customers, checkout online (TWINT, card) or on invoice
+  with QR-bill, VAT per product rate, discount codes, gift cards (sold and
+  redeemed), shipping rates (flat, weight tiers, free above, pickup), orders
+  with fulfillment and partial refunds, order emails, receipts, storefront and
+  back office APIs, React `<Cart />`, `<Checkout />`, `<OrderStatus />`,
+  `<OrderHistory />`, `useCart()`. Config: `createShop({ database, provider,
+  shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
+  sends payment reminders; invoice orders are booked from camt.053 / camt.054.
+  Next: Swiss Post labels and live tariffs, digital downloads.
+
+## Test sites
+
+Try the kits before installing them – they run in the browser with the same
+engine, HTTP handler and React components, a simulated payment page and a
+movable clock. A Config tab changes the kit's real options (prices, trial, VAT,
+payment and shipping methods, dunning, theme) and shows the resulting code:
+https://shop.agentkit.ch (shopkit), https://sub.agentkit.ch (subkit).
+
+## Open source and cost
+
+- MIT open source: https://github.com/siebenberge/agentkit, packages on npm.
+  No licence fee and no per-transaction fee – only the payment provider
+  (zahls.ch) charges its own fees.
+
+## Language
+
+- TypeScript, usable from JavaScript: `npm i @agentkit.ch/subkit`. Runs on
+  Node.js, Bun, Deno and edge runtimes (fetch handlers).
+- Other languages are not planned for now.
+
+## Switzerland
+
+agentkit is built for the Swiss market first.
+
+- Swiss QR-bill (SIX implementation guidelines): QR-IBAN with 27-digit QR
+  reference, or IBAN with RF creditor reference (ISO 11649). CHF and EUR.
+  `@agentkit.ch/subkit/swiss-qr-bill`, peer dependency `swissqrbill`.
+- Payments: zahls.ch with TWINT and credit cards. Other providers can be
+  added through the `PaymentProvider` interface.
+- VAT: `tax: { rateBps: 810, inclusive: true }` (8.1 % standard rate).
+  Invoices show the VAT line and the seller's CHE number. shopkit: rate per
+  product (8.1 / 2.6 / 3.8 %, `taxRateBps`), shipping split across the rates
+  of the goods, gift cards sold without VAT, optional 5-Rappen rounding
+  (`roundToFiveRappen`). Planned for subkit: per-line rates, 5-Rappen
+  rounding.
+- Languages: de, fr, it, en for UI, emails and invoices (`locale: 'de-CH'`).
+- Bank reconciliation: `parseCamt(xml)` reads camt.053 / camt.054 (no
+  dependency), `reconcileBankPayments({ payments, reference })` matches them
+  by QR / creditor reference (or the invoice number in the message) and marks
+  invoices / invoice orders paid; the rest is reported (underpaid, paid
+  already, unmatched). `/camt` entry of both kits.
+- Planned: reminder levels with fees, Swiss Post labels and live tariffs in
+  shopkit.
+- Data protection: the kits run in your app and store data in your
+  database; no extra processor for customer data.
+
+## Concepts
+
+- One config in code: `createSubscriptions({ database, provider, plans,
+  defaultPlanId, tax })` from `@agentkit.ch/subkit`, `createShop({ database,
+  provider, shipping, tax })` from `@agentkit.ch/shopkit`. Adapters:
+  `drizzleAdapter(db)` from `/drizzle` (Postgres, tables in `/drizzle/schema`),
+  `memoryAdapter()` from `/memory` (tests, demos). Provider:
+  `zahlsProvider({ instance, apiKey })` from `/zahls`.
+- Planned: a shared `@agentkit.ch/core` and a CLI (`npx @agentkit.ch/cli
+  init`) that writes the schema and the route.
+- Storage adapter contract (`StorageAdapter`): create, findOne, findMany,
+  update (atomic compare-and-set), optional transaction.
+- HTTP: every kit exposes one handler for its self-service API and the
+  payment webhook (fetch Request → Response): `createSubscriptionsHandler()`,
+  `createShopHandler()` / `createShopAdminHandler()` from `/http`, plus
+  `toNextJsHandler()`.
+- Payments: `PaymentProvider` interface; zahls.ch (incl. TWINT) ships
+  first. Card data never touches your server, only provider tokens.
+- Money is always integer Rappen/cents. Swiss VAT via `tax: { rateBps: 810 }`.
+- Customers are referenced by `externalId` – the id from your product
+  (user, team, association).
+- Cron: call `runDue()` every few minutes for renewals, retries and dunning
+  (subkit) or expired orders and payment reminders (shopkit).
+
+## Errors
+
+Every error of the kits has a code and `docsUrl`, a link to the cause and
+fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
+`#subkit-PLAN_NOT_FOUND`). HTTP error responses are
+`{ "error": "<CODE>", "docs": "<link>" }`. The page is in de, fr, it and en.
+
+## MCP
+
+- Docs MCP for coding agents: `https://agentkit.ch/mcp` (Streamable HTTP, no
+  key, read-only) – `search_docs`, `read_doc`, `list_docs`,
+  `explain_error`. Claude Code:
+  `claude mcp add --transport http agentkit https://agentkit.ch/mcp`.
+- MCP in your app, for your team: `createSubscriptionsMcpHandler` from
+  `@agentkit.ch/subkit/mcp` (find customers, billing, change plan, cancel,
+  mark invoices paid, …) and `createShopMcpHandler` from
+  `@agentkit.ch/shopkit/mcp` (orders, stock, discount codes, gift cards).
+  Mounted as a POST route, your `authorize` on every request (`'read-only'`
+  hides the tools that change data). Payment and guest-link tokens never
+  reach the model.
+
+## Website languages
+
+The site exists in German (/de), French (/fr), Italian (/it) and English
+(/en).
+
+## Source
+
+https://github.com/siebenberge/agentkit – MIT licence. Issues and pull
+requests welcome.

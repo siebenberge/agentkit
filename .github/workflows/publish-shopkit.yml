@@ -1,0 +1,53 @@
+name: Publish shopkit
+# Publishes @agentkit.ch/shopkit to npm: push a tag `shopkit@<version>` (the version in
+# packages/kits/shopkit/package.json) or run the workflow by hand on main
+# (Actions → Publish shopkit → Run workflow).
+#
+# Trusted publishing, no token: on npmjs.com, @agentkit.ch/shopkit → Settings →
+# Trusted publisher → GitHub Actions, repository siebenberge/agentkit, workflow
+# publish-shopkit.yml. Until that exists (first release), the secret NPM_TOKEN – a
+# granular token with write access to @agentkit.ch – is used instead; delete
+# it afterwards.
+on:
+  push:
+    tags: ['shopkit@*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run by hand only on main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: echo "Publish from main or a shopkit@<version> tag" && exit 1
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      # trusted publishing needs npm >= 11.5.1
+      - run: npm install -g npm@11.21.0
+      - run: pnpm install --frozen-lockfile
+      - name: Tag matches the package version
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          version=$(node -p "require('./packages/kits/shopkit/package.json').version")
+          test "shopkit@$version" = "$GITHUB_REF_NAME" || {
+            echo "Tag $GITHUB_REF_NAME does not match shopkit@$version"; exit 1;
+          }
+      - run: pnpm --filter @agentkit.ch/shopkit lint
+      - run: pnpm --filter @agentkit.ch/shopkit typecheck
+      - run: pnpm --filter @agentkit.ch/shopkit test
+      # builds dist/, packs it and imports every export with plain Node
+      - run: node scripts/check-pack.mjs packages/kits/shopkit --out pack
+      # the tarball, not the folder: npm ignores publishConfig.exports
+      - run: npm publish pack/*.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

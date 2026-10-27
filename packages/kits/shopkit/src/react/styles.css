@@ -1,0 +1,369 @@
+/*
+ * Styles of the shopkit components. Theme them by overriding the variables, e.g.
+ *   .sk-root, .sk-add { --sk-primary: hsl(var(--primary)); --sk-radius: 0.5rem; }
+ * The components are building blocks: the shop looks like your product.
+ */
+/* variables on every top-level component (the button stands alone) */
+.sk-root,
+.sk-add {
+  --sk-font: inherit;
+  --sk-fg: #111827;
+  --sk-muted: #6b7280;
+  --sk-bg: #ffffff;
+  --sk-border: #e5e7eb;
+  --sk-primary: #111827;
+  --sk-primary-fg: #ffffff;
+  --sk-radius: 0.5rem;
+  --sk-success: #15803d;
+  --sk-success-bg: #dcfce7;
+  --sk-warning: #b45309;
+  --sk-warning-bg: #fef3c7;
+  --sk-danger: #b91c1c;
+  --sk-neutral-bg: #f3f4f6;
+
+  font-family: var(--sk-font);
+}
+
+.sk-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  color: var(--sk-fg);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.sk-root *,
+.sk-root *::before,
+.sk-root *::after {
+  box-sizing: border-box;
+}
+
+.sk-root p,
+.sk-root h2,
+.sk-root h3,
+.sk-root ul,
+.sk-root dl,
+.sk-root dd {
+  margin: 0;
+}
+
+.sk-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.sk-heading {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sk-muted {
+  color: var(--sk-muted);
+}
+
+.sk-error {
+  color: var(--sk-danger);
+}
+
+.sk-notice {
+  padding: 0.75rem 1rem;
+  border-radius: var(--sk-radius);
+  background: var(--sk-warning-bg);
+  color: var(--sk-warning);
+}
+
+.sk-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* buttons */
+.sk-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--sk-border);
+  border-radius: var(--sk-radius);
+  background: var(--sk-bg);
+  color: var(--sk-fg);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sk-button:hover:not(:disabled) {
+  border-color: var(--sk-muted);
+}
+
+.sk-button:disabled,
+.sk-button.sk-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sk-button-primary {
+  border-color: var(--sk-primary);
+  background: var(--sk-primary);
+  color: var(--sk-primary-fg);
+}
+
+.sk-button-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.sk-button-small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.sk-button-block {
+  width: 100%;
+}
+
+.sk-add {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* form */
+.sk-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--sk-border);
+  border-radius: var(--sk-radius);
+  background: var(--sk-bg);
+  color: var(--sk-fg);
+  font: inherit;
+}
+
+.sk-input:focus {
+  outline: 2px solid var(--sk-primary);
+  outline-offset: -1px;
+}
+
+.sk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sk-field > span {
+  color: var(--sk-muted);
+  font-size: 0.8125rem;
+}
+
+.sk-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sk-address {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.sk-span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 480px) {
+  .sk-address {
+    grid-template-columns: 1fr;
+  }
+
+  .sk-span-2 {
+    grid-column: auto;
+  }
+}
+
+.sk-options {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--sk-border);
+  border-radius: var(--sk-radius);
+}
+
+.sk-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.sk-option + .sk-option {
+  border-top: 1px solid var(--sk-border);
+}
+
+.sk-option-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.sk-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sk-inline,
+.sk-discount {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: var(--sk-neutral-bg);
+  font-weight: 500;
+}
+
+.sk-chip button {
+  border: 0;
+  background: transparent;
+  color: var(--sk-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* lines */
+.sk-lines {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.sk-line {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--sk-border);
+}
+
+.sk-line-image {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--sk-radius);
+  object-fit: cover;
+}
+
+.sk-line-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sk-line-name {
+  font-weight: 500;
+}
+
+.sk-line-name a {
+  color: inherit;
+}
+
+.sk-line-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.sk-quantity input {
+  width: 4rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--sk-border);
+  border-radius: var(--sk-radius);
+  font: inherit;
+  text-align: center;
+}
+
+/* totals */
+.sk-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sk-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sk-totals-row dd {
+  white-space: nowrap;
+}
+
+.sk-totals-row.sk-total {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--sk-border);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sk-totals-row.sk-muted {
+  font-size: 0.8125rem;
+}
+
+/* orders */
+.sk-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sk-badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sk-badge-success {
+  background: var(--sk-success-bg);
+  color: var(--sk-success);
+}
+
+.sk-badge-warning {
+  background: var(--sk-warning-bg);
+  color: var(--sk-warning);
+}
+
+.sk-badge-neutral {
+  background: var(--sk-neutral-bg);
+  color: var(--sk-muted);
+}
