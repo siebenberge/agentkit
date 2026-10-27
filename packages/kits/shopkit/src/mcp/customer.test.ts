@@ -364,4 +364,58 @@ describe('createShopCustomerMcpHandler', () => {
     });
     expect(direct.structuredContent.error).toBe('PAYMENT_METHOD_NOT_FOUND');
   });
+
+  it('takes the customer from the auth wrapper instead of identify', async () => {
+    const shop = createShop({
+      database: memoryAdapter(),
+      shipping: {
+        rates: [{ id: 'laden', name: 'Abholung', amount: 0, pickup: true }],
+      },
+    });
+
+    await shop.createProduct({
+      slug: 'zopf',
+      name: 'Zopf',
+      variants: [{ sku: 'ZOPF', price: 690, trackStock: false }],
+    });
+
+    const handler = createShopCustomerMcpHandler({
+      shop,
+      orderUrl: (order) => `https://baeckerei.example/bestellung/${order.id}`,
+    });
+    const request = () =>
+      new Request(ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'place_order',
+            arguments: {
+              items: [{ sku: 'ZOPF', quantity: 1 }],
+              shippingRateId: 'laden',
+              paymentMethod: 'invoice',
+            },
+          },
+        }),
+      });
+
+    // no identify and no customer → 401
+    expect((await handler(request())).status).toBe(401);
+    expect((await handler(request(), { customer: null })).status).toBe(401);
+
+    const response = await handler(request(), {
+      customer: { externalId: 'user_carla', email: 'carla@example.ch' },
+    });
+    const body = (await response.json()) as { result: Result };
+
+    expect(body.result.structuredContent.payment).toEqual({
+      status: 'invoice',
+    });
+    expect(
+      await shop.listOrders({ customerExternalId: 'user_carla' }),
+    ).toHaveLength(1);
+  });
 });

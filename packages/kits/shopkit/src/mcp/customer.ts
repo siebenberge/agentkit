@@ -37,9 +37,10 @@ export type ShopCustomerMcpOptions = {
   /**
    * The customer of the request – e.g. from the OAuth access token or a
    * personal API key of their account. `null` → 401. Called once per
-   * request.
+   * request. Not needed when your auth passes the customer to the handler
+   * (`handler(request, { customer })`, e.g. Better Auth's `requireMcpAuth`).
    */
-  identify: (request: Request) => MaybePromise<McpCustomer | null>;
+  identify?: (request: Request) => MaybePromise<McpCustomer | null>;
   /**
    * The customer's order page (with the guest token, like the HTTP
    * handler's `orderUrl`); the payment page returns there with
@@ -84,14 +85,14 @@ export function createShopCustomerMcpHandler(options: ShopCustomerMcpOptions) {
     let customer = customers.get(request);
 
     if (!customer) {
-      customer = Promise.resolve(options.identify(request));
+      customer = Promise.resolve(options.identify?.(request) ?? null);
       customers.set(request, customer);
     }
 
     return customer;
   };
 
-  return createMcpHandler({
+  const handler = createMcpHandler({
     name: 'shopkit-customer',
     version: VERSION,
     instructions: options.instructions
@@ -118,6 +119,21 @@ export function createShopCustomerMcpHandler(options: ShopCustomerMcpOptions) {
         : null,
     onError: options.onError,
   });
+
+  /**
+   * `context.customer`: the customer your auth already verified (its
+   * wrapper verified the access token) – `identify` is not called then.
+   */
+  return (
+    request: Request,
+    context: { customer?: McpCustomer | null } = {},
+  ) => {
+    if (context.customer !== undefined) {
+      customers.set(request, Promise.resolve(context.customer));
+    }
+
+    return handler(request);
+  };
 }
 
 type ToolsContext = {
