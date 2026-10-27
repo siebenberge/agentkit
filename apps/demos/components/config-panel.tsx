@@ -165,6 +165,12 @@ export function ConfigPanel(props: {
 
       <section className="flex flex-col gap-1">
         <h3 className="font-semibold">{t.code}</h3>
+        <a
+          href={`https://www.npmjs.com/package/@agentkit.ch/${props.kit}kit`}
+          className="w-fit rounded-md border border-line bg-code px-2 py-1 font-mono text-[11px] hover:border-fg/40"
+        >
+          npm i @agentkit.ch/{props.kit}kit ↗
+        </a>
         <pre className="overflow-x-auto rounded-md border border-line bg-code py-2 font-mono text-[11px] leading-[1.6]">
           {props.code.map((line, index) => {
             const isChanged = line.key ? changed.includes(line.key) : false;

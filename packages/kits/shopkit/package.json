@@ -14,6 +14,7 @@
   ],
   "license": "MIT",
   "homepage": "https://agentkit.ch",
+  "bugs": "https://github.com/siebenberge/agentkit/issues",
   "type": "module",
   "repository": {
     "type": "git",

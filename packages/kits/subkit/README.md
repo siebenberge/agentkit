@@ -1,16 +1,19 @@
 # @agentkit.ch/subkit
 
+[![npm](https://img.shields.io/npm/v/@agentkit.ch/subkit)](https://www.npmjs.com/package/@agentkit.ch/subkit)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/siebenberge/agentkit/blob/main/LICENSE)
+
 Subscriptions for SaaS products: tokenize a payment method once, charge it
 every period – or bill by invoice. Everything a customer needs for
 self-service ships with the package. Database- and framework-agnostic.
 
-Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
+npm: [@agentkit.ch/subkit](https://www.npmjs.com/package/@agentkit.ch/subkit) · Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
 Try it: [sub.agentkit.ch](https://sub.agentkit.ch) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
 
 ## Install
 
 ```bash
-pnpm add @agentkit.ch/subkit
+npm i @agentkit.ch/subkit       # or: pnpm add / yarn add / bun add
 ```
 
 The package ships ES modules with type declarations; peer dependencies
