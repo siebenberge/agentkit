@@ -37,11 +37,17 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   `<OrderHistory />`, `useCart()`. Config: `createShop({ database, provider,
   shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
   sends payment reminders; invoice orders are booked from camt.053 / camt.054.
+  Pickup / delivery day: a rate with `schedule: { leadDays, cutoff, weekdays,
+  closedDates, timeWindows }` offers days (`shippingOptions[].schedule`), the
+  customer sets `fulfillmentDate` / `fulfillmentWindow`, orders carry them
+  (`listOrders({ fulfillmentDate })` for the day's orders).
   HS-Soft (WaWiAssist, bakery ERP) from `/hssoft`, like the WooHS plugin:
   `createHsSoftSync({ shop, apiKey })` imports articles as products (price
   category, special prices, image, declaration, allergens, nutrition) with
   `importProducts()` and sends orders to WaWiAssist (`onEvent` for the shop,
-  cron `syncOrders()` for retries; state in `order.metadata.hssoft`).
+  cron `syncOrders()` for retries; state in `order.metadata.hssoft`); the
+  pickup day becomes the WaWiAssist order date, `allowFulfillmentDate:
+  hsSoftDeliveryDays` offers only the articles' delivery days.
   Next: Swiss Post labels and live tariffs, digital downloads.
 
 ## Test sites

@@ -25,6 +25,7 @@ import type {
   CartItem,
   Discount,
   DiscountType,
+  FulfillmentSchedule,
   GiftCard,
   Locale,
   ModelMap,
@@ -40,6 +41,7 @@ import type {
   ShippingRate,
   ShopEvent,
   Variant,
+  Weekday,
 } from './types';
 
 export type Logger = {
@@ -110,6 +112,12 @@ export type ShopOptions = {
   };
   /** `stock.low` fires when tracked stock falls to this (default 3). */
   lowStockThreshold?: number;
+  /**
+   * Further limits the pickup / delivery days of rates with a `schedule`,
+   * e.g. to the days the products of the cart are made
+   * (`hsSoftDeliveryDays` of `/hssoft`).
+   */
+  allowFulfillmentDate?: (context: FulfillmentDateContext) => boolean;
   giftCards?: {
     /** Validity of issued gift cards in days (default: no expiry). */
     validityDays?: number | null;
@@ -203,16 +211,36 @@ export type CartLineView = {
   issue: CartLineIssue | null;
 };
 
+export type FulfillmentDateContext = {
+  /** `YYYY-MM-DD`. */
+  date: string;
+  weekday: Weekday;
+  rate: ShippingRate;
+  /** Products of the cart (gift cards and digital products included). */
+  products: Product[];
+};
+
 export type ShippingOption = {
   id: string;
   name: string;
   description: string | null;
   pickup: boolean;
   amount: number;
+  /** Days (`YYYY-MM-DD`) and time windows to choose from (rates with a `schedule`). */
+  schedule: {
+    dates: string[];
+    timeWindows: string[];
+    required: boolean;
+  } | null;
 };
 
 export type CartRequirement =
-  'items' | 'email' | 'shipping_address' | 'shipping_rate';
+  | 'items'
+  | 'email'
+  | 'shipping_address'
+  | 'shipping_rate'
+  /** Missing, or no longer offered (past the cutoff, closed day). */
+  | 'fulfillment_date';
 
 export type CartSummary = {
   cart: Cart;
@@ -260,6 +288,8 @@ export type OrderQuery = {
   fulfillmentStatus?: Order['fulfillmentStatus'] | Order['fulfillmentStatus'][];
   /** Only orders created at or after this time. */
   createdAfter?: Date;
+  /** Pickup / delivery day (`YYYY-MM-DD`). */
+  fulfillmentDate?: string;
   limit?: number;
   offset?: number;
 };
@@ -318,6 +348,7 @@ export function createShop(options: ShopOptions) {
       throw new Error(`shipping rate "${rate.id}" is defined twice`);
     }
     rateIds.add(rate.id);
+    if (rate.schedule) checkSchedule(rate.id, rate.schedule);
   }
 
   const configuredMethods: CheckoutPaymentMethod[] = (
@@ -1118,6 +1149,8 @@ export function createShop(options: ShopOptions) {
       shippingAddress: null,
       billingAddress: null,
       shippingRateId: null,
+      fulfillmentDate: null,
+      fulfillmentWindow: null,
       note: null,
       locale: resolveLocale(params.locale),
       orderId: null,
@@ -1330,6 +1363,10 @@ export function createShop(options: ShopOptions) {
       shippingAddress?: Address | null;
       billingAddress?: Address | null;
       shippingRateId?: string | null;
+      /** `YYYY-MM-DD`, one of the `schedule.dates` of the shipping option. */
+      fulfillmentDate?: string | null;
+      /** One of its `schedule.timeWindows`. */
+      fulfillmentWindow?: string | null;
       note?: string | null;
       locale?: string | null;
     },
@@ -1360,6 +1397,17 @@ export function createShop(options: ShopOptions) {
       }
       patch.shippingRateId = details.shippingRateId;
     }
+    if (details.fulfillmentDate !== undefined) {
+      if (details.fulfillmentDate !== null && !isDay(details.fulfillmentDate)) {
+        invalid('fulfillmentDate must be a date YYYY-MM-DD');
+      }
+      patch.fulfillmentDate = details.fulfillmentDate;
+    }
+    if (details.fulfillmentWindow !== undefined) {
+      const window = details.fulfillmentWindow?.trim().slice(0, 40);
+
+      patch.fulfillmentWindow = window ? window : null;
+    }
     if (details.note !== undefined) {
       const note = details.note?.trim().slice(0, 1000);
 
@@ -1367,6 +1415,32 @@ export function createShop(options: ShopOptions) {
     }
     if (details.locale !== undefined && details.locale !== null) {
       patch.locale = resolveLocale(details.locale);
+    }
+
+    // a day the chosen rate does not offer is refused right away
+    if (patch.fulfillmentDate || patch.fulfillmentWindow) {
+      const cart = await getCart(token);
+
+      if (!cart) throw new ShopError('CART_NOT_FOUND', 'Unknown cart');
+
+      const next = { ...cart, ...patch };
+      const { shippingOptions } = await summarize(next);
+      const schedule = shippingOptions.find(
+        (option) => option.id === next.shippingRateId,
+      )?.schedule;
+      const date = next.fulfillmentDate ?? null;
+      const window = next.fulfillmentWindow ?? null;
+
+      if (
+        schedule &&
+        ((date !== null && !schedule.dates.includes(date)) ||
+          (window !== null && !schedule.timeWindows.includes(window)))
+      ) {
+        throw new ShopError(
+          'FULFILLMENT_DATE_UNAVAILABLE',
+          `${date ?? ''} ${window ?? ''}`.trim() + ' is not offered',
+        );
+      }
     }
 
     return mutateCart(token, () => patch);
@@ -1499,10 +1573,70 @@ export function createShop(options: ShopOptions) {
     });
   }
 
+  /** Days (and time windows) a rate offers for these products from now on. */
+  function scheduleOf(
+    rate: ShippingRate,
+    products: Product[],
+  ): ShippingOption['schedule'] {
+    const schedule = rate.schedule;
+
+    if (!schedule) return null;
+
+    const date = now();
+    let first = addDays(zurichDay(date), schedule.leadDays ?? 0);
+
+    if (schedule.cutoff && zurichTime(date) >= schedule.cutoff) {
+      first = addDays(first, 1);
+    }
+
+    const closed = new Set(schedule.closedDates ?? []);
+    const dates: string[] = [];
+
+    for (let offset = 0; offset < (schedule.maxDays ?? 14); offset++) {
+      const day = addDays(first, offset);
+      const weekday = weekdayOf(day);
+
+      if (schedule.weekdays && !schedule.weekdays.includes(weekday)) continue;
+      if (closed.has(day)) continue;
+      if (
+        options.allowFulfillmentDate &&
+        !options.allowFulfillmentDate({ date: day, weekday, rate, products })
+      ) {
+        continue;
+      }
+
+      dates.push(day);
+    }
+
+    return {
+      dates,
+      timeWindows: schedule.timeWindows ?? [],
+      required: schedule.required !== false,
+    };
+  }
+
+  /** The chosen day / window does not fit the schedule (or is missing). */
+  function fulfillmentInvalid(
+    cart: Cart,
+    schedule: NonNullable<ShippingOption['schedule']>,
+  ) {
+    const date = cart.fulfillmentDate ?? null;
+    const window = cart.fulfillmentWindow ?? null;
+
+    if (date === null) return schedule.required;
+    if (!schedule.dates.includes(date)) return true;
+
+    return (
+      schedule.timeWindows.length > 0 &&
+      (window === null || !schedule.timeWindows.includes(window))
+    );
+  }
+
   function shippingOptionsFor(
     pricing: PricingResult,
     country: string | null,
     locale: Locale,
+    products: Product[],
   ): ShippingOption[] {
     if (!pricing.requiresShipping) return [];
 
@@ -1525,6 +1659,7 @@ export function createShop(options: ShopOptions) {
           description: rate.description ?? null,
           pickup: rate.pickup ?? false,
           amount,
+          schedule: scheduleOf(rate, products),
         },
       ];
     });
@@ -1572,7 +1707,12 @@ export function createShop(options: ShopOptions) {
       tax,
       roundToFiveRappen: options.roundToFiveRappen,
     });
-    const shippingOptions = shippingOptionsFor(base, country, cart.locale);
+    const shippingOptions = shippingOptionsFor(
+      base,
+      country,
+      cart.locale,
+      loaded.map((line) => line.product),
+    );
     const selected = shippingOptions.find(
       (option) => option.id === cart.shippingRateId,
     );
@@ -1627,6 +1767,9 @@ export function createShop(options: ShopOptions) {
       !addressComplete(cart.shippingAddress)
     ) {
       missing.push('shipping_address');
+    }
+    if (selected?.schedule && fulfillmentInvalid(cart, selected.schedule)) {
+      missing.push('fulfillment_date');
     }
 
     return {
@@ -1685,6 +1828,22 @@ export function createShop(options: ShopOptions) {
     if (summary.missing.includes('shipping_address')) {
       throw new ShopError('ADDRESS_REQUIRED', 'Shipping address missing');
     }
+    if (summary.missing.includes('fulfillment_date')) {
+      throw cart.fulfillmentDate
+        ? new ShopError(
+            'FULFILLMENT_DATE_UNAVAILABLE',
+            `${cart.fulfillmentDate} is no longer offered, choose another day`,
+          )
+        : new ShopError(
+            'FULFILLMENT_DATE_REQUIRED',
+            'Choose the day of the pickup / delivery',
+          );
+    }
+
+    const schedule =
+      summary.shippingOptions.find(
+        (option) => option.id === cart.shippingRateId,
+      )?.schedule ?? null;
     if (cart.discountCode && pricing.discount.status !== 'applied') {
       throw new ShopError(
         pricing.discount.status === 'none'
@@ -1850,6 +2009,11 @@ export function createShop(options: ShopOptions) {
         amountDue,
         refunds: [],
         refundedTotal: 0,
+        fulfillmentDate: schedule ? (cart.fulfillmentDate ?? null) : null,
+        fulfillmentWindow:
+          schedule && schedule.timeWindows.length > 0
+            ? (cart.fulfillmentWindow ?? null)
+            : null,
         note: cart.note,
         reserved: true,
         paymentAttempts: 0,
@@ -2438,6 +2602,9 @@ export function createShop(options: ShopOptions) {
         operator: 'gte',
         value: query.createdAfter,
       });
+    }
+    if (query.fulfillmentDate) {
+      where.push({ field: 'fulfillmentDate', value: query.fulfillmentDate });
     }
 
     return db.findMany('order', {
@@ -3179,6 +3346,94 @@ export function createShop(options: ShopOptions) {
 }
 
 export type Shop = ReturnType<typeof createShop>;
+
+const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+const zurichParts = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Zurich',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function zurich(date: Date) {
+  const parts = Object.fromEntries(
+    zurichParts.formatToParts(date).map((part) => [part.type, part.value]),
+  );
+
+  return {
+    day: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
+}
+
+/** Calendar day in Zurich (`YYYY-MM-DD`). */
+function zurichDay(date: Date) {
+  return zurich(date).day;
+}
+
+/** Time of day in Zurich (`HH:mm`). */
+function zurichTime(date: Date) {
+  return zurich(date).time;
+}
+
+function isDay(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+function addDays(day: string, days: number) {
+  const date = new Date(`${day}T00:00:00Z`);
+
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function weekdayOf(day: string): Weekday {
+  return WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]!;
+}
+
+function checkSchedule(rateId: string, schedule: FulfillmentSchedule) {
+  const fail = (message: string): never => {
+    throw new Error(`shipping rate "${rateId}": schedule.${message}`);
+  };
+  const days = (value: number | undefined, name: string, min: number) => {
+    if (
+      value !== undefined &&
+      (!Number.isInteger(value) || value < min || value > 366)
+    ) {
+      fail(`${name} must be an integer from ${min} to 366`);
+    }
+  };
+
+  days(schedule.leadDays, 'leadDays', 0);
+  days(schedule.maxDays, 'maxDays', 1);
+  if (
+    schedule.cutoff !== undefined &&
+    schedule.cutoff !== null &&
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.cutoff)
+  ) {
+    fail('cutoff must be HH:mm');
+  }
+  for (const weekday of schedule.weekdays ?? []) {
+    if (!WEEKDAYS.includes(weekday)) fail(`weekdays: unknown "${weekday}"`);
+  }
+  for (const day of schedule.closedDates ?? []) {
+    if (!isDay(day)) fail(`closedDates: "${day}" is not YYYY-MM-DD`);
+  }
+  for (const window of schedule.timeWindows ?? []) {
+    if (!window.trim() || window.length > 40) {
+      fail('timeWindows: 1–40 characters each');
+    }
+  }
+}
 
 function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;

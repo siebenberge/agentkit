@@ -55,6 +55,9 @@ The package ships ES modules with type declarations; peer dependencies
   as discount.
 - **Shipping**: flat rates, weight tiers (Swiss Post parcels), free above
   an amount, countries, pickup (no address).
+- **Pickup / delivery day**: per rate a `schedule` (lead time, cutoff,
+  weekdays, closed days, time windows); the customer chooses the day at
+  checkout, it is on the order, the emails and the receipt.
 - **Payment**: online (hosted page of the provider, verified webhook) or
   invoice with QR-bill (payment term, reminders after the due date,
   `invoice.allow` decides who may buy on invoice); orders fully covered by
@@ -211,6 +214,51 @@ Refunds with zahls.ch: refund in the zahls dashboard, then record it with
 
 Theming: `.my-app :is(.sk-root, .sk-add) { --sk-primary: #f97316; --sk-radius: 4px; }`.
 
+### Pickup and delivery day
+
+A rate with a `schedule` lets the customer choose the day (and time window)
+– for bakeries, click & collect or deliveries on fixed days. Days are
+calendar days in Zurich (`YYYY-MM-DD`).
+
+```ts
+shipping: {
+  rates: [
+    {
+      id: 'laden',
+      name: 'Abholung im Laden',
+      amount: 0,
+      pickup: true,
+      schedule: {
+        leadDays: 1, // tomorrow at the earliest …
+        cutoff: '16:00', // … the day after when ordered after 16:00
+        maxDays: 14, // days offered from the earliest one
+        weekdays: ['tue', 'wed', 'thu', 'fri', 'sat'],
+        closedDates: ['2026-12-25', '2026-12-26'],
+        timeWindows: ['07:00–09:00', '16:00–18:00'], // optional
+      },
+    },
+  ],
+},
+// optional: further limit the days, e.g. no cakes on Saturdays
+allowFulfillmentDate: ({ weekday, products }) =>
+  weekday !== 'sat' || !products.some((product) => product.metadata.cake),
+```
+
+- The cart summary lists the days per option (`shippingOptions[].schedule`:
+  `dates`, `timeWindows`, `required`); `<Checkout>` shows them as a select
+  (with weekday) and the windows as a choice.
+- Set them with `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`
+  (`POST /cart/details`). A day that is not offered is refused
+  (`FULFILLMENT_DATE_UNAVAILABLE`); until one is chosen `missing` contains
+  `fulfillment_date` and checkout answers `FULFILLMENT_DATE_REQUIRED`
+  (`required: false` makes it optional). A day that passed while the cart
+  was open is checked again at checkout.
+- The order carries `fulfillmentDate` / `fulfillmentWindow`: shown in
+  `<OrderStatus>`, the confirmation and ready-for-pickup emails and the
+  receipt. The day's orders: `shop.listOrders({ fulfillmentDate:
+  '2026-10-21' })`, `GET {admin}/orders?fulfillmentDate=2026-10-21` or the
+  MCP tool `list_orders`.
+
 ### HS-Soft (WaWiAssist)
 
 For bakeries and confectioners with the WaWiAssist ERP of HS-Soft – what the
@@ -273,6 +321,11 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   shipping and the customer's note; emojis are removed (the API cannot store
   them). The customer has paid: positions that break WaWiAssist's min/max,
   lot size or days-to-produce rules are kept and reported as warnings.
+- **Pickup / delivery day**: the day the customer chose
+  (`order.fulfillmentDate`) is the order date in WaWiAssist, the start of
+  the time window its delivery time. `createShop({ allowFulfillmentDate:
+  hsSoftDeliveryDays })` offers only days on which WaWiAssist delivers
+  every imported product of the cart (WooHS «Availability»).
 - **State** in `order.metadata.hssoft` (`hsSoftOrderSync(order)`): `synced`
   with the WaWiAssist order number, `retry` (unavailable, `syncOrders()`
   tries again), `failed` (refused – fix and resend), `uncertain` (no
@@ -282,8 +335,8 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   `createShopAdminHandler` (`POST /orders/:id/hssoft`, `POST /hssoft/import`,
   `POST /hssoft/sync`) and `createShopMcpHandler` (tools `hssoft_sync_order`,
   `hssoft_import_products`).
-- Not built yet: checking the delivery date against the delivery days at
-  checkout, categories from the marketing groups, stock from WaWiAssist.
+- Not built yet: categories from the marketing groups, stock from
+  WaWiAssist, the individual availability periods of the articles.
 
 
 Errors: every `ShopError` has a `code` and `docsUrl`, the link to its cause

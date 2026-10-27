@@ -26,6 +26,10 @@ export const en: Messages = {
       SHIPPING_RATE_REQUIRED: 'Please choose a shipping method.',
       SHIPPING_RATE_UNAVAILABLE:
         'This shipping method is not available for the address.',
+      FULFILLMENT_DATE_REQUIRED:
+        'Please choose the day of the pickup or delivery.',
+      FULFILLMENT_DATE_UNAVAILABLE:
+        'This day is no longer available. Please choose another one.',
       PAYMENT_METHOD_UNAVAILABLE:
         'This payment method is not available right now.',
       ORDER_NOT_FOUND: 'This order was not found.',
@@ -81,6 +85,11 @@ export const en: Messages = {
       shippingMethod: 'Shipping method',
       noShippingMethod: 'There is no shipping method for this address.',
       pickup: 'Pickup',
+      pickupDate: 'Pickup day',
+      deliveryDate: 'Delivery day',
+      timeWindow: 'Time window',
+      chooseDate: 'Choose a day',
+      noDates: 'No day is available at the moment.',
       payment: 'Payment',
       online: 'TWINT, card or PostFinance',
       onlineDescription: 'You will be redirected to the payment provider.',
@@ -105,6 +114,8 @@ export const en: Messages = {
       invoiceNote:
         'You will receive the invoice with QR-bill by email. Payable by {{date}}.',
       placedOn: 'Ordered on {{date}}',
+      pickupOn: 'Pickup: {{date}}',
+      deliveryOn: 'Delivery: {{date}}',
       receipt: 'View receipt',
       tracking: 'Track shipment',
       history: 'My orders',
@@ -143,6 +154,8 @@ export const en: Messages = {
       code: 'Gift card code',
       value: 'Value',
       validUntil: 'Valid until',
+      pickupDate: 'Pickup day',
+      deliveryDate: 'Delivery day',
       shippingTo: 'Shipping to',
       pickup: 'Pickup',
     },
@@ -226,6 +239,8 @@ export const en: Messages = {
     billTo: 'Bill to',
     shipTo: 'Ship to',
     pickup: 'Pickup',
+    pickupDate: 'Pickup day',
+    deliveryDate: 'Delivery day',
     article: 'Item',
     quantity: 'Qty',
     unitPrice: 'Price',

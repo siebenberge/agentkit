@@ -27,6 +27,10 @@ export const fr: Messages = {
       SHIPPING_RATE_REQUIRED: 'Merci de choisir un mode d’envoi.',
       SHIPPING_RATE_UNAVAILABLE:
         'Ce mode d’envoi n’est pas disponible pour cette adresse.',
+      FULFILLMENT_DATE_REQUIRED:
+        'Choisis le jour du retrait ou de la livraison.',
+      FULFILLMENT_DATE_UNAVAILABLE:
+        'Ce jour n’est plus disponible. Choisis-en un autre.',
       PAYMENT_METHOD_UNAVAILABLE:
         'Ce mode de paiement n’est pas disponible pour le moment.',
       ORDER_NOT_FOUND: 'Cette commande est introuvable.',
@@ -83,6 +87,11 @@ export const fr: Messages = {
       shippingMethod: 'Mode d’envoi',
       noShippingMethod: 'Aucun mode d’envoi pour cette adresse.',
       pickup: 'Retrait',
+      pickupDate: 'Jour de retrait',
+      deliveryDate: 'Jour de livraison',
+      timeWindow: 'Créneau horaire',
+      chooseDate: 'Choisir un jour',
+      noDates: 'Aucun jour n’est disponible pour le moment.',
       payment: 'Paiement',
       online: 'TWINT, carte ou PostFinance',
       onlineDescription: 'Tu seras redirigé vers le prestataire de paiement.',
@@ -107,6 +116,8 @@ export const fr: Messages = {
       invoiceNote:
         'Tu reçois la facture avec QR-facture par e-mail. Payable jusqu’au {{date}}.',
       placedOn: 'Commandé le {{date}}',
+      pickupOn: 'Retrait : {{date}}',
+      deliveryOn: 'Livraison : {{date}}',
       receipt: 'Afficher le justificatif',
       tracking: 'Suivre l’envoi',
       history: 'Mes commandes',
@@ -146,6 +157,8 @@ export const fr: Messages = {
       code: 'Code du bon',
       value: 'Valeur',
       validUntil: 'Valable jusqu’au',
+      pickupDate: 'Jour de retrait',
+      deliveryDate: 'Jour de livraison',
       shippingTo: 'Livraison à',
       pickup: 'Retrait',
     },
@@ -229,6 +242,8 @@ export const fr: Messages = {
     billTo: 'Facturé à',
     shipTo: 'Livraison à',
     pickup: 'Retrait',
+    pickupDate: 'Jour de retrait',
+    deliveryDate: 'Jour de livraison',
     article: 'Article',
     quantity: 'Quantité',
     unitPrice: 'Prix',

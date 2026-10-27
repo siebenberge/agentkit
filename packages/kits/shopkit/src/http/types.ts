@@ -71,6 +71,9 @@ export type CartDto = {
   shippingAddress: Address | null;
   billingAddress: Address | null;
   shippingRateId: string | null;
+  /** Chosen pickup / delivery day (`YYYY-MM-DD`) and time window. */
+  fulfillmentDate: string | null;
+  fulfillmentWindow: string | null;
   note: string | null;
   requiresShipping: boolean;
   shippingOptions: ShippingOption[];
@@ -105,6 +108,9 @@ export type OrderDto = {
   shipping: { name: string; pickup: boolean; total: number } | null;
   shippingAddress: Address | null;
   billingAddress: Address | null;
+  /** Pickup / delivery day (`YYYY-MM-DD`) and time window. */
+  fulfillmentDate: string | null;
+  fulfillmentWindow: string | null;
   discountCode: string | null;
   totals: TotalsDto;
   giftCardTotal: number;

@@ -86,6 +86,7 @@ export const it: Dict = {
           'Codici sconto',
           'Buoni regalo',
           'Collegamento a HS-Soft (WaWiAssist)',
+          'Giorno di ritiro e consegna con fascia oraria',
         ],
       },
     },
@@ -452,6 +453,16 @@ export const it: Dict = {
         cause:
           'La modalità di spedizione scelta non esiste o non è adatta a questo carrello.',
         fix: 'Scegli una delle `shippingOptions` del carrello.',
+      },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'La modalità di spedizione scelta ha un calendario (`schedule`), ma il carrello non ha ancora un giorno di ritiro o consegna – o nessuna fascia oraria, anche se ce ne sono.',
+        fix: 'Imposta un giorno da `shippingOptions[].schedule.dates` (e una fascia da `timeWindows`) con `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'Il giorno o la fascia oraria non è (più) offerto: prima del preavviso, dopo l’orario limite, in un giorno di chiusura o oltre `maxDays`.',
+        fix: 'Scegli un giorno tra le `schedule.dates` attuali della modalità di spedizione – l’elenco cambia nel tempo e con i prodotti nel carrello.',
       },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:

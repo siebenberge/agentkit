@@ -13,6 +13,7 @@ import {
   type HsSoftSync,
   createHsSoftSync,
   hsSoftClient,
+  hsSoftDeliveryDays,
   hsSoftOrderSync,
   hsSoftProductData,
 } from './index';
@@ -1159,5 +1160,94 @@ describe('back office and MCP', () => {
         structuredContent: { sync: { state: 'synced', orderNumber: 501 } },
       },
     });
+  });
+});
+
+describe('pickup day', () => {
+  it('offers only delivery days and sends the day as the order date', async () => {
+    const hs = fakeHsSoft();
+    let sync: HsSoftSync | null = null;
+    const shop = createShop({
+      database: memoryAdapter(),
+      paymentMethods: ['invoice'],
+      // Thursday 10:00 in Zurich
+      now: () => new Date('2026-10-15T08:00:00.000Z'),
+      shipping: {
+        rates: [
+          {
+            id: 'laden',
+            name: 'Abholung',
+            amount: 0,
+            pickup: true,
+            schedule: { leadDays: 1, maxDays: 7, timeWindows: ['07:00–09:00'] },
+          },
+        ],
+      },
+      allowFulfillmentDate: hsSoftDeliveryDays,
+      onEvent: (event) => sync!.onEvent(event),
+    });
+
+    sync = createHsSoftSync({
+      shop,
+      client: hs.client(),
+      logger: { info: () => undefined, error: () => undefined },
+    });
+    // delivered Mon, Tue, Thu, Fri, Sat
+    hs.articles.set(1, article(1, { description: 'Zopf' }));
+    await sync.importProducts();
+
+    const own = await shop.createProduct({
+      slug: 'tasse',
+      name: 'Tasse',
+      variants: [{ sku: 'MUG', price: 1_500, trackStock: false }],
+    });
+    const cart = await shop.createCart({ locale: 'fr' });
+    const zopf = (await shop.getProduct('zopf'))!;
+
+    await shop.addToCart(cart.token, {
+      variantId: zopf.variants[0]!.id,
+      quantity: 1,
+    });
+
+    const options = async () =>
+      (await shop.getCartSummary(cart.token)).shippingOptions[0]!.schedule!
+        .dates;
+
+    // Fri 16, Sat 17, Mon 19, Tue 20, Thu 22 – no Sunday, no Wednesday
+    expect(await options()).toEqual([
+      '2026-10-16',
+      '2026-10-17',
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+
+    // a product that is not from HS-Soft does not limit the days
+    await shop.addToCart(cart.token, {
+      variantId: own.variants[0]!.id,
+      quantity: 1,
+    });
+    expect(await options()).toHaveLength(5);
+
+    await shop.setCartQuantity(cart.token, {
+      variantId: own.variants[0]!.id,
+      quantity: 0,
+    });
+    await shop.updateCartDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'laden',
+      fulfillmentDate: '2026-10-20',
+      fulfillmentWindow: '07:00–09:00',
+      billingAddress: address,
+    });
+    await shop.checkout({ token: cart.token, paymentMethod: 'invoice' });
+
+    expect(hs.orders[0]!.body).toMatchObject({
+      date: '2026-10-20T00:00:00.000Z',
+      deliveryTime: '07:00',
+    });
+    expect(hs.orders[0]!.body.notePlainText).toContain(
+      'Abholtag: Dienstag, 20.10.2026, 07:00–09:00',
+    );
   });
 });

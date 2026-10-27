@@ -83,6 +83,7 @@ export const en: Dict = {
           'Discount codes',
           'Gift vouchers',
           'Connection to HS-Soft (WaWiAssist)',
+          'Pickup and delivery day with time window',
         ],
       },
     },
@@ -449,6 +450,16 @@ export const en: Dict = {
         cause:
           'The chosen shipping method does not exist or does not fit this cart.',
         fix: 'Pick one of the `shippingOptions` of the cart.',
+      },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'The chosen shipping rate has a `schedule`, but the cart has no pickup or delivery day yet – or no time window although there are some.',
+        fix: 'Set a day from `shippingOptions[].schedule.dates` (and a window from `timeWindows`) with `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'The day or time window is not (or no longer) offered: before the lead time, after the cutoff, on a closed day or beyond `maxDays`.',
+        fix: 'Choose a day from the current `schedule.dates` of the shipping rate – the list changes over time and with the products in the cart.',
       },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:

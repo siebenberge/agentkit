@@ -82,7 +82,7 @@ const FULFILLMENT_STATUSES: FulfillmentStatus[] = [
  * - `GET  /discounts`, `POST /discounts`, `POST /discounts/:id`
  * - `GET  /gift-cards?orderId=`, `POST /gift-cards` `{ amount, … }`,
  *   `POST /gift-cards/:id/disable`
- * - `GET  /orders?status=&paymentStatus=&fulfillmentStatus=&number=&email=&limit=&offset=`
+ * - `GET  /orders?status=&paymentStatus=&fulfillmentStatus=&fulfillmentDate=&number=&email=&limit=&offset=`
  * - `GET  /orders/:id`, `GET /orders/:id/receipt`
  * - `POST /orders/:id/mark-paid` `{ reference? }`
  * - `POST /orders/:id/ship` `{ carrier?, trackingNumber?, trackingUrl? }`
@@ -294,6 +294,8 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
                   'fulfillmentStatus',
                   FULFILLMENT_STATUSES,
                 ) as FulfillmentStatus[] | undefined,
+                fulfillmentDate:
+                  url.searchParams.get('fulfillmentDate') ?? undefined,
                 number: url.searchParams.get('number') ?? undefined,
                 email: url.searchParams.get('email') ?? undefined,
                 customerExternalId:

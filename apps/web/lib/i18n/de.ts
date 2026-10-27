@@ -89,6 +89,7 @@ export const de: Dict = {
           'Rabattcodes',
           'Geschenkgutscheine',
           'Anbindung an HS-Soft (WaWiAssist)',
+          'Abhol- und Liefertag mit Zeitfenster',
         ],
       },
     },
@@ -458,6 +459,16 @@ export const de: Dict = {
         cause:
           'Die gewählte Versandart gibt es nicht, oder sie passt nicht zu diesem Warenkorb.',
         fix: 'Eine der `shippingOptions` des Warenkorbs wählen.',
+      },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'Die gewählte Versandart hat einen Zeitplan (`schedule`), aber der Warenkorb hat noch keinen Abhol- oder Liefertag – oder kein Zeitfenster, obwohl es welche gibt.',
+        fix: 'Einen Tag aus `shippingOptions[].schedule.dates` (und ein Zeitfenster aus `timeWindows`) mit `updateCartDetails({ fulfillmentDate, fulfillmentWindow })` setzen.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'Der Tag oder das Zeitfenster wird nicht (mehr) angeboten: vor der Vorlaufzeit, nach dem Bestellschluss, an einem geschlossenen Tag oder ausserhalb von `maxDays`.',
+        fix: 'Einen Tag aus den aktuellen `schedule.dates` der Versandart wählen – die Liste ändert sich mit der Zeit und den Produkten im Warenkorb.',
       },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:

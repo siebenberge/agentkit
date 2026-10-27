@@ -110,6 +110,8 @@ export const shop_carts = pgTable(
     shippingAddress: jsonb('shipping_address').$type<Address | null>(),
     billingAddress: jsonb('billing_address').$type<Address | null>(),
     shippingRateId: text('shipping_rate_id'),
+    fulfillmentDate: text('fulfillment_date'),
+    fulfillmentWindow: text('fulfillment_window'),
     note: text('note'),
     locale: text('locale').$type<Locale>().notNull(),
     orderId: text('order_id'),
@@ -202,6 +204,9 @@ export const shop_orders = pgTable(
     amountDue: integer('amount_due').notNull(),
     refunds: jsonb('refunds').$type<OrderRefund[]>().notNull(),
     refundedTotal: integer('refunded_total').notNull(),
+    // `YYYY-MM-DD` (Zurich) – sorts and compares as text
+    fulfillmentDate: text('fulfillment_date'),
+    fulfillmentWindow: text('fulfillment_window'),
     note: text('note'),
     reserved: boolean('reserved').notNull(),
     paymentAttempts: integer('payment_attempts').notNull(),
@@ -238,6 +243,7 @@ export const shop_orders = pgTable(
       table.nextReminderAt,
     ),
     index('ix_shop_orders_created_at').on(table.createdAt),
+    index('ix_shop_orders_fulfillment_date').on(table.fulfillmentDate),
   ],
 );
 

@@ -86,6 +86,8 @@ function order(overrides: Partial<Order> = {}): Order {
     amountDue: 19_800,
     refunds: [],
     refundedTotal: 0,
+    fulfillmentDate: null,
+    fulfillmentWindow: null,
     note: null,
     reserved: true,
     paymentAttempts: 0,

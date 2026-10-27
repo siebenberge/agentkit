@@ -122,7 +122,7 @@ export function shopTools(shop: Shop): McpTool[] {
       name: 'list_orders',
       title: 'List orders',
       description:
-        'Orders, newest first, filtered by number, customer email, customer id or status. Each order has its lines, totals, VAT, addresses and payment / fulfillment status.',
+        'Orders, newest first, filtered by number, customer email, customer id, status or pickup / delivery day. Each order has its lines, totals, VAT, addresses, pickup / delivery day (fulfillmentDate, fulfillmentWindow) and payment / fulfillment status.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -135,6 +135,11 @@ export function shopTools(shop: Shop): McpTool[] {
           status: list(ORDER_STATUSES),
           paymentStatus: list(PAYMENT_STATUSES),
           fulfillmentStatus: list(FULFILLMENT_STATUSES),
+          fulfillmentDate: {
+            type: 'string',
+            description:
+              'Pickup / delivery day YYYY-MM-DD, e.g. the orders to prepare for tomorrow.',
+          },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
           offset: { type: 'integer', minimum: 0, default: 0 },
         },
@@ -159,6 +164,8 @@ export function shopTools(shop: Shop): McpTool[] {
               'fulfillmentStatus',
               FULFILLMENT_STATUSES,
             ),
+            fulfillmentDate:
+              optionalString(args, 'fulfillmentDate', 10) ?? undefined,
             limit: optionalInteger(args, 'limit', { min: 1, max: 100 }) ?? 20,
             offset:
               optionalInteger(args, 'offset', { min: 0, max: 100_000 }) ?? 0,

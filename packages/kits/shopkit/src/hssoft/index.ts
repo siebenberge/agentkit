@@ -1,5 +1,6 @@
-import type { Logger, Shop } from '../engine';
+import type { FulfillmentDateContext, Logger, Shop } from '../engine';
 import { ShopError, isShopError } from '../errors';
+import { formatFulfillmentDate } from '../i18n';
 import type {
   Address,
   Locale,
@@ -9,6 +10,7 @@ import type {
   ProductStatus,
   ShopEvent,
   Variant,
+  Weekday,
 } from '../types';
 import {
   type HsSoftArticle,
@@ -29,7 +31,7 @@ export * from './client';
 
 type MaybePromise<T> = T | Promise<T>;
 
-export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type { Weekday };
 
 /**
  * What the import keeps of an article in `product.metadata.hssoft` (read it
@@ -200,10 +202,11 @@ export type HsSoftOrderOptions = {
   caOrderName?: string;
   /**
    * Order (delivery) date: a `Date` (its day in Zurich) or `YYYY-MM-DD`.
-   * Default: day of the payment, else of the order.
+   * Default: the pickup / delivery day the customer chose
+   * (`order.fulfillmentDate`), else the day of the payment or of the order.
    */
   date?: (order: Order) => Date | string;
-  /** `HH:mm`. */
+  /** `HH:mm` (default: the start of the chosen time window `07:00–09:00`). */
   deliveryTime?: (order: Order) => string | null | undefined;
   tourplanId?: (order: Order) => number | null | undefined;
   /** Order note in WaWiAssist (default: number, payment, shipping, contact, customer note). */
@@ -304,6 +307,19 @@ export function hsSoftProductData(product: Product): HsSoftProductData | null {
   const data = product.metadata[KEY] as HsSoftProductData | undefined;
 
   return data && typeof data.articleId === 'number' ? data : null;
+}
+
+/**
+ * For `createShop({ allowFulfillmentDate })`: only days on which WaWiAssist
+ * delivers every imported product of the cart (WooHS «Availability»).
+ * Products that are not from HS-Soft do not limit the days.
+ */
+export function hsSoftDeliveryDays(context: FulfillmentDateContext) {
+  return context.products.every((product) => {
+    const data = hsSoftProductData(product);
+
+    return !data || data.deliveryDays.includes(context.weekday);
+  });
 }
 
 /** Sync state of an order, `null` before its first sync. */
@@ -814,10 +830,17 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     const comment = orders.comment
       ? orders.comment(order)
       : defaultComment(order);
-    const deliveryTime = orders.deliveryTime?.(order);
+    const deliveryTime = orders.deliveryTime
+      ? orders.deliveryTime(order)
+      : windowStart(order.fulfillmentWindow);
     const tourplanId = orders.tourplanId?.(order);
     const body: HsSoftOrderBody = {
-      date: orderDate(orders.date?.(order) ?? order.paidAt ?? order.createdAt),
+      date: orderDate(
+        orders.date?.(order) ??
+          order.fulfillmentDate ??
+          order.paidAt ??
+          order.createdAt,
+      ),
       orderType: orders.orderType ?? 'ORDER',
       positions,
       referenceOrderNo: order.number,
@@ -1295,6 +1318,11 @@ function percent(part: number, whole: number) {
   return whole > 0 && part > 0 ? Math.round((part / whole) * 1e6) / 1e4 : 0;
 }
 
+/** `07:00–09:00` → `07:00`. */
+function windowStart(window: string | null | undefined) {
+  return /^([01]\d|2[0-3]):[0-5]\d/.exec(window ?? '')?.[0] ?? null;
+}
+
 function withVat(vatRate: HsSoftVatRate | undefined) {
   return vatRate ? { vatRate } : {};
 }
@@ -1386,6 +1414,9 @@ function defaultComment(order: Order) {
       : null,
     order.shipping
       ? `${order.shipping.pickup ? 'Abholung' : 'Versand'}: ${order.shipping.name}`
+      : null,
+    order.fulfillmentDate
+      ? `${order.shipping?.pickup ? 'Abholtag' : 'Liefertag'}: ${formatFulfillmentDate(order.fulfillmentDate, order.fulfillmentWindow, 'de')}`
       : null,
     `Total: ${money(order.total, order.currency)}`,
     `E-Mail: ${order.email}`,
