@@ -41,7 +41,7 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   closedDates, timeWindows }` offers days (`shippingOptions[].schedule`), the
   customer sets `fulfillmentDate` / `fulfillmentWindow`, orders carry them
   (`listOrders({ fulfillmentDate })` for the day's orders).
-  HS-Soft (WaWiAssist, bakery ERP) from `/hssoft`, like the WooHS plugin:
+  HS-Soft (WaWiAssist, bakery ERP) from `/hssoft`:
   `createHsSoftSync({ shop, apiKey })` imports articles as products (price
   category, special prices, image, declaration, allergens, nutrition) with
   `importProducts()` and sends orders to WaWiAssist (`onEvent` for the shop,

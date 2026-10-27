@@ -71,8 +71,7 @@ The package ships ES modules with type declarations; peer dependencies
   card code; copies for the shop on new orders, late payments, low stock.
 - **HS-Soft (WaWiAssist)**: products imported from the articles (price
   category, special prices, image, declaration, allergens, nutrition,
-  delivery days), orders sent to WaWiAssist once they are placed – like the
-  WooHS plugin for WooCommerce.
+  delivery days), orders sent to WaWiAssist once they are placed.
 
 Next / planned (not built yet): Swiss Post labels and live tariffs,
 refunds through the zahls.ch API,
@@ -261,9 +260,8 @@ allowFulfillmentDate: ({ weekday, products }) =>
 
 ### HS-Soft (WaWiAssist)
 
-For bakeries and confectioners with the WaWiAssist ERP of HS-Soft – what the
-WooHS plugin does for WooCommerce: products come from WaWiAssist, orders go
-there. Needs the API key of your WaWiAssist (from HS-Soft, [API
+For bakeries and confectioners with the WaWiAssist ERP of HS-Soft: products
+come from WaWiAssist, orders go there. Needs the API key of your WaWiAssist (from HS-Soft, [API
 reference](https://api.hssoft.com/rest/docs)).
 
 ```ts
@@ -325,7 +323,7 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   (`order.fulfillmentDate`) is the order date in WaWiAssist, the start of
   the time window its delivery time. `createShop({ allowFulfillmentDate:
   hsSoftDeliveryDays })` offers only days on which WaWiAssist delivers
-  every imported product of the cart (WooHS «Availability»).
+  every imported product of the cart.
 - **State** in `order.metadata.hssoft` (`hsSoftOrderSync(order)`): `synced`
   with the WaWiAssist order number, `retry` (unavailable, `syncOrders()`
   tries again), `failed` (refused – fix and resend), `uncertain` (no
