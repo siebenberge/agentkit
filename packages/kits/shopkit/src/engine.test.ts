@@ -1353,6 +1353,33 @@ describe('orders and jobs', () => {
     expect(await shop.getOrderWithToken(first.id, 'x'.repeat(32))).toBeNull();
   });
 
+  it('stores the metadata of checkout and placeOrder on the order', async () => {
+    const { shop, products, variant, readyCart } = await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.book), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+      metadata: { channel: 'web' },
+    });
+    const placed = await shop.placeOrder({
+      customerExternalId: null,
+      email: 'gast@example.ch',
+      items: [{ sku: 'BOOK', quantity: 1 }],
+      shippingRateId: 'pickup',
+      paymentMethod: 'invoice',
+      urls,
+      metadata: { channel: 'mcp', client: 'Claude' },
+    });
+
+    expect(order.metadata).toEqual({ channel: 'web' });
+    expect((await shop.getOrder(placed.order.id))!.metadata).toEqual({
+      channel: 'mcp',
+      client: 'Claude',
+    });
+  });
+
   it('changes order metadata without losing a concurrent change', async () => {
     const { shop, products, variant, readyCart } = await setup();
     const cart = await readyCart([

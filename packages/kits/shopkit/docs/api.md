@@ -303,6 +303,7 @@ type CheckoutParams = {
   urls?: OrderRedirectUrls; // required for 'online'
   customerExternalId?: string | null; // overrides the cart's
   savePaymentMethod?: boolean;
+  metadata?: Record<string, unknown>; // stored on the order
 };
 type CheckoutResult =
   | { type: 'redirect'; url: string; order: Order }
@@ -349,7 +350,8 @@ quoteOrder(input: OrderInput): Promise<OrderQuote>
 
 `OrderInput`: `customerExternalId`, `email`, `items` (`{ variantId? | sku?,
 quantity }[]`), `shippingRateId?`, `fulfillmentDate?`, `fulfillmentWindow?`,
-`shippingAddress?`, `billingAddress?`, `note?`, `discountCode?`, `locale?`.
+`shippingAddress?`, `billingAddress?`, `note?`, `discountCode?`, `locale?`,
+`metadata?` (stored on the order by `placeOrder`, ignored by `quoteOrder`).
 `OrderQuote`: the cart summary without `cart`, plus `savedPaymentMethod`.
 Stores nothing. Errors: `CART_EMPTY`, `INVALID_QUANTITY`,
 `VARIANT_NOT_FOUND`, `NOT_FOR_SALE`, `OUT_OF_STOCK`, `INVALID_INPUT`,

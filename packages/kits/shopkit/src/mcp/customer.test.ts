@@ -468,14 +468,18 @@ describe('createShopCustomerMcpHandler', () => {
 
     const response = await handler(request(), {
       customer: { externalId: 'user_carla', email: 'carla@example.ch' },
+      orderMetadata: { client: 'Claude', channel: 'not-this' },
     });
     const body = (await response.json()) as { result: Result };
 
     expect(body.result.structuredContent.payment).toEqual({
       status: 'invoice',
     });
-    expect(
-      await shop.listOrders({ customerExternalId: 'user_carla' }),
-    ).toHaveLength(1);
+
+    const orders = await shop.listOrders({ customerExternalId: 'user_carla' });
+
+    expect(orders).toHaveLength(1);
+    // the app's metadata, but the channel is always mcp
+    expect(orders[0]!.metadata).toEqual({ client: 'Claude', channel: 'mcp' });
   });
 });

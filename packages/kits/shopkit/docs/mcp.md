@@ -178,9 +178,13 @@ export const POST = createShopCustomerMcpHandler({
 `McpCustomer`: `externalId` (your id; the orders' `customerExternalId`),
 `email` (on the order), `name` (shown on the payment page, optional).
 
-The handler is `(request, context?: { customer?: McpCustomer | null })`. A
-`customer` in the second argument – one your auth wrapper already verified –
-is used instead of `identify`; `null` answers 401.
+The handler is `(request, context?: { customer?: McpCustomer | null;
+orderMetadata?: Record<string, unknown> })`. A `customer` in the second
+argument – one your auth wrapper already verified – is used instead of
+`identify`; `null` answers 401. Orders placed with `place_order` get
+`metadata.channel = 'mcp'` and the `orderMetadata` of the request – e.g.
+`{ client: 'Claude' }` from the OAuth client – so emails, the back office or
+the HS-Soft comment can tell them from the web shop's.
 
 ### Customer tools
 
