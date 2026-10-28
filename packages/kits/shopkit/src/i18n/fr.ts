@@ -76,6 +76,7 @@ export const fr: Messages = {
       shippingAddress: 'Adresse de livraison',
       billingAddress: 'Adresse de facturation',
       sameAsShipping: 'Adresse de facturation identique',
+      invoiceAddress: 'J’ai besoin d’une facture avec adresse',
       name: 'Prénom et nom',
       company: 'Entreprise (facultatif)',
       line1: 'Rue et numéro',
@@ -168,6 +169,7 @@ export const fr: Messages = {
       pickup: 'Retrait',
     },
     merchant: {
+      labels: { customer: 'Client', note: 'Remarque' },
       newOrder: {
         subject: 'Nouvelle commande {{orderNumber}} – {{amount}}',
         body: '{{customerName}} a passé commande ({{method}}).',
