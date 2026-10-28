@@ -192,6 +192,7 @@ export function useCart(client: ShopClient, options: UseCartOptions = {}) {
     (input: {
       paymentMethod: 'online' | 'invoice';
       giftCardCodes?: string[];
+      savePaymentMethod?: boolean;
     }): Promise<CheckoutResultDto> =>
       run('checkout', async () => {
         const cartToken = await ensureToken();

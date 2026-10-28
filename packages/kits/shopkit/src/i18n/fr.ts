@@ -101,6 +101,8 @@ export const fr: Messages = {
       payment: 'Paiement',
       online: 'TWINT, carte ou PostFinance',
       onlineDescription: 'Tu seras redirigé vers le prestataire de paiement.',
+      saveOnline:
+        'Enregistrer le moyen de paiement pour les prochaines commandes',
       invoice: 'Facture',
       invoiceDescription:
         'Payable dans les {{days}} jours avec la QR-facture ou par virement.',

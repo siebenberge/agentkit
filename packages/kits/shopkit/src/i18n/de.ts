@@ -101,6 +101,7 @@ export const de = {
       payment: 'Zahlung',
       online: 'TWINT, Karte oder PostFinance',
       onlineDescription: 'Du wirst zum Zahlungsanbieter weitergeleitet.',
+      saveOnline: 'Zahlungsart für weitere Bestellungen speichern',
       invoice: 'Rechnung',
       invoiceDescription:
         'Zahlbar innert {{days}} Tagen mit QR-Rechnung oder Banküberweisung.',

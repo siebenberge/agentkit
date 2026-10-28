@@ -608,6 +608,7 @@ export function Checkout(props: CheckoutProps) {
   const [withAddress, setWithAddress] = useState(false);
   const [note, setNote] = useState('');
   const [method, setMethod] = useState<'online' | 'invoice' | null>(null);
+  const [savePayment, setSavePayment] = useState(false);
   const [giftCode, setGiftCode] = useState('');
   const [giftCards, setGiftCards] = useState<
     { code: string; balance: number }[]
@@ -774,6 +775,9 @@ export function Checkout(props: CheckoutProps) {
       const result = await state.checkout({
         paymentMethod: method ?? 'invoice',
         giftCardCodes: giftCards.map((card) => card.code),
+        ...(method === 'online' && cart.savePaymentMethod && savePayment
+          ? { savePaymentMethod: true }
+          : {}),
       });
 
       navigate(
@@ -1010,6 +1014,16 @@ export function Checkout(props: CheckoutProps) {
               </label>
             ))}
           </div>
+          {method === 'online' && cart.savePaymentMethod ? (
+            <label className="sk-check">
+              <input
+                type="checkbox"
+                checked={savePayment}
+                onChange={(event) => setSavePayment(event.target.checked)}
+              />
+              <span>{t.saveOnline}</span>
+            </label>
+          ) : null}
         </section>
       ) : null}
 

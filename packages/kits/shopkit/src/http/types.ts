@@ -83,7 +83,8 @@ export type CartDto = {
   totals: TotalsDto;
   missing: CartRequirement[];
   /** The handler suggests and checks addresses (`/address/*`). */
-  addressLookup: boolean;
+  addressLookup: boolean; /** A signed-in customer can save the online payment method (`savePaymentMethod`). */
+  savePaymentMethod: boolean;
 };
 
 export type OrderLineDto = {

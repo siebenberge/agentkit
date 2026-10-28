@@ -50,7 +50,8 @@ shipping rate id is used twice or a `schedule` is invalid.
 
 The resolved settings are on `shop.settings`: `currency`, `tax`
 (`inclusive`, `defaultRateBps`), `paymentMethods` (without `online` when no
-provider is set), `shippingRates`, `invoiceDueDays`, `roundToFiveRappen`.
+provider is set), `savePaymentMethods` (`online` and a provider with
+`chargeToken`), `shippingRates`, `invoiceDueDays`, `roundToFiveRappen`.
 
 ## Storage and payments
 
