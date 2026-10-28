@@ -2044,7 +2044,9 @@ describe('pickup / delivery day', () => {
     };
 
     // no day yet: the quote says so, placing fails
-    expect((await shop.quoteOrder(order)).missing).toContain('fulfillment_date');
+    expect((await shop.quoteOrder(order)).missing).toContain(
+      'fulfillment_date',
+    );
     await expect(
       shop.placeOrder({ ...order, paymentMethod: 'invoice', urls }),
     ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_REQUIRED' });
