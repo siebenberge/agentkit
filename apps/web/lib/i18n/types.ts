@@ -90,6 +90,14 @@ export type ErrorDocKey = (typeof ERROR_DOC_KEYS)[number];
  *
  * Inline emphasis: wrap words in **double asterisks** (rendered by `Rich`).
  */
+/** A section of the «new» part of the home page. */
+type NewsFeature = {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  points: string[];
+};
+
 export type Dict = {
   /** BCP 47 tag for <html lang>, e.g. 'de-CH'. */
   htmlLang: string;
@@ -198,7 +206,14 @@ export type Dict = {
   footer: { company: string; made: string };
   /** Copy that only the landing page (components/home.tsx) uses. */
   home: {
-    nav: { menu: string; faq: string; openSource: string; cta: string };
+    nav: {
+      menu: string;
+      /** Header link to the «new» section. */
+      news: string;
+      faq: string;
+      openSource: string;
+      cta: string;
+    };
     hero: {
       /**
        * Under the headline (`hero.title`): names the two kits – keep
@@ -208,6 +223,45 @@ export type Dict = {
       lead: string;
       /** Mono line under the buttons. */
       note: string;
+    };
+    /**
+     * New in shopkit, two separate sections: customers order through their
+     * own agent (customer MCP, for every shop) and the HS-Soft (WaWiAssist)
+     * integration for bakeries. Only what is on npm.
+     */
+    news: {
+      /** Pill in the hero that links to the agent section. */
+      pill: string;
+      /** Link to the README section of the feature. */
+      docs: string;
+      agent: NewsFeature & {
+        /** Chat mock: the customer's message. */
+        ask: string;
+        /** Search terms the agent passes to `search_products`. */
+        query: string;
+        /** Order lines of the quote (prices in MOCK.agentOrder). */
+        items: string[];
+        /** Shipping rate of the quote. */
+        shipping: string;
+        total: string;
+        /** The agent asks before it charges the saved method. */
+        confirm: string;
+        yes: string;
+        paid: string;
+      };
+      hssoft: NewsFeature & {
+        /** Article names of the import (numbers and prices in MOCK.hssoft). */
+        articles: string[];
+        /** Availability period of the last article, e.g. «ab 1.11.». */
+        from: string;
+        import: string;
+        imported: string;
+        orders: string;
+        pickup: string;
+        sending: string;
+        /** Followed by the WaWiAssist order number. */
+        synced: string;
+      };
     };
     /** Why not to vibe-code billing: bugs that only show up in production. */
     diy: {

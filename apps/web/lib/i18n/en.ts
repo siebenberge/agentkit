@@ -84,6 +84,8 @@ export const en: Dict = {
           'Gift vouchers',
           'Connection to HS-Soft (WaWiAssist)',
           'Swiss Post labels & address check',
+          'Ordering through AI agents (MCP)',
+          'Back office to embed',
           'Pickup and delivery day with time window',
         ],
       },
@@ -197,7 +199,7 @@ export const en: Dict = {
       {
         label: 'Agent-native',
         title: 'Your coding agent can wire it in.',
-        text: 'llms.txt for coding agents, typed options throughout and errors with fixed codes. One prompt from zero to a working checkout. An MCP server per kit comes next.',
+        text: 'llms.txt for coding agents, typed options throughout and errors with fixed codes. One prompt from zero to a working checkout. Plus MCP servers for your team and, in shopkit, for your customers.',
       },
       {
         label: 'Correct by design',
@@ -243,12 +245,12 @@ export const en: Dict = {
       {
         title: 'subkit + shopkit',
         when: 'on npm',
-        text: 'subkit 0.2 and shopkit 0.1 as @agentkit.ch/subkit and @agentkit.ch/shopkit, the code under MIT on GitHub: QR-bill, bank reconciliation (camt.053 / camt.054), VAT, zahls.ch with TWINT, Drizzle adapter for Postgres.',
+        text: 'subkit 0.2 and shopkit 0.2 as @agentkit.ch/subkit and @agentkit.ch/shopkit, the code under MIT on GitHub: QR-bill, bank reconciliation (camt.053 / camt.054), VAT, zahls.ch with TWINT, Drizzle adapter for Postgres. New in shopkit 0.2: ordering through AI agents (MCP), the HS-Soft (WaWiAssist) connection and the back office to embed.',
       },
       {
         title: 'core + CLI',
         when: 'next',
-        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: a back office to embed (orders, products, stock, discount codes, gift cards, bank import – in the repo, on npm with the next release), Swiss Post live tariffs and refunds through zahls.ch.',
+        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: Swiss Post live tariffs and refunds through zahls.ch.',
       },
       {
         title: 'Dunning & adapters',
@@ -555,6 +557,7 @@ export const en: Dict = {
   home: {
     nav: {
       menu: 'Menu',
+      news: 'New',
       faq: 'Questions',
       openSource: 'Open source',
       cta: 'Try the demo',
@@ -562,6 +565,55 @@ export const en: Dict = {
     hero: {
       lead: 'Two TypeScript libraries: **subkit** for subscriptions and invoices, **shopkit** for your online shop. They run inside your app, with QR-bill, VAT and four languages. Payments go through **zahls.ch** with TWINT and card, and the data stays in your database.',
       note: 'No per-transaction fee · data in your database',
+    },
+    news: {
+      pill: 'Customers order through AI agents',
+      docs: 'Guide in the README',
+      agent: {
+        eyebrow: 'New in shopkit 0.2 · Ordering through AI agents',
+        title: 'Your customers order in the chat.',
+        lead: 'Your shop becomes an MCP server. Your customers’ agent – Claude, ChatGPT or Cursor – finds products, prices the order with VAT and shipping, and places it. Payment goes through a zahls.ch link or straight to the saved TWINT. For every shopkit shop, no extra service.',
+        points: [
+          'Sign-in with OAuth – Claude and ChatGPT connect without a token',
+          'Only the amount the customer confirmed is charged',
+          'Shipping, pickup or delivery day with time window – the agent asks',
+          'Payment tokens never reach the model',
+        ],
+        ask: 'Two bags of the house blend and a descaler, by post please.',
+        query: 'house blend, descaler',
+        items: [
+          '2 × House blend 500 g',
+          'Descaler',
+        ],
+        shipping: 'PostPac Priority',
+        total: 'Total',
+        confirm: 'Pay CHF 58.90 with your saved TWINT?',
+        yes: 'Yes, please.',
+        paid: 'Ordered and paid',
+      },
+      hssoft: {
+        eyebrow: 'New in shopkit 0.2 · For bakeries',
+        title: 'HS-Soft (WaWiAssist) connected.',
+        lead: 'For bakeries and confectioners on WaWiAssist: products come from WaWiAssist, and every order lands there as a WaWiAssist order – with the pickup day as the order date. Whether placed in the web shop or through an agent.',
+        points: [
+          'Import with price category, special price, image, declaration, allergens and nutrition',
+          'Only pickup days on which every article in the cart can be had',
+          'If HS-Soft is unreachable, shopkit sends the order again later',
+          'State and resend in the back office and through MCP',
+        ],
+        articles: [
+          'Zopf 500 g',
+          'Farmhouse loaf',
+          'Grittibänz',
+        ],
+        from: 'from 1.11.',
+        import: 'Articles → products',
+        imported: 'imported',
+        orders: 'Order → WaWiAssist',
+        pickup: 'Pickup 31.10.2026',
+        sending: 'sending …',
+        synced: 'Order',
+      },
     },
     diy: {
       eyebrow: 'Don’t vibe-code it',
@@ -742,6 +794,14 @@ export const en: Dict = {
         {
           q: 'Do I need both kits?',
           a: 'No. Each kit works on its own. A club with membership fees and a fan shop takes both, a SaaS usually just subkit.',
+        },
+        {
+          q: 'Can my customers order through an AI agent?',
+          a: 'Yes, since shopkit 0.2. createShopCustomerMcpHandler turns your shop into an MCP server: the customer’s agent – Claude, ChatGPT or Cursor – finds products, prices the order with VAT and shipping, and places it. Payment goes through a zahls.ch link or the saved payment method, and only the confirmed amount is charged. Your sign-in decides who orders (OAuth or API key).',
+        },
+        {
+          q: 'Does shopkit work with HS-Soft (WaWiAssist)?',
+          a: 'Yes. @agentkit.ch/shopkit/hssoft imports the articles from WaWiAssist as products and sends every order back as a WaWiAssist order, with the pickup day as the order date. All you need is the API key of your WaWiAssist from HS-Soft.',
         },
         {
           q: 'Is agentkit really open source?',

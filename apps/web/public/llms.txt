@@ -7,7 +7,7 @@
 > Postgres; Prisma and Kysely planned). No hosted service in between.
 
 Status: early, open source (MIT). subkit 0.2 (extracted from production
-code) and shopkit 0.1 (preview) are on npm – the two kits we focus on. npm
+code) and shopkit 0.2 (preview) are on npm – the two kits we focus on. npm
 scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
 
 ## Install
@@ -64,14 +64,15 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   `createShopHandler` adds postcode / locality / street / number suggestions
   and the address check to `<Checkout>`; `<ShopAdminProvider swisspost>`
   adds the label part to the order in the back office.
-  Next: back office components – `<ShopAdmin />` from
+  Back office components: `<ShopAdmin />` from
   `@agentkit.ch/shopkit/react/admin` (orders, products and stock, discount
   codes, gift cards, bank import; with `<ShopAdminProvider hssoft>` also
   the HS-Soft parts – import, order state in WaWiAssist, availability
   periods; your auth decides access through
-  `createShopAdminHandler({ authorize })`) are in the repo and reach npm
-  with the next release; Swiss Post live tariffs and international
-  labels, digital downloads.
+  `createShopAdminHandler({ authorize })`).
+  Customers order through their own AI agent: see MCP below
+  (`createShopCustomerMcpHandler`).
+  Next: Swiss Post live tariffs and international labels, digital downloads.
 
 ## Test sites
 
