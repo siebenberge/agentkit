@@ -494,6 +494,38 @@ export function hsSoftClient(options: HsSoftClientOptions) {
       );
     },
 
+    /**
+     * Ids of the articles the customer can order for `date` (`YYYY-MM-DD`):
+     * WaWiAssist applies assortment, delivery days and lead times.
+     */
+    async listArticlesAvailableForOrder(query: {
+      date: string;
+      customerId: number;
+    }) {
+      const ids: number[] = [];
+
+      for (let offset = 0; ; offset += 100) {
+        const page = data(
+          await request<{ items: { id: number; articleNumber: string }[] }>(
+            'GET',
+            '/v1/articles-available-for-order',
+            {
+              query: {
+                date: `${query.date}T00:00:00.000Z`,
+                customerId: query.customerId,
+                limit: 100,
+                offset,
+              },
+            },
+          ),
+          'available articles',
+        );
+
+        ids.push(...page.items.map((item) => item.id));
+        if (page.items.length < 100) return ids;
+      }
+    },
+
     async getOrder(id: number) {
       return data(
         await request<HsSoftOrder>('GET', `/v1/order/${id}`),

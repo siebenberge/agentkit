@@ -232,6 +232,8 @@ export const SHOP_DEFAULTS: DemoConfig = {
   paymentMethods: ['online', 'invoice'],
   'shipping.rates': ['economy', 'priority', 'pickup'],
   'shipping.economy.freeAbove': 8_000,
+  'shipping.pickup.schedule.leadDays': 1,
+  'shipping.pickup.schedule.timeWindows': ['08:00–12:00', '14:00–18:00'],
   'checkout.expiresInHours': 2,
   'invoice.dueDays': 30,
   'invoice.reminderDays': [10, 20].join(', '),
@@ -277,6 +279,28 @@ export const SHOP_SECTIONS: ConfigSection[] = [
           fr: 'Economy gratuit dès ce montant, vide = jamais gratuit.',
           it: 'Economy gratuita da questo importo, vuoto = mai gratuita.',
           en: 'Economy is free from this order value, empty = never free.',
+        },
+      },
+      {
+        key: 'shipping.pickup.schedule.leadDays',
+        type: 'number',
+        nullable: true,
+        hint: {
+          de: 'Abholtag frühestens in so vielen Tagen (Di–Sa), leer = ohne Abholtag.',
+          fr: 'Jour de retrait au plus tôt dans autant de jours (ma–sa), vide = sans jour de retrait.',
+          it: 'Giorno di ritiro al più presto tra tanti giorni (ma–sa), vuoto = senza giorno di ritiro.',
+          en: 'Pickup day at the earliest in this many days (Tue–Sat), empty = no pickup day.',
+        },
+      },
+      {
+        key: 'shipping.pickup.schedule.timeWindows',
+        type: 'multi',
+        options: ['08:00–12:00', '14:00–18:00'],
+        hint: {
+          de: 'Zeitfenster für die Abholung, keins = nur der Tag.',
+          fr: 'Créneaux de retrait, aucun = seulement le jour.',
+          it: 'Fasce orarie per il ritiro, nessuna = solo il giorno.',
+          en: 'Time windows for the pickup, none = the day only.',
         },
       },
       {
@@ -459,6 +483,13 @@ export const numOrNull = (value: ConfigValue) =>
     ? value
     : null;
 
+/** Pickup lead days as the demo runs them (0–30), `null` without a schedule. */
+export function pickupLeadDays(c: DemoConfig) {
+  const days = numOrNull(c['shipping.pickup.schedule.leadDays']!);
+
+  return days === null ? null : Math.max(0, Math.min(30, Math.round(days)));
+}
+
 export const list = (value: ConfigValue) => (Array.isArray(value) ? value : []);
 
 // ---------------------------------------------------------------- code
@@ -578,6 +609,8 @@ export function subCode(c: DemoConfig): CodeLine[] {
 export function shopCode(c: DemoConfig): CodeLine[] {
   const rates = list(c['shipping.rates']!);
   const freeAbove = numOrNull(c['shipping.economy.freeAbove']!);
+  const leadDays = pickupLeadDays(c);
+  const windows = list(c['shipping.pickup.schedule.timeWindows']!);
   const validity = numOrNull(c['giftCards.validityDays']!);
   const rateLines: CodeLine[] = [
     ...(rates.includes('economy')
@@ -606,11 +639,27 @@ export function shopCode(c: DemoConfig): CodeLine[] {
           },
         ]
       : []),
-    ...(rates.includes('pickup')
+    ...(rates.includes('pickup') && leadDays === null
       ? [
           {
             key: 'shipping.rates',
             text: "      { id: 'pickup', name: 'Abholung', amount: 0, pickup: true },",
+          },
+        ]
+      : []),
+    ...(rates.includes('pickup') && leadDays !== null
+      ? [
+          {
+            key: 'shipping.rates',
+            text: "      { id: 'pickup', name: 'Abholung', amount: 0, pickup: true,",
+          },
+          {
+            key: 'shipping.pickup.schedule.leadDays',
+            text: `        schedule: { leadDays: ${leadDays}, weekdays: ['tue', 'wed', 'thu', 'fri', 'sat'],`,
+          },
+          {
+            key: 'shipping.pickup.schedule.timeWindows',
+            text: `          timeWindows: ${strings(windows)} } },`,
           },
         ]
       : []),

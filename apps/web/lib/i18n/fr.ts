@@ -89,6 +89,7 @@ export const fr: Dict = {
           'Codes promo',
           'Bons cadeaux',
           'Connexion à HS-Soft (WaWiAssist)',
+          'Jour de retrait et de livraison avec créneau',
         ],
       },
     },
@@ -457,6 +458,16 @@ export const fr: Dict = {
         cause:
           'Le mode d’envoi choisi n’existe pas ou ne convient pas à ce panier.',
         fix: 'Choisissez l’une des `shippingOptions` du panier.',
+      },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'Le mode d’envoi choisi a un calendrier (`schedule`), mais le panier n’a pas encore de jour de retrait ou de livraison – ou pas de créneau alors qu’il y en a.',
+        fix: 'Définissez un jour de `shippingOptions[].schedule.dates` (et un créneau de `timeWindows`) avec `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'Le jour ou le créneau n’est pas (plus) proposé : avant le délai, après l’heure limite, un jour de fermeture ou au-delà de `maxDays`.',
+        fix: 'Choisissez un jour des `schedule.dates` actuelles du mode d’envoi – la liste change avec le temps et les produits du panier.',
       },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:

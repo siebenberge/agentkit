@@ -82,14 +82,16 @@ const FULFILLMENT_STATUSES: FulfillmentStatus[] = [
  * - `GET  /discounts`, `POST /discounts`, `POST /discounts/:id`
  * - `GET  /gift-cards?orderId=`, `POST /gift-cards` `{ amount, … }`,
  *   `POST /gift-cards/:id/disable`
- * - `GET  /orders?status=&paymentStatus=&fulfillmentStatus=&number=&email=&limit=&offset=`
+ * - `GET  /orders?status=&paymentStatus=&fulfillmentStatus=&fulfillmentDate=&number=&email=&limit=&offset=`
  * - `GET  /orders/:id`, `GET /orders/:id/receipt`
  * - `POST /orders/:id/mark-paid` `{ reference? }`
  * - `POST /orders/:id/ship` `{ carrier?, trackingNumber?, trackingUrl? }`
  * - `POST /orders/:id/deliver`, `POST /orders/:id/cancel` `{ reason? }`
  * - `POST /orders/:id/refund` `{ amount?, reason?, restock? }`
  * - with `hssoft`: `POST /hssoft/import` `{ force? }` (products),
- *   `POST /hssoft/sync` (due orders), `POST /orders/:id/hssoft` `{ force? }`
+ *   `POST /hssoft/sync` (due orders), `POST /orders/:id/hssoft` `{ force? }`,
+ *   `POST /products/:id/hssoft-availability` `{ from, to, recurring? }`
+ *   (`{}` removes the period)
  */
 export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
   const { shop } = options;
@@ -159,6 +161,29 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
                 variantInput(body, true) as VariantInput,
               ),
               201,
+            );
+          }
+          if (
+            !get &&
+            id &&
+            action === 'hssoft-availability' &&
+            options.hssoft
+          ) {
+            // `{ from, to, recurring? }`, or `{}` to remove the period
+            const from = optionalString(body.from);
+            const to = optionalString(body.to);
+
+            return json(
+              await options.hssoft.setAvailabilityPeriod(
+                id,
+                from || to
+                  ? {
+                      from: from ?? '',
+                      to: to ?? '',
+                      recurring: body.recurring === true,
+                    }
+                  : null,
+              ),
             );
           }
           break;
@@ -294,6 +319,8 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
                   'fulfillmentStatus',
                   FULFILLMENT_STATUSES,
                 ) as FulfillmentStatus[] | undefined,
+                fulfillmentDate:
+                  url.searchParams.get('fulfillmentDate') ?? undefined,
                 number: url.searchParams.get('number') ?? undefined,
                 email: url.searchParams.get('email') ?? undefined,
                 customerExternalId:

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
+import type { ShippingOption } from '../engine';
 import type { CartDto, OrderDto, TotalsDto } from '../http/types';
-import { formatDate, interpolate } from '../i18n';
+import { formatDate, formatFulfillmentDate, interpolate } from '../i18n';
 import type { Address } from '../types';
 import { useShop } from './shop-provider';
 import { useOrder, useOrders } from './use-cart';
@@ -662,6 +663,16 @@ export function Checkout(props: CheckoutProps) {
         </section>
       ) : null}
 
+      {selectedRate?.schedule ? (
+        <FulfillmentDateFields
+          schedule={selectedRate.schedule}
+          pickup={selectedRate.pickup}
+          date={cart.fulfillmentDate}
+          window={cart.fulfillmentWindow}
+          onChange={(details) => void state.updateDetails(details).catch(fail)}
+        />
+      ) : null}
+
       {needsAddress ? (
         <section className="sk-section">
           <h3 className="sk-heading">{t.shippingAddress}</h3>
@@ -813,12 +824,87 @@ export function Checkout(props: CheckoutProps) {
         <button
           type="submit"
           className="sk-button sk-button-primary"
-          disabled={busy || (cart.requiresShipping && !selectedRate)}
+          disabled={
+            busy ||
+            (cart.requiresShipping && !selectedRate) ||
+            cart.missing.includes('fulfillment_date')
+          }
         >
           {amountDue > 0 && method === 'online' ? t.payNow : t.placeOrder}
         </button>
       </div>
     </form>
+  );
+}
+
+/** Day (and time window) of a shipping option with a `schedule`. */
+function FulfillmentDateFields(props: {
+  schedule: NonNullable<ShippingOption['schedule']>;
+  pickup: boolean;
+  date: string | null;
+  window: string | null;
+  onChange: (details: {
+    fulfillmentDate?: string | null;
+    fulfillmentWindow?: string | null;
+  }) => void;
+}) {
+  const { m, locale } = useShop();
+  const t = m.ui.checkout;
+  const { dates, timeWindows } = props.schedule;
+  const label = props.pickup ? t.pickupDate : t.deliveryDate;
+  const date = props.date && dates.includes(props.date) ? props.date : '';
+
+  return (
+    <section className="sk-section">
+      <h3 className="sk-heading">{label}</h3>
+      {dates.length === 0 ? (
+        <p className="sk-error">{t.noDates}</p>
+      ) : (
+        <label className="sk-field">
+          <select
+            className="sk-input"
+            aria-label={label}
+            required={props.schedule.required}
+            value={date}
+            onChange={(event) =>
+              props.onChange({
+                fulfillmentDate: event.target.value || null,
+                // a single window needs no choice
+                ...(timeWindows.length === 1 && event.target.value
+                  ? { fulfillmentWindow: timeWindows[0] }
+                  : {}),
+              })
+            }
+          >
+            <option value="">{t.chooseDate}</option>
+            {dates.map((day) => (
+              <option key={day} value={day}>
+                {formatFulfillmentDate(day, null, locale)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {date &&
+      (timeWindows.length > 1 ||
+        (timeWindows.length === 1 && props.window !== timeWindows[0])) ? (
+        <div className="sk-options" role="radiogroup" aria-label={t.timeWindow}>
+          {timeWindows.map((window) => (
+            <label key={window} className="sk-option">
+              <input
+                type="radio"
+                name="sk-window"
+                checked={props.window === window}
+                onChange={() => props.onChange({ fulfillmentWindow: window })}
+              />
+              <span className="sk-option-main">
+                <span>{window}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -925,6 +1011,17 @@ export function OrderStatus(props: OrderStatusProps) {
       <p className="sk-muted">
         {interpolate(t.placedOn, { date: formatDate(order.createdAt, locale) })}
       </p>
+      {order.fulfillmentDate ? (
+        <p>
+          {interpolate(order.shipping?.pickup ? t.pickupOn : t.deliveryOn, {
+            date: formatFulfillmentDate(
+              order.fulfillmentDate,
+              order.fulfillmentWindow,
+              locale,
+            ),
+          })}
+        </p>
+      ) : null}
 
       <ul className="sk-lines">
         {order.lines.map((line) => (

@@ -37,11 +37,18 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   `<OrderHistory />`, `useCart()`. Config: `createShop({ database, provider,
   shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
   sends payment reminders; invoice orders are booked from camt.053 / camt.054.
+  Pickup / delivery day: a rate with `schedule: { leadDays, cutoff, weekdays,
+  closedDates, timeWindows }` offers days (`shippingOptions[].schedule`), the
+  customer sets `fulfillmentDate` / `fulfillmentWindow`, orders carry them
+  (`listOrders({ fulfillmentDate })` for the day's orders).
   HS-Soft (WaWiAssist, bakery ERP) from `/hssoft`:
   `createHsSoftSync({ shop, apiKey })` imports articles as products (price
   category, special prices, image, declaration, allergens, nutrition) with
   `importProducts()` and sends orders to WaWiAssist (`onEvent` for the shop,
-  cron `syncOrders()` for retries; state in `order.metadata.hssoft`).
+  cron `syncOrders()` for retries; state in `order.metadata.hssoft`); the
+  pickup day becomes the WaWiAssist order date; `hssoft.allowFulfillmentDate`
+  offers only days every article can be had (delivery days, the shop's own
+  periods, optionally WaWiAssist's orderable articles per day).
   Next: Swiss Post labels and live tariffs, digital downloads.
 
 ## Test sites
@@ -131,7 +138,8 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   `@agentkit.ch/subkit/mcp` (find customers, billing, change plan, cancel,
   mark invoices paid, …) and `createShopMcpHandler` from
   `@agentkit.ch/shopkit/mcp` (orders, stock, discount codes, gift cards;
-  with `hssoft` also `hssoft_sync_order`, `hssoft_import_products`).
+  with `hssoft` also `hssoft_sync_order`, `hssoft_set_availability_period`,
+  `hssoft_import_products`).
   Mounted as a POST route, your `authorize` on every request (`'read-only'`
   hides the tools that change data). Payment and guest-link tokens never
   reach the model.

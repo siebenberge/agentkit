@@ -1351,3 +1351,239 @@ describe('orders and jobs', () => {
     ).rejects.toMatchObject({ code: 'PAYMENT_METHOD_UNAVAILABLE' });
   });
 });
+
+describe('pickup / delivery day', () => {
+  // 2026-10-15 08:00 UTC = Thursday 10:00 in Zurich
+  const bakery: ShippingRate = {
+    id: 'laden',
+    name: 'Abholung im Laden',
+    amount: 0,
+    pickup: true,
+    schedule: {
+      leadDays: 1,
+      maxDays: 7,
+      weekdays: ['tue', 'wed', 'thu', 'fri', 'sat'],
+      closedDates: ['2026-10-17'],
+      timeWindows: ['07:00–09:00', '16:00–18:00'],
+    },
+  };
+
+  async function pickupCart(
+    rate: ShippingRate = bakery,
+    overrides: Partial<ShopOptions> = {},
+  ) {
+    const context = await setup({
+      shipping: { rates: [...rates, rate] },
+      provider: null,
+      ...overrides,
+    });
+    const cart = await context.readyCart(
+      [{ variantId: context.variant(context.products.book), quantity: 1 }],
+      { shippingRateId: rate.id },
+    );
+
+    return { ...context, cart };
+  }
+
+  it('offers the open days from the lead time on', async () => {
+    const { shop, cart } = await pickupCart();
+    const summary = await shop.getCartSummary(cart.token);
+
+    expect(
+      summary.shippingOptions.find((option) => option.id === 'laden')!.schedule,
+    ).toEqual({
+      // Fri; Sat closed, Sun/Mon not open; Tue–Thu
+      dates: ['2026-10-16', '2026-10-20', '2026-10-21', '2026-10-22'],
+      timeWindows: ['07:00–09:00', '16:00–18:00'],
+      required: true,
+    });
+    expect(
+      summary.shippingOptions.find((option) => option.id === 'post')!.schedule,
+    ).toBeNull();
+    expect(summary.missing).toEqual(['fulfillment_date']);
+  });
+
+  it('moves the earliest day after the cutoff', async () => {
+    const { shop, cart } = await pickupCart({
+      ...bakery,
+      schedule: { ...bakery.schedule, cutoff: '09:30' },
+    });
+    const summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.shippingOptions.at(-1)!.schedule!.dates).toEqual([
+      '2026-10-20',
+      '2026-10-21',
+      '2026-10-22',
+      '2026-10-23',
+    ]);
+  });
+
+  it('needs a day and window that are offered, and stores them on the order', async () => {
+    const { shop, cart } = await pickupCart();
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_REQUIRED' });
+    await expect(
+      shop.updateCartDetails(cart.token, { fulfillmentDate: '2026-10-17' }),
+    ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_UNAVAILABLE' });
+    await expect(
+      shop.updateCartDetails(cart.token, { fulfillmentDate: '17.10.2026' }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(
+      shop.updateCartDetails(cart.token, { fulfillmentWindow: '12:00–13:00' }),
+    ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_UNAVAILABLE' });
+
+    await shop.updateCartDetails(cart.token, { fulfillmentDate: '2026-10-20' });
+    // the window is still missing
+    expect((await shop.getCartSummary(cart.token)).missing).toEqual([
+      'fulfillment_date',
+    ]);
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({
+      code: 'FULFILLMENT_DATE_REQUIRED',
+      message: 'Choose the time window',
+    });
+
+    await shop.updateCartDetails(cart.token, {
+      fulfillmentWindow: '07:00–09:00',
+    });
+    expect((await shop.getCartSummary(cart.token)).missing).toEqual([]);
+
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    expect(order).toMatchObject({
+      fulfillmentDate: '2026-10-20',
+      fulfillmentWindow: '07:00–09:00',
+      shippingAddress: null,
+    });
+    expect(
+      (await shop.listOrders({ fulfillmentDate: '2026-10-20' })).map(
+        (found) => found.id,
+      ),
+    ).toEqual([order.id]);
+    expect(await shop.listOrders({ fulfillmentDate: '2026-10-21' })).toEqual(
+      [],
+    );
+  });
+
+  it('refuses a day that passed while the cart was open', async () => {
+    const { shop, cart, clock } = await pickupCart();
+
+    await shop.updateCartDetails(cart.token, {
+      fulfillmentDate: '2026-10-16',
+      fulfillmentWindow: '16:00–18:00',
+    });
+    clock.now = new Date('2026-10-16T08:00:00.000Z');
+
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_UNAVAILABLE' });
+  });
+
+  it('limits the days with allowFulfillmentDate', async () => {
+    const seen: string[][] = [];
+    const { shop, cart } = await pickupCart(bakery, {
+      // the book is not baked on Tuesdays
+      allowFulfillmentDate: ({ weekday, products }) => {
+        seen.push(products.map((product) => product.slug));
+        return weekday !== 'tue';
+      },
+    });
+    const summary = await shop.getCartSummary(cart.token);
+
+    expect(summary.shippingOptions.at(-1)!.schedule!.dates).toEqual([
+      '2026-10-16',
+      '2026-10-21',
+      '2026-10-22',
+    ]);
+    expect(seen[0]).toEqual(['wanderbuch']);
+  });
+
+  it('makes the day optional and ignores it for rates without a schedule', async () => {
+    const optional: ShippingRate = {
+      ...bakery,
+      schedule: { leadDays: 0, required: false },
+    };
+    const { shop, cart } = await pickupCart(optional);
+
+    expect((await shop.getCartSummary(cart.token)).missing).toEqual([]);
+
+    // post has no schedule: the day is not checked and not ordered
+    await shop.updateCartDetails(cart.token, {
+      shippingRateId: 'post',
+      fulfillmentDate: '2030-01-01',
+    });
+
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    expect(order.fulfillmentDate).toBeNull();
+  });
+
+  it('starts a new rate without the day and fills a single window', async () => {
+    const single: ShippingRate = {
+      ...bakery,
+      id: 'markt',
+      name: 'Abholung am Markt',
+      schedule: { ...bakery.schedule, timeWindows: ['08:00–12:00'] },
+    };
+    const { shop, cart } = await pickupCart(bakery, {
+      shipping: { rates: [...rates, bakery, single] },
+    });
+
+    await shop.updateCartDetails(cart.token, {
+      fulfillmentDate: '2026-10-20',
+      fulfillmentWindow: '16:00–18:00',
+    });
+
+    const switched = await shop.updateCartDetails(cart.token, {
+      shippingRateId: 'markt',
+    });
+
+    expect(switched).toMatchObject({
+      fulfillmentDate: null,
+      fulfillmentWindow: null,
+    });
+
+    const picked = await shop.updateCartDetails(cart.token, {
+      fulfillmentDate: '2026-10-21',
+    });
+
+    expect(picked.fulfillmentWindow).toBe('08:00–12:00');
+    expect((await shop.getCartSummary(cart.token)).missing).toEqual([]);
+  });
+
+  it('rejects a broken schedule at start', () => {
+    expect(() =>
+      createShop({
+        database: memoryAdapter(),
+        shipping: {
+          rates: [{ ...bakery, schedule: { cutoff: '4 pm' } }],
+        },
+      }),
+    ).toThrow('schedule.cutoff must be HH:mm');
+    expect(() =>
+      createShop({
+        database: memoryAdapter(),
+        shipping: {
+          rates: [{ ...bakery, schedule: { closedDates: ['2026-02-30'] } }],
+        },
+      }),
+    ).toThrow('closedDates');
+    expect(() =>
+      createShop({
+        database: memoryAdapter(),
+        shipping: {
+          rates: [{ ...bakery, schedule: { timeWindows: [' 07:00–09:00'] } }],
+        },
+      }),
+    ).toThrow('timeWindows');
+  });
+});

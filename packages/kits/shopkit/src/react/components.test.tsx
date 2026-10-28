@@ -12,6 +12,7 @@ import { memoryAdapter } from '../adapters/memory';
 import { createShop } from '../engine';
 import { createShopHandler } from '../http/handler';
 import type { PaymentProvider } from '../provider';
+import type { ShippingRate } from '../types';
 import { createShopClient } from './client';
 import {
   AddToCartButton,
@@ -23,7 +24,7 @@ import {
 import { ShopProvider } from './shop-provider';
 
 async function setup(
-  rates: { id: string; name: string; amount: number; pickup?: boolean }[] = [
+  rates: ShippingRate[] = [
     { id: 'post', name: 'PostPac Economy', amount: 900 },
     { id: 'pickup', name: 'Abholung im Laden', amount: 0, pickup: true },
   ],
@@ -207,6 +208,62 @@ describe('shop components', () => {
       billingAddress: expect.objectContaining({ name: 'Anna Muster' }),
     });
     expect(window.localStorage.getItem('shopkit-cart')).toBeNull();
+  });
+
+  it('asks for the pickup day and time window', async () => {
+    const { ui, client, variantId, visits, shop } = await setup([
+      {
+        id: 'laden',
+        name: 'Abholung im Laden',
+        amount: 0,
+        pickup: true,
+        schedule: { leadDays: 1, timeWindows: ['07:00–09:00', '16:00–18:00'] },
+      },
+    ]);
+    const cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(<Checkout orderHref={({ orderId }) => `/bestellung/${orderId}`} />);
+
+    fireEvent.change(await screen.findByLabelText('E-Mail'), {
+      target: { value: 'anna@example.ch' },
+    });
+
+    // the only rate is chosen by itself, then the day is asked
+    const select = await screen.findByLabelText<HTMLSelectElement>('Abholtag');
+    const submit = screen.getByRole<HTMLButtonElement>('button', {
+      name: /bestellen|bezahlen/,
+    });
+
+    expect(submit.disabled).toBe(true);
+
+    const day = select.options[2]!.value;
+
+    expect(select.options[2]!.textContent).toMatch(
+      /^\w+, \d{2}\.\d{2}\.\d{4}$/,
+    );
+    fireEvent.change(select, { target: { value: day } });
+    fireEvent.click(await screen.findByLabelText('16:00–18:00'));
+    await waitFor(() => expect(submit.disabled).toBe(false));
+
+    fireEvent.click(screen.getByLabelText(/^Rechnung/));
+
+    const fill = (label: string, value: string) =>
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+    fill('Vor- und Nachname', 'Anna Muster');
+    fill('Strasse und Nr.', 'Weg 1');
+    fill('PLZ', '3000');
+    fill('Ort', 'Bern');
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(visits).toHaveLength(1));
+    expect(
+      await shop.getOrder(visits[0]!.replace('/bestellung/', '')),
+    ).toMatchObject({ fulfillmentDate: day, fulfillmentWindow: '16:00–18:00' });
   });
 
   it('selects the only shipping rate by itself', async () => {

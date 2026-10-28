@@ -17,6 +17,10 @@ export type ShopErrorCode =
   | 'ADDRESS_REQUIRED'
   | 'SHIPPING_RATE_REQUIRED'
   | 'SHIPPING_RATE_UNAVAILABLE'
+  /** The shipping rate has a `schedule`: choose the pickup / delivery day. */
+  | 'FULFILLMENT_DATE_REQUIRED'
+  /** The chosen day or time window is not offered (any more). */
+  | 'FULFILLMENT_DATE_UNAVAILABLE'
   | 'PAYMENT_METHOD_UNAVAILABLE'
   | 'ORDER_NOT_FOUND'
   /** The order is not in a state that allows this action. */

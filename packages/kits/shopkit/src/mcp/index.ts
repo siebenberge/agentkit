@@ -84,7 +84,8 @@ const INSTRUCTIONS = `Back office of this shop (shopkit): orders, products and s
  * mark_order_delivered, cancel_order, refund_order, list_products,
  * set_stock, list_discounts, set_discount_active, list_gift_cards,
  * issue_gift_card, disable_gift_card; with `hssoft` also
- * hssoft_sync_order and hssoft_import_products.
+ * hssoft_sync_order, hssoft_set_availability_period and
+ * hssoft_import_products.
  */
 export function createShopMcpHandler(options: ShopMcpOptions) {
   return createMcpHandler({
@@ -122,7 +123,7 @@ export function shopTools(shop: Shop): McpTool[] {
       name: 'list_orders',
       title: 'List orders',
       description:
-        'Orders, newest first, filtered by number, customer email, customer id or status. Each order has its lines, totals, VAT, addresses and payment / fulfillment status.',
+        'Orders, newest first, filtered by number, customer email, customer id, status or pickup / delivery day. Each order has its lines, totals, VAT, addresses, pickup / delivery day (fulfillmentDate, fulfillmentWindow) and payment / fulfillment status.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -135,6 +136,11 @@ export function shopTools(shop: Shop): McpTool[] {
           status: list(ORDER_STATUSES),
           paymentStatus: list(PAYMENT_STATUSES),
           fulfillmentStatus: list(FULFILLMENT_STATUSES),
+          fulfillmentDate: {
+            type: 'string',
+            description:
+              'Pickup / delivery day YYYY-MM-DD, e.g. the orders to prepare for tomorrow.',
+          },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
           offset: { type: 'integer', minimum: 0, default: 0 },
         },
@@ -159,6 +165,8 @@ export function shopTools(shop: Shop): McpTool[] {
               'fulfillmentStatus',
               FULFILLMENT_STATUSES,
             ),
+            fulfillmentDate:
+              optionalString(args, 'fulfillmentDate', 10) ?? undefined,
             limit: optionalInteger(args, 'limit', { min: 1, max: 100 }) ?? 20,
             offset:
               optionalInteger(args, 'offset', { min: 0, max: 100_000 }) ?? 0,
@@ -536,6 +544,53 @@ export function hsSoftTools(hssoft: HsSoftSync): McpTool[] {
           force: optionalBoolean(args, 'force') ?? false,
         }),
       }),
+    },
+    {
+      name: 'hssoft_set_availability_period',
+      title: 'Set the availability period of a product',
+      description:
+        'Days a product can be picked up or delivered, besides its delivery days in WaWiAssist – e.g. Grittibänz from 2026-11-01 to 2026-12-06, every year with recurring. Without from and to the period is removed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          productId: {
+            type: 'string',
+            description: 'Id or slug of the product.',
+          },
+          from: { type: 'string', description: 'First day, YYYY-MM-DD.' },
+          to: { type: 'string', description: 'Last day, YYYY-MM-DD.' },
+          recurring: {
+            type: 'boolean',
+            default: false,
+            description: 'Every year (only day and month count).',
+          },
+        },
+        required: ['productId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+      run: async (args) => {
+        const from = optionalString(args, 'from', 10);
+        const to = optionalString(args, 'to', 10);
+        const product = await hssoft.setAvailabilityPeriod(
+          requiredString(args, 'productId'),
+          from || to
+            ? {
+                from: from ?? '',
+                to: to ?? '',
+                recurring: optionalBoolean(args, 'recurring') ?? false,
+              }
+            : null,
+        );
+
+        return {
+          product: {
+            id: product.id,
+            slug: product.slug,
+            metadata: product.metadata,
+          },
+        };
+      },
     },
     {
       name: 'hssoft_import_products',

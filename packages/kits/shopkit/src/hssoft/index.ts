@@ -1,6 +1,11 @@
-import type { Logger, ProductWithVariants, Shop } from '../engine';
+import type {
+  FulfillmentDateContext,
+  Logger,
+  ProductWithVariants,
+  Shop,
+} from '../engine';
 import { ShopError, isShopError } from '../errors';
-import { formatMoney } from '../i18n';
+import { formatFulfillmentDate, formatMoney } from '../i18n';
 import type {
   Address,
   Locale,
@@ -10,6 +15,7 @@ import type {
   ProductStatus,
   ShopEvent,
   Variant,
+  Weekday,
 } from '../types';
 import {
   type HsSoftArticle,
@@ -30,7 +36,7 @@ export * from './client';
 
 type MaybePromise<T> = T | Promise<T>;
 
-export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type { Weekday };
 
 /**
  * What the import keeps of an article (read it with
@@ -223,7 +229,8 @@ export type HsSoftOrderOptions = {
   caOrderName?: string;
   /**
    * Order (delivery) date: a `Date` (its day in Zurich) or `YYYY-MM-DD`.
-   * Default: day of the payment, else of the order.
+   * Default: the pickup / delivery day the customer chose
+   * (`order.fulfillmentDate`), else the day of the payment or of the order.
    */
   date?: (order: Order) => Date | string;
   /**
@@ -231,7 +238,7 @@ export type HsSoftOrderOptions = {
    * shipping rate id – e.g. `-1` when WaWiAssist plans by production day.
    */
   dateOffsetDays?: number | Record<string, number>;
-  /** `HH:mm`. */
+  /** `HH:mm` (default: the start of the chosen time window `07:00–09:00`). */
   deliveryTime?: (order: Order) => string | null | undefined;
   tourplanId?: (order: Order) => number | null | undefined;
   /** Order note in WaWiAssist (default: number, payment, shipping, contact, customer note). */
@@ -257,6 +264,30 @@ export type HsSoftOrderOptions = {
   }) => void | Promise<void>;
 };
 
+/**
+ * When a product can be picked up or delivered, for
+ * `hssoft.allowFulfillmentDate`.
+ */
+export type HsSoftAvailabilityOptions = {
+  /**
+   * WaWiAssist customer (e.g. «Onlineshop») whose orderable articles
+   * WaWiAssist reports per day – lead times, assortment. Without it only
+   * the delivery days and the shop's own periods count.
+   */
+  customerId?: number;
+  /** How long an answer per day is kept (default 10 minutes). */
+  cacheMinutes?: number;
+};
+
+/** A product's own availability period, set in the shop. */
+export type HsSoftAvailabilityPeriod = {
+  /** `YYYY-MM-DD`, both days included. */
+  from: string;
+  to: string;
+  /** Every year (only day and month count, e.g. 1.11.–6.12.). */
+  recurring?: boolean;
+};
+
 export type HsSoftSyncOptions = {
   shop: Shop;
   /** API key of WaWiAssist, or pass a `client`. */
@@ -264,6 +295,7 @@ export type HsSoftSyncOptions = {
   client?: HsSoftClient;
   products?: HsSoftProductOptions;
   orders?: HsSoftOrderOptions;
+  availability?: HsSoftAvailabilityOptions;
   logger?: Logger;
   now?: () => Date;
 };
@@ -302,6 +334,7 @@ export type HsSoftOrdersSummary = {
 
 const KEY = 'hssoft';
 const VARIANTS_KEY = 'hssoftVariants';
+const PERIOD_KEY = 'hssoftAvailability';
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
 const STALE_SENDING = 10 * MINUTE;
@@ -366,6 +399,50 @@ function articlesOf(product: Product) {
   return own ? [own, ...variants] : variants;
 }
 
+/** Data of the article an order or cart line is (its variant's, else the product's). */
+function lineArticle(product: Product, sku: string) {
+  return hsSoftProductData(product, sku) ?? hsSoftProductData(product);
+}
+
+/**
+ * Only days on which WaWiAssist delivers every HS-Soft product of the cart
+ * (delivery days, per variant for variant articles). Products that are not
+ * from HS-Soft do not limit the days. `hssoft.allowFulfillmentDate` adds the
+ * shop's own periods and the live check.
+ */
+export function hsSoftDeliveryDays(context: FulfillmentDateContext) {
+  return context.lines.every((line) => {
+    const data = lineArticle(line.product, line.variant.sku);
+
+    return !data || data.deliveryDays.includes(context.weekday);
+  });
+}
+
+/** The product's own availability period, `null` without one. */
+export function hsSoftAvailabilityPeriod(
+  product: Product,
+): HsSoftAvailabilityPeriod | null {
+  const period = product.metadata[PERIOD_KEY] as
+    HsSoftAvailabilityPeriod | undefined;
+
+  return period && typeof period.from === 'string' ? period : null;
+}
+
+/** Whether `day` (`YYYY-MM-DD`) is in the period. */
+export function inAvailabilityPeriod(
+  period: HsSoftAvailabilityPeriod,
+  day: string,
+) {
+  if (!period.recurring) return period.from <= day && day <= period.to;
+
+  // only month and day count; 01.11.–06.01. spans the new year
+  const from = period.from.slice(5);
+  const to = period.to.slice(5);
+  const date = day.slice(5);
+
+  return from <= to ? from <= date && date <= to : date >= from || date <= to;
+}
+
 /** Sync state of an order, `null` before its first sync. */
 export function hsSoftOrderSync(order: Order): HsSoftOrderSync | null {
   const sync = order.metadata[KEY] as HsSoftOrderSync | undefined;
@@ -412,6 +489,8 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
   const lookbackMs = (orders.lookbackDays ?? 7) * DAY;
   const deleteCanceled = orders.deleteCanceled ?? false;
   const vatRates = orders.vatRates ?? DEFAULT_VAT;
+  const availability = options.availability ?? {};
+  const availabilityMs = (availability.cacheMinutes ?? 10) * MINUTE;
 
   if (
     !Number.isInteger(priceCategory) ||
@@ -937,6 +1016,127 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     }
   }
 
+  // ------------------------------------------------------------ availability
+
+  // day → articles WaWiAssist can deliver (null: HS-Soft could not be asked)
+  const availableCache = new Map<
+    string,
+    { expires: number; ids: Promise<Set<number> | null> }
+  >();
+
+  function availableOn(date: string, customerId: number) {
+    const time = now().getTime();
+    const cached = availableCache.get(date);
+
+    if (cached && cached.expires > time) return cached.ids;
+
+    // past days stay out of a long-running process
+    for (const [key, entry] of availableCache) {
+      if (entry.expires <= time) availableCache.delete(key);
+    }
+
+    const ids = client
+      .listArticlesAvailableForOrder({ date, customerId })
+      .then((list) => new Set(list))
+      .catch((error: unknown) => {
+        logger.error(
+          { error, date },
+          'hssoft: available articles could not be loaded',
+        );
+        // ask again in a minute, not with every cart
+        availableCache.set(date, {
+          expires: now().getTime() + MINUTE,
+          ids: Promise.resolve(null),
+        });
+
+        return null;
+      });
+
+    availableCache.set(date, {
+      expires: now().getTime() + availabilityMs,
+      ids,
+    });
+
+    return ids;
+  }
+
+  /**
+   * For `createShop({ allowFulfillmentDate })`: a day is offered when every
+   * product of the cart can be had – its delivery days in WaWiAssist, its
+   * own period (`setAvailabilityPeriod`) and, with `availability.customerId`,
+   * what WaWiAssist answers for the day. If HS-Soft cannot be reached, the
+   * first two rules decide.
+   */
+  async function allowFulfillmentDate(context: FulfillmentDateContext) {
+    if (!hsSoftDeliveryDays(context)) return false;
+
+    for (const product of context.products) {
+      const period = hsSoftAvailabilityPeriod(product);
+
+      if (period && !inAvailabilityPeriod(period, context.date)) return false;
+    }
+
+    if (availability.customerId === undefined) return true;
+
+    const articleIds = context.lines.flatMap((line) => {
+      const data = lineArticle(line.product, line.variant.sku);
+
+      return data ? [data.articleId] : [];
+    });
+
+    if (articleIds.length === 0) return true;
+
+    const available = await availableOn(context.date, availability.customerId);
+
+    return available === null || articleIds.every((id) => available.has(id));
+  }
+
+  /**
+   * Own availability period of a product (WaWiAssist knows none), e.g.
+   * Grittibänz from 1.11. to 6.12. every year; `null` removes it. The import
+   * leaves it alone.
+   */
+  async function setAvailabilityPeriod(
+    productId: string,
+    period: HsSoftAvailabilityPeriod | null,
+  ) {
+    if (period) {
+      if (!isDate(period.from) || !isDate(period.to)) {
+        throw new ShopError(
+          'INVALID_INPUT',
+          'hssoft: period from / to must be YYYY-MM-DD',
+        );
+      }
+      if (!period.recurring && period.from > period.to) {
+        throw new ShopError(
+          'INVALID_INPUT',
+          'hssoft: period ends before it starts',
+        );
+      }
+    }
+
+    const product = await shop.getProduct(productId, {
+      includeArchivedVariants: true,
+    });
+
+    if (!product) throw new ShopError('PRODUCT_NOT_FOUND', 'Unknown product');
+
+    const { [PERIOD_KEY]: _previous, ...metadata } = product.metadata;
+
+    return shop.updateProduct(product.id, {
+      metadata: period
+        ? {
+            ...metadata,
+            [PERIOD_KEY]: {
+              from: period.from,
+              to: period.to,
+              recurring: period.recurring === true,
+            },
+          }
+        : metadata,
+    });
+  }
+
   // ------------------------------------------------------------ orders
 
   function eligible(order: Order) {
@@ -1055,11 +1255,16 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     const comment = orders.comment
       ? orders.comment(order)
       : defaultComment(order);
-    const deliveryTime = orders.deliveryTime?.(order);
+    const deliveryTime = orders.deliveryTime
+      ? orders.deliveryTime(order)
+      : windowStart(order.fulfillmentWindow);
     const tourplanId = orders.tourplanId?.(order);
     const body: HsSoftOrderBody = {
       date: orderDate(
-        orders.date?.(order) ?? order.paidAt ?? order.createdAt,
+        orders.date?.(order) ??
+          order.fulfillmentDate ??
+          order.paidAt ??
+          order.createdAt,
         dateOffset(order),
       ),
       orderType: orders.orderType ?? 'ORDER',
@@ -1531,6 +1736,8 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
   return {
     client,
     importProducts,
+    allowFulfillmentDate,
+    setAvailabilityPeriod,
     syncOrder,
     syncOrders,
     onEvent,
@@ -1547,6 +1754,15 @@ function rappen(chf: number | null | undefined) {
     : null;
 }
 
+/** A real calendar day `YYYY-MM-DD` (not 2026-02-30). */
+function isDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
 /** `null` for missing, zero or negative values (an empty price or weight). */
 function positive(value: number | null | undefined) {
   return typeof value === 'number' && value > 0 ? value : null;
@@ -1558,6 +1774,11 @@ function chf(rappen: number) {
 
 function percent(part: number, whole: number) {
   return whole > 0 && part > 0 ? Math.round((part / whole) * 1e6) / 1e4 : 0;
+}
+
+/** `07:00–09:00` → `07:00`. */
+function windowStart(window: string | null | undefined) {
+  return /^([01]\d|2[0-3]):[0-5]\d/.exec(window ?? '')?.[0] ?? null;
 }
 
 function withVat(vatRate: HsSoftVatRate | undefined) {
@@ -1678,6 +1899,9 @@ function defaultComment(order: Order) {
       : null,
     order.shipping
       ? `${order.shipping.pickup ? 'Abholung' : 'Versand'}: ${order.shipping.name}`
+      : null,
+    order.fulfillmentDate
+      ? `${order.shipping?.pickup ? 'Abholtag' : 'Liefertag'}: ${formatFulfillmentDate(order.fulfillmentDate, order.fulfillmentWindow, 'de')}`
       : null,
     `Total: ${money(order.total, order.currency)}`,
     `E-Mail: ${order.email}`,

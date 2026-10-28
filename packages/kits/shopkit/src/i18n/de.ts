@@ -27,6 +27,10 @@ export const de = {
       SHIPPING_RATE_REQUIRED: 'Bitte wähle eine Versandart.',
       SHIPPING_RATE_UNAVAILABLE:
         'Diese Versandart ist für die Lieferadresse nicht verfügbar.',
+      FULFILLMENT_DATE_REQUIRED:
+        'Bitte wähle den Tag für die Abholung oder Lieferung.',
+      FULFILLMENT_DATE_UNAVAILABLE:
+        'Dieser Tag ist nicht mehr verfügbar. Bitte wähle einen anderen.',
       PAYMENT_METHOD_UNAVAILABLE:
         'Diese Zahlungsart ist im Moment nicht verfügbar.',
       ORDER_NOT_FOUND: 'Diese Bestellung wurde nicht gefunden.',
@@ -83,6 +87,11 @@ export const de = {
       shippingMethod: 'Versandart',
       noShippingMethod: 'Für diese Adresse gibt es keine Versandart.',
       pickup: 'Abholung',
+      pickupDate: 'Abholtag',
+      deliveryDate: 'Liefertag',
+      timeWindow: 'Zeitfenster',
+      chooseDate: 'Tag wählen',
+      noDates: 'Im Moment ist kein Tag frei.',
       payment: 'Zahlung',
       online: 'TWINT, Karte oder PostFinance',
       onlineDescription: 'Du wirst zum Zahlungsanbieter weitergeleitet.',
@@ -107,6 +116,8 @@ export const de = {
       invoiceNote:
         'Du erhältst die Rechnung mit QR-Einzahlungsschein per E-Mail. Zahlbar bis am {{date}}.',
       placedOn: 'Bestellt am {{date}}',
+      pickupOn: 'Abholung: {{date}}',
+      deliveryOn: 'Lieferung: {{date}}',
       receipt: 'Beleg anzeigen',
       tracking: 'Sendung verfolgen',
       history: 'Meine Bestellungen',
@@ -145,6 +156,8 @@ export const de = {
       code: 'Gutscheincode',
       value: 'Wert',
       validUntil: 'Gültig bis',
+      pickupDate: 'Abholtag',
+      deliveryDate: 'Liefertag',
       shippingTo: 'Lieferung an',
       pickup: 'Abholung',
     },
@@ -228,6 +241,8 @@ export const de = {
     billTo: 'Rechnung an',
     shipTo: 'Lieferung an',
     pickup: 'Abholung',
+    pickupDate: 'Abholtag',
+    deliveryDate: 'Liefertag',
     article: 'Artikel',
     quantity: 'Menge',
     unitPrice: 'Preis',

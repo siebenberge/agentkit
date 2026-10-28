@@ -27,6 +27,10 @@ export const it: Messages = {
       SHIPPING_RATE_REQUIRED: 'Scegli un metodo di spedizione.',
       SHIPPING_RATE_UNAVAILABLE:
         'Questo metodo di spedizione non è disponibile per questo indirizzo.',
+      FULFILLMENT_DATE_REQUIRED:
+        'Scegli il giorno del ritiro o della consegna.',
+      FULFILLMENT_DATE_UNAVAILABLE:
+        'Questo giorno non è più disponibile. Scegline un altro.',
       PAYMENT_METHOD_UNAVAILABLE:
         'Questo metodo di pagamento al momento non è disponibile.',
       ORDER_NOT_FOUND: 'Ordine non trovato.',
@@ -83,6 +87,11 @@ export const it: Messages = {
       shippingMethod: 'Metodo di spedizione',
       noShippingMethod: 'Nessun metodo di spedizione per questo indirizzo.',
       pickup: 'Ritiro',
+      pickupDate: 'Giorno di ritiro',
+      deliveryDate: 'Giorno di consegna',
+      timeWindow: 'Fascia oraria',
+      chooseDate: 'Scegli un giorno',
+      noDates: 'Al momento non ci sono giorni disponibili.',
       payment: 'Pagamento',
       online: 'TWINT, carta o PostFinance',
       onlineDescription: 'Verrai reindirizzato al fornitore di pagamento.',
@@ -107,6 +116,8 @@ export const it: Messages = {
       invoiceNote:
         'Riceverai la fattura con QR-fattura per e-mail. Pagabile entro il {{date}}.',
       placedOn: 'Ordinato il {{date}}',
+      pickupOn: 'Ritiro: {{date}}',
+      deliveryOn: 'Consegna: {{date}}',
       receipt: 'Mostra ricevuta',
       tracking: 'Traccia la spedizione',
       history: 'I miei ordini',
@@ -145,6 +156,8 @@ export const it: Messages = {
       code: 'Codice del buono',
       value: 'Valore',
       validUntil: 'Valido fino al',
+      pickupDate: 'Giorno di ritiro',
+      deliveryDate: 'Giorno di consegna',
       shippingTo: 'Consegna a',
       pickup: 'Ritiro',
     },
@@ -228,6 +241,8 @@ export const it: Messages = {
     billTo: 'Fattura a',
     shipTo: 'Consegna a',
     pickup: 'Ritiro',
+    pickupDate: 'Giorno di ritiro',
+    deliveryDate: 'Giorno di consegna',
     article: 'Articolo',
     quantity: 'Quantità',
     unitPrice: 'Prezzo',

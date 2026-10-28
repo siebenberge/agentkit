@@ -2,6 +2,7 @@ import {
   type MessageOverrides,
   escapeHtml,
   formatDate,
+  formatFulfillmentDate,
   formatMoney,
   getMessages,
   interpolate,
@@ -118,6 +119,18 @@ export function renderReceiptHtml(options: RenderReceiptOptions): string {
   ];
 
   if (isInvoice && order.dueAt) meta.push([t.dueDate, date(order.dueAt)]);
+  if (order.fulfillmentDate) {
+    meta.push([
+      order.shipping?.pickup ? t.pickupDate : t.deliveryDate,
+      e(
+        formatFulfillmentDate(
+          order.fulfillmentDate,
+          order.fulfillmentWindow,
+          locale,
+        ),
+      ),
+    ]);
+  }
   if (order.paidAt) meta.push([t.paidAt, date(order.paidAt)]);
 
   const multipleRates =

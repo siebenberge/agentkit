@@ -141,4 +141,62 @@ describe('createEmailNotifier', () => {
       `https://admin.example/orders/${placed.id}`,
     );
   });
+
+  it('names the pickup day in the confirmation and the ready email', async () => {
+    const sent: ShopEmailMessage[] = [];
+    const notify = createEmailNotifier({
+      shopName: 'Beck',
+      send: (message) => {
+        sent.push(message);
+      },
+      links: { order: (order) => `https://shop.example/o/${order.id}` },
+    });
+    const shop = createShop({
+      database: memoryAdapter(),
+      now: () => new Date('2026-10-15T08:00:00.000Z'),
+      shipping: {
+        rates: [
+          {
+            id: 'laden',
+            name: 'Abholung im Laden',
+            amount: 0,
+            pickup: true,
+            schedule: { leadDays: 6, timeWindows: ['07:00–09:00'] },
+          },
+        ],
+      },
+      onEvent: notify,
+    });
+    const product = await shop.createProduct({
+      slug: 'zopf',
+      name: 'Zopf',
+      variants: [{ sku: 'ZOPF', price: 690, trackStock: false }],
+    });
+    const cart = await shop.createCart({ locale: 'fr' });
+
+    await shop.addToCart(cart.token, {
+      variantId: product.variants[0]!.id,
+      quantity: 1,
+    });
+    await shop.updateCartDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'laden',
+      fulfillmentDate: '2026-10-21',
+      fulfillmentWindow: '07:00–09:00',
+    });
+
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'invoice',
+    });
+
+    await shop.markShipped({ orderId: order.id });
+
+    expect(sent).toHaveLength(2);
+    for (const mail of sent) {
+      expect(mail.text).toContain(
+        'Jour de retrait: mercredi, 21.10.2026, 07:00–09:00',
+      );
+    }
+  });
 });

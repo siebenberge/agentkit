@@ -12,9 +12,12 @@ import {
   type HsSoftProductOptions,
   type HsSoftSync,
   createHsSoftSync,
+  hsSoftAvailabilityPeriod,
   hsSoftClient,
+  hsSoftDeliveryDays,
   hsSoftOrderSync,
   hsSoftProductData,
+  inAvailabilityPeriod,
 } from './index';
 
 type Answer = {
@@ -69,6 +72,8 @@ function fakeHsSoft() {
   const articles = new Map<number, HsSoftArticle>();
   const groups = new Map<number, number[]>();
   const images = new Map<number, string>();
+  // day → article ids orderable that day (missing: every article)
+  const available = new Map<string, number[]>();
   const orders: {
     id: number;
     orderNumber: number;
@@ -135,6 +140,26 @@ function fakeHsSoft() {
           body: {
             data: all.slice(offset, offset + limit),
             meta: { pagination: { limit, offset } },
+          },
+        }),
+      );
+    }
+
+    if (method === 'GET' && path === '/v1/articles-available-for-order') {
+      const day = (url.searchParams.get('date') ?? '').slice(0, 10);
+      const ids = available.get(day) ?? [...articles.keys()];
+
+      return Promise.resolve(
+        respond({
+          status: 200,
+          body: {
+            data: {
+              items: ids.map((id) => ({
+                id,
+                articleNumber: `A${id}`,
+                description: '',
+              })),
+            },
           },
         }),
       );
@@ -214,6 +239,7 @@ function fakeHsSoft() {
     articles,
     groups,
     images,
+    available,
     orders,
     next,
     fetch: fetchImpl,
@@ -1493,5 +1519,345 @@ describe('back office and MCP', () => {
         structuredContent: { sync: { state: 'synced', orderNumber: 501 } },
       },
     });
+  });
+});
+
+describe('pickup day', () => {
+  it('offers only delivery days and sends the day as the order date', async () => {
+    const hs = fakeHsSoft();
+    let sync: HsSoftSync | null = null;
+    const shop = createShop({
+      database: memoryAdapter(),
+      paymentMethods: ['invoice'],
+      // Thursday 10:00 in Zurich
+      now: () => new Date('2026-10-15T08:00:00.000Z'),
+      shipping: {
+        rates: [
+          {
+            id: 'laden',
+            name: 'Abholung',
+            amount: 0,
+            pickup: true,
+            schedule: { leadDays: 1, maxDays: 7, timeWindows: ['07:00–09:00'] },
+          },
+        ],
+      },
+      allowFulfillmentDate: hsSoftDeliveryDays,
+      onEvent: (event) => sync!.onEvent(event),
+    });
+
+    sync = createHsSoftSync({
+      shop,
+      client: hs.client(),
+      products: { marketingGroupIds: [1] },
+      logger: { info: () => undefined, error: () => undefined },
+    });
+    // delivered Mon, Tue, Thu, Fri, Sat
+    hs.articles.set(1, article(1, { description: 'Zopf' }));
+    await sync.importProducts();
+
+    const own = await shop.createProduct({
+      slug: 'tasse',
+      name: 'Tasse',
+      variants: [{ sku: 'MUG', price: 1_500, trackStock: false }],
+    });
+    const cart = await shop.createCart({ locale: 'fr' });
+    const zopf = (await shop.getProduct('zopf'))!;
+
+    await shop.addToCart(cart.token, {
+      variantId: zopf.variants[0]!.id,
+      quantity: 1,
+    });
+
+    const options = async () =>
+      (await shop.getCartSummary(cart.token)).shippingOptions[0]!.schedule!
+        .dates;
+
+    // Fri 16, Sat 17, Mon 19, Tue 20, Thu 22 – no Sunday, no Wednesday
+    expect(await options()).toEqual([
+      '2026-10-16',
+      '2026-10-17',
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+
+    // a product that is not from HS-Soft does not limit the days
+    await shop.addToCart(cart.token, {
+      variantId: own.variants[0]!.id,
+      quantity: 1,
+    });
+    expect(await options()).toHaveLength(5);
+
+    await shop.setCartQuantity(cart.token, {
+      variantId: own.variants[0]!.id,
+      quantity: 0,
+    });
+    await shop.updateCartDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'laden',
+      fulfillmentDate: '2026-10-20',
+      fulfillmentWindow: '07:00–09:00',
+      billingAddress: address,
+    });
+    await shop.checkout({ token: cart.token, paymentMethod: 'invoice' });
+
+    expect(hs.orders[0]!.body).toMatchObject({
+      date: '2026-10-20T00:00:00.000Z',
+      deliveryTime: '07:00',
+    });
+    expect(hs.orders[0]!.body.notePlainText).toContain(
+      'Abholtag: Dienstag, 20.10.2026, 07:00-09:00',
+    );
+  });
+});
+
+describe('availability of pickup days', () => {
+  // Thursday 15.10.2026, 10:00 in Zurich; days offered from Friday 16.10.
+  function bakery(availability?: { customerId: number }) {
+    const hs = fakeHsSoft();
+    const holder: { sync: HsSoftSync | null } = { sync: null };
+    const clock = { now: new Date('2026-10-15T08:00:00.000Z') };
+    const shop = createShop({
+      database: memoryAdapter(),
+      paymentMethods: ['invoice'],
+      now: () => new Date(clock.now),
+      shipping: {
+        rates: [
+          {
+            id: 'laden',
+            name: 'Abholung',
+            amount: 0,
+            pickup: true,
+            schedule: { leadDays: 1, maxDays: 7 },
+          },
+        ],
+      },
+      allowFulfillmentDate: (context) =>
+        holder.sync!.allowFulfillmentDate(context),
+    });
+    const sync = createHsSoftSync({
+      shop,
+      client: hs.client(),
+      now: () => new Date(clock.now),
+      products: { marketingGroupIds: [1] },
+      availability,
+      logger: { info: () => undefined, error: () => undefined },
+    });
+
+    holder.sync = sync;
+
+    async function daysFor(skus: string[]) {
+      const cart = await shop.createCart({ locale: 'de' });
+      const variants = (
+        await shop.listProducts({ includeArchivedVariants: true })
+      ).flatMap((product) => product.variants);
+
+      for (const sku of skus) {
+        await shop.addToCart(cart.token, {
+          variantId: variants.find((variant) => variant.sku === sku)!.id,
+          quantity: 1,
+        });
+      }
+
+      return (await shop.getCartSummary(cart.token)).shippingOptions[0]!
+        .schedule!.dates;
+    }
+
+    return { hs, shop, sync, clock, daysFor };
+  }
+
+  it('uses the delivery days of each variant article', async () => {
+    const { hs, shop, sync, daysFor } = bakery();
+
+    await shop.createProduct({
+      slug: 'zopf',
+      name: 'Zopf',
+      variants: [
+        { sku: 'A1', name: '500 g', price: 100, trackStock: false },
+        { sku: 'A2', name: '1 kg', price: 100, trackStock: false },
+      ],
+    });
+    // A1: Mon, Tue, Thu, Fri, Sat; A2: Saturdays only
+    hs.articles.set(1, article(1));
+    hs.articles.set(
+      2,
+      article(2, {
+        isDeliveredMon: false,
+        isDeliveredTue: false,
+        isDeliveredThu: false,
+        isDeliveredFri: false,
+      }),
+    );
+    await sync.importProducts();
+
+    expect(await daysFor(['A1'])).toEqual([
+      '2026-10-16',
+      '2026-10-17',
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+    expect(await daysFor(['A2'])).toEqual(['2026-10-17']);
+    expect(await daysFor(['A1', 'A2'])).toEqual(['2026-10-17']);
+  });
+
+  it('keeps a product to its own period, also every year', async () => {
+    const { hs, shop, sync, daysFor } = bakery();
+
+    hs.articles.set(1, article(1, { description: 'Grittibänz' }));
+    await sync.importProducts();
+
+    const product = (await shop.getProduct('grittibaenz'))!;
+
+    await sync.setAvailabilityPeriod(product.id, {
+      from: '2026-10-19',
+      to: '2026-10-21',
+    });
+    expect(await daysFor(['A1'])).toEqual(['2026-10-19', '2026-10-20']);
+
+    // every year from 20.10. – the import keeps the period
+    await sync.setAvailabilityPeriod(product.id, {
+      from: '2020-10-20',
+      to: '2020-12-06',
+      recurring: true,
+    });
+    hs.articles.get(1)!.description = 'Grittibänz gross';
+    await sync.importProducts();
+    expect(
+      hsSoftAvailabilityPeriod((await shop.getProduct(product.id))!),
+    ).toEqual({
+      from: '2020-10-20',
+      to: '2020-12-06',
+      recurring: true,
+    });
+    expect(await daysFor(['A1'])).toEqual(['2026-10-20', '2026-10-22']);
+
+    await sync.setAvailabilityPeriod(product.id, null);
+    expect(await daysFor(['A1'])).toHaveLength(5);
+    await expect(
+      sync.setAvailabilityPeriod(product.id, { from: '1.11.', to: '6.12.' }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(
+      sync.setAvailabilityPeriod(product.id, {
+        from: '2026-02-30',
+        to: '2026-03-01',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('asks WaWiAssist which days an article can be ordered, once per day', async () => {
+    const { hs, sync, clock, daysFor } = bakery({ customerId: 50 });
+
+    hs.articles.set(1, article(1, { description: 'Torte' }));
+    hs.articles.set(2, article(2, { description: 'Brot' }));
+    await sync.importProducts();
+    // the cake needs time: not on Friday and Saturday
+    hs.available.set('2026-10-16', [2]);
+    hs.available.set('2026-10-17', [2]);
+
+    expect(await daysFor(['A1'])).toEqual([
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+    expect(await daysFor(['A2'])).toHaveLength(5);
+
+    const asked = () =>
+      hs.calls.filter(
+        (call) => call.path === '/v1/articles-available-for-order',
+      );
+
+    expect(asked()).toHaveLength(5);
+    expect(asked()[0]!.query.get('customerId')).toBe('50');
+
+    // after the cache time it asks again; if HS-Soft is down, the delivery
+    // days decide
+    clock.now = new Date('2026-10-15T08:11:00.000Z');
+    hs.next.push(
+      ...Array.from({ length: 5 }, () => ({
+        match: 'GET /v1/articles-available-for-order',
+        answer: new TypeError('fetch failed'),
+      })),
+    );
+    expect(await daysFor(['A1'])).toHaveLength(5);
+    expect(asked()).toHaveLength(10);
+  });
+
+  it('sets the period through the back office and the MCP tool', async () => {
+    const { hs, shop, sync } = bakery();
+
+    hs.articles.set(1, article(1, { description: 'Grittibänz' }));
+    await sync.importProducts();
+
+    const admin = createShopAdminHandler({
+      shop,
+      basePath: '/admin',
+      authorize: () => true,
+      hssoft: sync,
+    });
+    const response = await admin(
+      new Request(
+        'https://shop.example/admin/products/grittibaenz/hssoft-availability',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            from: '2026-11-01',
+            to: '2026-12-06',
+            recurring: true,
+          }),
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      hsSoftAvailabilityPeriod((await shop.getProduct('grittibaenz'))!),
+    ).toEqual({
+      from: '2026-11-01',
+      to: '2026-12-06',
+      recurring: true,
+    });
+
+    const mcp = createShopMcpHandler({
+      shop,
+      authorize: () => true,
+      hssoft: sync,
+    });
+    const result = await mcp(
+      new Request('https://shop.example/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'hssoft_set_availability_period',
+            arguments: { productId: 'grittibaenz' },
+          },
+        }),
+      }),
+    );
+
+    expect(await result.json()).toMatchObject({ result: { isError: false } });
+    expect(
+      hsSoftAvailabilityPeriod((await shop.getProduct('grittibaenz'))!),
+    ).toBeNull();
+  });
+
+  it('knows periods across the new year', () => {
+    const winter = { from: '2025-12-01', to: '2026-01-06', recurring: true };
+
+    expect(inAvailabilityPeriod(winter, '2030-12-24')).toBe(true);
+    expect(inAvailabilityPeriod(winter, '2031-01-06')).toBe(true);
+    expect(inAvailabilityPeriod(winter, '2031-01-07')).toBe(false);
+    expect(
+      inAvailabilityPeriod(
+        { from: '2026-12-01', to: '2026-12-24' },
+        '2027-12-02',
+      ),
+    ).toBe(false);
   });
 });
