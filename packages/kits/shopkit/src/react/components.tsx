@@ -632,13 +632,23 @@ export function Checkout(props: CheckoutProps) {
       const saved = { ...EMPTY_ADDRESS, ...cart.shippingAddress };
 
       setShipping((current) => (current === EMPTY_ADDRESS ? saved : current));
+    } else if (cart.billingAddress?.name) {
+      const name = cart.billingAddress.name;
+
+      setShipping((current) =>
+        current === EMPTY_ADDRESS ? { ...EMPTY_ADDRESS, name } : current,
+      );
     }
     if (cart.billingAddress) {
       const saved = { ...EMPTY_ADDRESS, ...cart.billingAddress };
 
       setBilling((current) => (current === EMPTY_ADDRESS ? saved : current));
-      setSameBilling(false);
-      if (cart.billingAddress.line1) setWithAddress(true);
+      // a name alone (pickup paid online, or filled in for a signed-in
+      // customer) is no billing address of its own
+      if (cart.billingAddress.line1) {
+        setSameBilling(false);
+        setWithAddress(true);
+      }
     }
     setNote((current) => current || (cart.note ?? ''));
   }, [cart, loaded]);

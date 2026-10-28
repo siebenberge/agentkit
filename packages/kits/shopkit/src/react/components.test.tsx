@@ -364,6 +364,42 @@ describe('shop components', () => {
     });
   });
 
+  it('takes a name alone as the shipping name, billing stays the same', async () => {
+    const { ui, client, variantId } = await setup();
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    // what the handler fills in for a signed-in customer without orders
+    cart = await client.updateDetails(cart.token, {
+      shippingRateId: 'post',
+      billingAddress: {
+        name: 'Anna Muster',
+        line1: '',
+        postalCode: '',
+        city: '',
+      },
+    });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(<Checkout orderHref={() => '/unused'} />);
+
+    await waitFor(() =>
+      expect(
+        (screen.getAllByLabelText('Vor- und Nachname')[0] as HTMLInputElement)
+          .value,
+      ).toBe('Anna Muster'),
+    );
+    expect(
+      (
+        screen.getByLabelText(
+          'Rechnungsadresse wie Lieferadresse',
+        ) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    expect(screen.getAllByLabelText('Vor- und Nachname')).toHaveLength(1);
+  });
+
   it('suggests and checks the shipping address', async () => {
     const checked: string[] = [];
     const lookup: AddressLookup = {

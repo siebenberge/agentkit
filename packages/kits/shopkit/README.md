@@ -157,9 +157,11 @@ export const { GET, POST } = toNextJsHandler(
   createShopHandler({
     shop,
     basePath: '/api/shop',
+    // your auth, null for guests; their next cart starts with name, email and
+    // the pickup point of their last order
     identify: async (request) => {
-      const user = await getUser(request); // your auth, null for guests
-      return user ? { externalId: user.id, email: user.email } : null;
+      const user = await getUser(request);
+      return user ? { externalId: user.id, email: user.email, name: user.name } : null;
     },
     orderUrl: (_request, order) =>
       `https://acme.ch/bestellung/${order.id}?token=${order.accessToken}`,
