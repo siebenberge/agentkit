@@ -1025,9 +1025,15 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
   >();
 
   function availableOn(date: string, customerId: number) {
+    const time = now().getTime();
     const cached = availableCache.get(date);
 
-    if (cached && cached.expires > now().getTime()) return cached.ids;
+    if (cached && cached.expires > time) return cached.ids;
+
+    // past days stay out of a long-running process
+    for (const [key, entry] of availableCache) {
+      if (entry.expires <= time) availableCache.delete(key);
+    }
 
     const ids = client
       .listArticlesAvailableForOrder({ date, customerId })
@@ -1095,9 +1101,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     period: HsSoftAvailabilityPeriod | null,
   ) {
     if (period) {
-      const day = /^\d{4}-\d{2}-\d{2}$/;
-
-      if (!day.test(period.from) || !day.test(period.to)) {
+      if (!isDate(period.from) || !isDate(period.to)) {
         throw new ShopError(
           'INVALID_INPUT',
           'hssoft: period from / to must be YYYY-MM-DD',
@@ -1748,6 +1752,15 @@ function rappen(chf: number | null | undefined) {
   return typeof chf === 'number' && Number.isFinite(chf) && chf >= 0
     ? Math.round(chf * 100)
     : null;
+}
+
+/** A real calendar day `YYYY-MM-DD` (not 2026-02-30). */
+function isDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
 }
 
 /** `null` for missing, zero or negative values (an empty price or weight). */

@@ -23,6 +23,7 @@ import {
   num,
   numOrNull,
   parseDays,
+  pickupLeadDays,
 } from './config';
 import { advanceInSteps, createSandbox } from './sandbox';
 
@@ -294,9 +295,7 @@ async function create(page: string) {
   // what the visitor set in the Config tab
   const config = loadConfig('shop');
   const rates = list(config['shipping.rates']!);
-  const pickupLeadDays = numOrNull(
-    config['shipping.pickup.schedule.leadDays']!,
-  );
+  const leadDays = pickupLeadDays(config);
   const methods = list(config.paymentMethods!) as ('online' | 'invoice')[];
   const database = memoryAdapter();
   const restored = sandbox.restoreTables(
@@ -364,11 +363,11 @@ async function create(page: string) {
                 ...rate,
                 freeAbove: numOrNull(config['shipping.economy.freeAbove']!),
               }
-            : rate.id === 'pickup' && pickupLeadDays !== null
+            : rate.id === 'pickup' && leadDays !== null
               ? {
                   ...rate,
                   schedule: {
-                    leadDays: Math.max(0, Math.min(30, pickupLeadDays)),
+                    leadDays,
                     weekdays: ['tue', 'wed', 'thu', 'fri', 'sat'],
                     timeWindows: list(
                       config['shipping.pickup.schedule.timeWindows']!,

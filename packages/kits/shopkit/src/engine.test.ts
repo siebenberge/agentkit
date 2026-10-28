@@ -1439,6 +1439,12 @@ describe('pickup / delivery day', () => {
     expect((await shop.getCartSummary(cart.token)).missing).toEqual([
       'fulfillment_date',
     ]);
+    await expect(
+      shop.checkout({ token: cart.token, paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({
+      code: 'FULFILLMENT_DATE_REQUIRED',
+      message: 'Choose the time window',
+    });
 
     await shop.updateCartDetails(cart.token, {
       fulfillmentWindow: '07:00–09:00',
@@ -1521,6 +1527,39 @@ describe('pickup / delivery day', () => {
     expect(order.fulfillmentDate).toBeNull();
   });
 
+  it('starts a new rate without the day and fills a single window', async () => {
+    const single: ShippingRate = {
+      ...bakery,
+      id: 'markt',
+      name: 'Abholung am Markt',
+      schedule: { ...bakery.schedule, timeWindows: ['08:00–12:00'] },
+    };
+    const { shop, cart } = await pickupCart(bakery, {
+      shipping: { rates: [...rates, bakery, single] },
+    });
+
+    await shop.updateCartDetails(cart.token, {
+      fulfillmentDate: '2026-10-20',
+      fulfillmentWindow: '16:00–18:00',
+    });
+
+    const switched = await shop.updateCartDetails(cart.token, {
+      shippingRateId: 'markt',
+    });
+
+    expect(switched).toMatchObject({
+      fulfillmentDate: null,
+      fulfillmentWindow: null,
+    });
+
+    const picked = await shop.updateCartDetails(cart.token, {
+      fulfillmentDate: '2026-10-21',
+    });
+
+    expect(picked.fulfillmentWindow).toBe('08:00–12:00');
+    expect((await shop.getCartSummary(cart.token)).missing).toEqual([]);
+  });
+
   it('rejects a broken schedule at start', () => {
     expect(() =>
       createShop({
@@ -1538,5 +1577,13 @@ describe('pickup / delivery day', () => {
         },
       }),
     ).toThrow('closedDates');
+    expect(() =>
+      createShop({
+        database: memoryAdapter(),
+        shipping: {
+          rates: [{ ...bakery, schedule: { timeWindows: [' 07:00–09:00'] } }],
+        },
+      }),
+    ).toThrow('timeWindows');
   });
 });

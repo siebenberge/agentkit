@@ -1422,33 +1422,51 @@ export function createShop(options: ShopOptions) {
       patch.locale = resolveLocale(details.locale);
     }
 
-    // a day the chosen rate does not offer is refused right away
-    if (patch.fulfillmentDate || patch.fulfillmentWindow) {
-      const cart = await getCart(token);
+    return mutateCart(token, async (cart) => {
+      const change = { ...patch };
 
-      if (!cart) throw new ShopError('CART_NOT_FOUND', 'Unknown cart');
-
-      const next = { ...cart, ...patch };
-      const { shippingOptions } = await summarize(next);
-      const schedule = shippingOptions.find(
-        (option) => option.id === next.shippingRateId,
-      )?.schedule;
-      const date = next.fulfillmentDate ?? null;
-      const window = next.fulfillmentWindow ?? null;
-
+      // the day and window belong to the rate: a new rate starts without
       if (
-        schedule &&
-        ((date !== null && !schedule.dates.includes(date)) ||
-          (window !== null && !schedule.timeWindows.includes(window)))
+        change.shippingRateId !== undefined &&
+        change.shippingRateId !== cart.shippingRateId
       ) {
-        throw new ShopError(
-          'FULFILLMENT_DATE_UNAVAILABLE',
-          `${date ?? ''} ${window ?? ''}`.trim() + ' is not offered',
-        );
+        change.fulfillmentDate ??= null;
+        change.fulfillmentWindow ??= null;
       }
-    }
 
-    return mutateCart(token, () => patch);
+      // a day or window the chosen rate does not offer is refused right away
+      const date = change.fulfillmentDate ?? null;
+      const window = change.fulfillmentWindow ?? null;
+
+      if (date !== null || window !== null) {
+        const next = { ...cart, ...change };
+        const { shippingOptions } = await summarize(next);
+        const schedule = shippingOptions.find(
+          (option) => option.id === next.shippingRateId,
+        )?.schedule;
+
+        if (
+          schedule &&
+          ((date !== null && !schedule.dates.includes(date)) ||
+            (window !== null && !schedule.timeWindows.includes(window)))
+        ) {
+          throw new ShopError(
+            'FULFILLMENT_DATE_UNAVAILABLE',
+            `${date ?? ''} ${window ?? ''}`.trim() + ' is not offered',
+          );
+        }
+        // a single window needs no choice
+        if (
+          date !== null &&
+          schedule?.timeWindows.length === 1 &&
+          (next.fulfillmentWindow ?? null) === null
+        ) {
+          change.fulfillmentWindow = schedule.timeWindows[0]!;
+        }
+      }
+
+      return change;
+    });
   }
 
   /**
@@ -1595,7 +1613,7 @@ export function createShop(options: ShopOptions) {
     }
 
     const closed = new Set(schedule.closedDates ?? []);
-    const dates: string[] = [];
+    const candidates: { day: string; weekday: Weekday }[] = [];
     const products = [...new Set(lines.map((line) => line.product))];
 
     for (let offset = 0; offset < (schedule.maxDays ?? 14); offset++) {
@@ -1604,21 +1622,24 @@ export function createShop(options: ShopOptions) {
 
       if (schedule.weekdays && !schedule.weekdays.includes(weekday)) continue;
       if (closed.has(day)) continue;
-      if (
-        options.allowFulfillmentDate &&
-        !(await options.allowFulfillmentDate({
-          date: day,
-          weekday,
-          rate,
-          products,
-          lines,
-        }))
-      ) {
-        continue;
-      }
 
-      dates.push(day);
+      candidates.push({ day, weekday });
     }
+
+    // the days at once: the callback may ask a remote system
+    const allow = options.allowFulfillmentDate;
+    const allowed = allow
+      ? await Promise.all(
+          candidates.map(({ day, weekday }) =>
+            Promise.resolve(
+              allow({ date: day, weekday, rate, products, lines }),
+            ),
+          ),
+        )
+      : null;
+    const dates = candidates
+      .filter((_, index) => allowed?.[index] ?? true)
+      .map(({ day }) => day);
 
     return {
       dates,
@@ -1846,22 +1867,34 @@ export function createShop(options: ShopOptions) {
     if (summary.missing.includes('shipping_address')) {
       throw new ShopError('ADDRESS_REQUIRED', 'Shipping address missing');
     }
-    if (summary.missing.includes('fulfillment_date')) {
-      throw cart.fulfillmentDate
-        ? new ShopError(
-            'FULFILLMENT_DATE_UNAVAILABLE',
-            `${cart.fulfillmentDate} is no longer offered, choose another day`,
-          )
-        : new ShopError(
-            'FULFILLMENT_DATE_REQUIRED',
-            'Choose the day of the pickup / delivery',
-          );
-    }
-
     const schedule =
       summary.shippingOptions.find(
         (option) => option.id === cart.shippingRateId,
       )?.schedule ?? null;
+
+    if (summary.missing.includes('fulfillment_date')) {
+      const date = cart.fulfillmentDate ?? null;
+      const window = cart.fulfillmentWindow ?? null;
+
+      if (date === null) {
+        throw new ShopError(
+          'FULFILLMENT_DATE_REQUIRED',
+          'Choose the day of the pickup / delivery',
+        );
+      }
+      if (!schedule?.dates.includes(date)) {
+        throw new ShopError(
+          'FULFILLMENT_DATE_UNAVAILABLE',
+          `${date} is no longer offered, choose another day`,
+        );
+      }
+      throw window === null
+        ? new ShopError('FULFILLMENT_DATE_REQUIRED', 'Choose the time window')
+        : new ShopError(
+            'FULFILLMENT_DATE_UNAVAILABLE',
+            `${window} is no longer offered, choose another time window`,
+          );
+    }
     if (cart.discountCode && pricing.discount.status !== 'applied') {
       throw new ShopError(
         pricing.discount.status === 'none'
@@ -3447,8 +3480,8 @@ function checkSchedule(rateId: string, schedule: FulfillmentSchedule) {
     if (!isDay(day)) fail(`closedDates: "${day}" is not YYYY-MM-DD`);
   }
   for (const window of schedule.timeWindows ?? []) {
-    if (!window.trim() || window.length > 40) {
-      fail('timeWindows: 1–40 characters each');
+    if (!window.trim() || window !== window.trim() || window.length > 40) {
+      fail('timeWindows: 1–40 characters each, no spaces around');
     }
   }
 }

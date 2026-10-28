@@ -1738,6 +1738,12 @@ describe('availability of pickup days', () => {
     await expect(
       sync.setAvailabilityPeriod(product.id, { from: '1.11.', to: '6.12.' }),
     ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(
+      sync.setAvailabilityPeriod(product.id, {
+        from: '2026-02-30',
+        to: '2026-03-01',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
   it('asks WaWiAssist which days an article can be ordered, once per day', async () => {

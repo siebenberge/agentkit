@@ -483,6 +483,13 @@ export const numOrNull = (value: ConfigValue) =>
     ? value
     : null;
 
+/** Pickup lead days as the demo runs them (0–30), `null` without a schedule. */
+export function pickupLeadDays(c: DemoConfig) {
+  const days = numOrNull(c['shipping.pickup.schedule.leadDays']!);
+
+  return days === null ? null : Math.max(0, Math.min(30, Math.round(days)));
+}
+
 export const list = (value: ConfigValue) => (Array.isArray(value) ? value : []);
 
 // ---------------------------------------------------------------- code
@@ -602,7 +609,7 @@ export function subCode(c: DemoConfig): CodeLine[] {
 export function shopCode(c: DemoConfig): CodeLine[] {
   const rates = list(c['shipping.rates']!);
   const freeAbove = numOrNull(c['shipping.economy.freeAbove']!);
-  const leadDays = numOrNull(c['shipping.pickup.schedule.leadDays']!);
+  const leadDays = pickupLeadDays(c);
   const windows = list(c['shipping.pickup.schedule.timeWindows']!);
   const validity = numOrNull(c['giftCards.validityDays']!);
   const rateLines: CodeLine[] = [

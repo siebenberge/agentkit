@@ -251,7 +251,8 @@ allowFulfillmentDate: ({ weekday, products }) =>
   (with weekday) and the windows as a choice.
 - Set them with `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`
   (`POST /cart/details`). A day that is not offered is refused
-  (`FULFILLMENT_DATE_UNAVAILABLE`); until one is chosen `missing` contains
+  (`FULFILLMENT_DATE_UNAVAILABLE`); a single window is set with the day,
+  another rate starts without day and window; until one is chosen `missing` contains
   `fulfillment_date` and checkout answers `FULFILLMENT_DATE_REQUIRED`
   (`required: false` makes it optional). A day that passed while the cart
   was open is checked again at checkout.

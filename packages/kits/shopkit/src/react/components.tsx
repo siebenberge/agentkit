@@ -885,7 +885,9 @@ function FulfillmentDateFields(props: {
           </select>
         </label>
       )}
-      {date && timeWindows.length > 1 ? (
+      {date &&
+      (timeWindows.length > 1 ||
+        (timeWindows.length === 1 && props.window !== timeWindows[0])) ? (
         <div className="sk-options" role="radiogroup" aria-label={t.timeWindow}>
           {timeWindows.map((window) => (
             <label key={window} className="sk-option">
