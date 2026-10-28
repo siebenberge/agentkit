@@ -617,7 +617,7 @@ the order, places it and gets a zahls.ch payment link back. A customer who
 saved a payment method pays directly – only the amount they confirmed.
 
 ```ts
-// app/api/shop-agent/route.ts
+// app/mcp/route.ts
 import { createShopCustomerMcpHandler } from '@agentkit.ch/shopkit/mcp';
 import { shop } from '@/lib/shop';
 
@@ -676,14 +676,14 @@ plugins: [
   mcp({
     loginPage: '/login', // your sign-in page, receives the signed OAuth query
     consentPage: '/connect', // «Allow» posts { accept, oauth_query } to /api/auth/oauth2/consent
-    resource: 'https://acme.ch/api/shop-agent',
+    resource: 'https://acme.ch/mcp',
     allowDynamicClientRegistration: true, // clients without CIMD (ChatGPT, Cursor …)
     allowUnauthenticatedClientRegistration: true,
   }),
   cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }), // Claude
 ],
 
-// app/api/shop-agent/route.ts
+// app/mcp/route.ts
 import { requireMcpAuth } from '@better-auth/mcp';
 
 const shopAgent = createShopCustomerMcpHandler({ shop, orderUrl, locale: 'de' });
@@ -695,7 +695,7 @@ export const POST = requireMcpAuth(
     if (!user) return new Response(null, { status: 401 });
     return shopAgent(request, { customer: { externalId: user.id, email: user.email, name: user.name } });
   },
-  { resource: 'https://acme.ch/api/shop-agent' },
+  { resource: 'https://acme.ch/mcp' },
 );
 ```
 
