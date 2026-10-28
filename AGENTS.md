@@ -10,9 +10,9 @@ Guide for contributors and coding agents. Human-oriented setup is in
 - `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm format`, `pnpm typecheck`,
   `pnpm test`, `pnpm check:pack`. Postgres tests of the kits: see their READMEs.
 - This repo is the single source of truth for the kits. Products install them from
-  npm (scope `@agentkit.ch`, not `@agentkit`). Release with a `subkit@<version>` /
-  `shopkit@<version>` tag or a manual run of `.github/workflows/publish-<kit>.yml`
-  on `main` (npm trusted publishing).
+  npm (scope `@agentkit.ch`, not `@agentkit`). Release with a GitHub release tagged
+  `subkit@<version>` / `shopkit@<version>` or a manual run of
+  `.github/workflows/publish-<kit>.yml` on `main` (npm trusted publishing).
 - Kits build with tsdown to `dist/`. `exports` points at `src/` for the workspace,
   `publishConfig` (main, types, exports, typesVersions) at `dist/` for npm –
   add a new entry point to both (`tsdown.config.ts` fails the build if they

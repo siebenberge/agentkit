@@ -83,7 +83,7 @@ The ones that matter most:
 
 ## Releases
 
-Maintainers release the kits from `main` with a `subkit@<version>` /
-`shopkit@<version>` tag; GitHub Actions builds, checks and publishes the
+Maintainers release the kits from `main` with a GitHub release tagged
+`subkit@<version>` / `shopkit@<version>`; GitHub Actions builds, checks and publishes the
 packed tarball to npm (trusted publishing). Details in the *Development*
 section of each kit README.
