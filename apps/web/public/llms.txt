@@ -62,7 +62,8 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   Switzerland and Liechtenstein, keeps it in `order.metadata.swisspost` and
   marks the order shipped with the Track & Trace link; `addressLookup` for
   `createShopHandler` adds postcode / locality / street / number suggestions
-  and the address check to `<Checkout>`.
+  and the address check to `<Checkout>`; `<ShopAdminProvider swisspost>`
+  adds the label part to the order in the back office.
   Next: back office components – `<ShopAdmin />` from
   `@agentkit.ch/shopkit/react/admin` (orders, products and stock, discount
   codes, gift cards, bank import; with `<ShopAdminProvider hssoft>` also

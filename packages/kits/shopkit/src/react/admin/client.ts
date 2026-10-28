@@ -13,6 +13,8 @@ import type {
   AdminProduct,
   AdminProductInput,
   AdminRefund,
+  AdminSwissPostLabelFile,
+  AdminSwissPostLabelInput,
   AdminVariant,
   AdminVariantInput,
 } from './types';
@@ -206,6 +208,31 @@ export function createShopAdminClient(options: ShopAdminClientOptions) {
           `/products/${id(productId)}/hssoft-availability`,
           { body: period ?? {} },
         ),
+    },
+
+    // ---------------------------------------------------------- Swiss Post
+    // only with `swisspost` on `createShopAdminHandler` (else 404)
+    swisspost: {
+      /**
+       * Creates the label (and marks the order shipped): the file to print
+       * or download. `force` makes another one for an order that has one.
+       */
+      createLabel: async (
+        orderId: string,
+        input: AdminSwissPostLabelInput = {},
+      ): Promise<AdminSwissPostLabelFile> => {
+        const response = await send(`/orders/${id(orderId)}/swisspost-label`, {
+          body: input,
+        });
+        const disposition = response.headers.get('content-disposition') ?? '';
+
+        return {
+          file: await response.blob(),
+          fileName: /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'label',
+          contentType: response.headers.get('content-type') ?? '',
+          trackingNumber: response.headers.get('x-tracking-number') ?? '',
+        };
+      },
     },
   };
 }

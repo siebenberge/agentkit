@@ -16,6 +16,7 @@ import { type Shop, createShop } from '../../engine';
 import type { HsSoftSync } from '../../hssoft';
 import { createShopAdminHandler } from '../../http/admin';
 import { swissQrBill } from '../../receipt/swiss-qr-bill';
+import { type SwissPost, createSwissPost } from '../../swisspost';
 import { createShopAdminClient } from './client';
 import { ShopAdminProvider } from './provider';
 import { ShopAdmin } from './shop-admin';
@@ -45,6 +46,8 @@ async function setup(
       shop: Shop,
       database: ReturnType<typeof memoryAdapter>,
     ) => HsSoftSync;
+    /** The Swiss Post plugin (with a stand-in for the API). */
+    swisspost?: (shop: Shop) => SwissPost;
   } = {},
 ) {
   const database = memoryAdapter();
@@ -85,6 +88,7 @@ async function setup(
     authorize: () => options.admin !== false,
     receipts: { seller: { name: 'Rösterei AG' }, paymentSlip: slip },
     hssoft: options.hssoft?.(shop, database),
+    swisspost: options.swisspost?.(shop),
   });
 
   const client = createShopAdminClient({
@@ -137,6 +141,7 @@ async function setup(
         client={client}
         locale="de"
         hssoft={options.hssoft !== undefined}
+        swisspost={options.swisspost !== undefined}
       >
         {children}
       </ShopAdminProvider>,
@@ -689,5 +694,114 @@ describe('HS-Soft plugin in the back office', () => {
     expect(
       (await shop.getProduct(coffee.id))!.metadata.hssoftAvailability,
     ).toBeUndefined();
+  });
+});
+
+describe('Swiss Post plugin in the back office', () => {
+  it('creates the Swiss Post label from the order', async () => {
+    const sent: { przl: string[]; weight?: number }[] = [];
+    const swisspost = (shop: Shop) =>
+      createSwissPost({
+        shop,
+        clientId: 'client',
+        clientSecret: 'secret',
+        frankingLicense: '60048724',
+        sender: {
+          name: 'Rösterei AG',
+          street: 'Weg 1',
+          postalCode: '3000',
+          city: 'Bern',
+        },
+        fetch: (input, init) => {
+          if (
+            (input instanceof Request ? input.url : input.toString()).includes(
+              'OAuth',
+            )
+          ) {
+            return Promise.resolve(
+              Response.json({ access_token: 'token', expires_in: 300 }),
+            );
+          }
+
+          const body = JSON.parse(init?.body as string) as {
+            item: { attributes: { przl: string[]; weight?: number } };
+          };
+
+          sent.push(body.item.attributes);
+
+          return Promise.resolve(
+            Response.json({
+              labelDefinition: {
+                labelLayout: 'A6',
+                imageFileType: 'pdf',
+                imageResolution: 300,
+              },
+              item: {
+                identCode: `99600487240000000${sent.length}`,
+                label: [btoa('%PDF-')],
+              },
+            }),
+          );
+        },
+      });
+    const { shop, placeOrder, ui } = await setup({ swisspost });
+    const order = await placeOrder();
+
+    ui(<ShopAdmin initialOrderId={order.id} />);
+
+    fireEvent.change(await screen.findByLabelText('Versandart'), {
+      target: { value: 'PRI' },
+    });
+    fireEvent.click(screen.getByLabelText('Unterschrift'));
+    fireEvent.click(screen.getByLabelText('Samstagszustellung'));
+    fireEvent.change(screen.getByLabelText(/^Gewicht in Gramm/), {
+      target: { value: '1500' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Etikett erstellen' }));
+
+    expect(
+      await screen.findByText('Etikett 99.60.048724.00000001 erstellt.'),
+    ).toBeTruthy();
+    expect(sent).toEqual([{ przl: ['PRI', 'SI', 'SA'], weight: 1_500 }]);
+    // the order reloads: shipped with the tracking number
+    await waitFor(() =>
+      expect(screen.getAllByText('99.60.048724.00000001').length).toBe(2),
+    );
+    expect((await shop.getOrder(order.id))!.fulfillmentStatus).toBe('shipped');
+
+    // another label only on purpose, as the rate's shipment (ECO)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Neues Etikett erstellen' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Etikett erstellen' }));
+
+    expect(
+      await screen.findByText('Etikett 99.60.048724.00000002 erstellt.'),
+    ).toBeTruthy();
+    expect(sent[1]!.przl).toEqual(['ECO']);
+  });
+
+  it('shows no label part for pickups', async () => {
+    const { placeOrder, ui } = await setup({
+      swisspost: (shop) =>
+        createSwissPost({
+          shop,
+          clientId: 'client',
+          clientSecret: 'secret',
+          frankingLicense: '60048724',
+          sender: {
+            name: 'R',
+            street: 'Weg 1',
+            postalCode: '3000',
+            city: 'Bern',
+          },
+        }),
+    });
+    const order = await placeOrder('pickup');
+
+    ui(<ShopAdmin initialOrderId={order.id} />);
+
+    expect(await screen.findByText(`Bestellung ${order.number}`)).toBeTruthy();
+    expect(screen.queryByText('Post-Etikett')).toBeNull();
   });
 });

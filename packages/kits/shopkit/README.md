@@ -294,6 +294,14 @@ unanswered order only on purpose) and, per product, the article data and
 the own availability period (e.g. Grittibänz 1.11.–6.12. every year).
 Without `hssoft` nothing of it is shown.
 
+With the [Swiss Post plugin](#swiss-post) pass `swisspost` to
+`createShopAdminHandler` and set `<ShopAdminProvider swisspost>`: each
+order shipped to Switzerland or Liechtenstein gets a label part – service
+(default: the shipment of its rate), additional services, delivery
+instructions and weight, «Etikett erstellen» downloads the label and marks
+the order shipped; the tracking number links to Track & Trace, a second
+label only on purpose.
+
 Invoice orders paid by QR-bill: import the camt.054 / camt.053 of your bank
 with `shop.reconcileBankPayments({ payments: parseCamt(xml), reference:
 (order) => paymentSlip.reference(order) })` or `POST {admin}/bank-payments`
@@ -507,7 +515,7 @@ export const swisspost = createSwissPost({
 ```ts
 // storefront: suggestions and check in <Checkout>
 createShopHandler({ shop, basePath: '/api/shop', addressLookup: swisspost.addressLookup, … });
-// back office and agent: labels
+// back office (<ShopAdminProvider swisspost>) and agent: labels
 createShopAdminHandler({ shop, basePath: '/api/shop-admin', authorize, swisspost });
 createShopMcpHandler({ shop, authorize, swisspost });
 ```
