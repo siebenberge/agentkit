@@ -4217,6 +4217,10 @@ export function createShop(options: ShopOptions) {
         defaultRateBps: tax.defaultRateBps ?? 810,
       },
       paymentMethods: configuredMethods,
+      /** Online payments can save the card / TWINT (provider with `chargeToken`). */
+      savePaymentMethods:
+        configuredMethods.includes('online') &&
+        typeof provider?.chargeToken === 'function',
       shippingRates: rates,
       invoiceDueDays: dueDays,
       roundToFiveRappen: options.roundToFiveRappen ?? false,

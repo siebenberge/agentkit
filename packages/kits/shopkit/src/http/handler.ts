@@ -95,6 +95,12 @@ export type ShopHandlerOptions<C extends ShopCustomer = ShopCustomer> = {
    * `/swisspost`): the `/address/*` routes, `addressLookup: true` in the cart.
    */
   addressLookup?: AddressLookup | null;
+  /**
+   * Signed-in customers can save the card / TWINT of their online payment
+   * for later orders: `<Checkout>` shows a checkbox, `POST /checkout` takes
+   * `savePaymentMethod`. Needs a provider with `chargeToken`.
+   */
+  savePaymentMethod?: boolean;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -116,7 +122,7 @@ const CART_HEADER = 'x-cart-token';
  * - `POST /cart/details` `{ email, shippingAddress, billingAddress, shippingRateId, fulfillmentDate, fulfillmentWindow, note, locale }`
  * - `POST /cart/claim` – after sign-in: the guest cart becomes the customer's
  *   (merged with the cart they had)
- * - `POST /checkout` `{ paymentMethod, giftCardCodes }`
+ * - `POST /checkout` `{ paymentMethod, giftCardCodes, savePaymentMethod }`
  * - `POST /gift-cards/balance` `{ code }`
  * - `GET  /orders` – signed-in customer's orders
  * - `GET  /orders/:id?token=` – own order, or a guest's with its token
@@ -408,6 +414,11 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
           giftCardCodes,
           customerExternalId: customer?.externalId ?? cart.customerExternalId,
           urls: (order) => orderRedirectUrls(request, order),
+          // only the signed-in customer saves, never for a guest
+          savePaymentMethod:
+            body.savePaymentMethod === true &&
+            customer !== null &&
+            canSavePaymentMethod(),
         });
 
         const order = result.order;
@@ -657,7 +668,15 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
       totals: totalsDto(pricing),
       missing: summary.missing,
       addressLookup: Boolean(options.addressLookup),
+      savePaymentMethod:
+        canSavePaymentMethod() && cart.customerExternalId !== null,
     };
+  }
+
+  function canSavePaymentMethod() {
+    return (
+      options.savePaymentMethod === true && shop.settings.savePaymentMethods
+    );
   }
 }
 

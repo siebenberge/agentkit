@@ -161,6 +161,7 @@ addresses, note); what the customer already typed wins.
 | Shipping address | Delivery: the cart has physical goods and the chosen rate is not a pickup. Changing the country updates the cart (the shipping options depend on it). |
 | Billing address | See the table below. |
 | Payment: «TWINT, card or PostFinance» / «Invoice» with the payment term (`invoiceDueDays`) | Something is left to pay after the gift cards. Only the methods of `cart.paymentMethods` (`invoice.allow` of the shop decides). |
+| Checkbox «Save the payment method for future orders» (off) | Online payment chosen and `cart.savePaymentMethod` (the handler's `savePaymentMethod`, a signed-in customer). Ticked: the payment page saves the card / TWINT. |
 | Gift card: code → balance check → chip with the balance | Always. Several cards add up, to at most the total. |
 | Note (optional) | Always |
 
@@ -310,7 +311,7 @@ is tried once more with a new cart.
 | `applyDiscount(code \| null)` | `Promise<CartDto>` | Applies a code; `null` removes it. |
 | `updateDetails(details)` | `Promise<CartDto>` | Email, addresses, rate, pickup / delivery day and window, note, locale (`CartDetailsInput`). |
 | `claim()` | `Promise<CartDto \| null>` | After sign-in: the guest cart becomes the customer's. `null` without a cart. |
-| `checkout({ paymentMethod, giftCardCodes? })` | `Promise<CheckoutResultDto>` | Places the order; the cart is gone afterwards. |
+| `checkout({ paymentMethod, giftCardCodes?, savePaymentMethod? })` | `Promise<CheckoutResultDto>` | Places the order; the cart is gone afterwards. |
 
 Every change returns the new cart and throws `ShopApiError` on failure.
 
@@ -378,7 +379,7 @@ bodies as JSON. Cart methods send the token as `x-cart-token`.
 | `applyDiscount(token, code \| null)` | `POST /cart/discount` | `CartDto` |
 | `claimCart(token)` | `POST /cart/claim` | `CartDto` |
 | `updateDetails(token, details)` | `POST /cart/details` | `CartDto` |
-| `checkout(token, { paymentMethod, giftCardCodes? })` | `POST /checkout` | `CheckoutResultDto` |
+| `checkout(token, { paymentMethod, giftCardCodes?, savePaymentMethod? })` | `POST /checkout` | `CheckoutResultDto` |
 | `giftCardBalance(code)` | `POST /gift-cards/balance` | `GiftCardBalanceDto` |
 | `localities(query)` | `GET /address/localities?q=` | `LocalitiesDto` |
 | `streets(query, postalCode?)` | `GET /address/streets?q=&postalCode=` | `StreetsDto` |

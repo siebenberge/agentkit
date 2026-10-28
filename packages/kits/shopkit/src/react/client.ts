@@ -124,7 +124,12 @@ export function createShopClient(options: ShopClientOptions) {
       request<CartDto>('/cart/details', { cartToken, body: details }),
     checkout: (
       cartToken: string,
-      input: { paymentMethod: 'online' | 'invoice'; giftCardCodes?: string[] },
+      input: {
+        paymentMethod: 'online' | 'invoice';
+        giftCardCodes?: string[];
+        /** Signed in, with the handler's `savePaymentMethod`: save card / TWINT. */
+        savePaymentMethod?: boolean;
+      },
     ) => request<CheckoutResultDto>('/checkout', { cartToken, body: input }),
 
     giftCardBalance: (code: string) =>

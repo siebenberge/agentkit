@@ -54,7 +54,8 @@ database table and component – is in `docs/` of the package (also in
   shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
   sends payment reminders; invoice orders are booked from camt.053 / camt.054.
   Signed-in customers can save their payment method (card, TWINT) while
-  paying (`savePaymentMethod`) and pay later orders with it, no payment page
+  paying (`savePaymentMethod`, in `<Checkout>` a checkbox) and pay later
+  orders with it, no payment page
   (`payOrderWithSavedMethod`). Orders in one call for agents: `quoteOrder`,
   `placeOrder`.
   Pickup / delivery day: a rate with `schedule: { leadDays, cutoff, weekdays,

@@ -30,15 +30,21 @@ async function setup(
     { id: 'pickup', name: 'Abholung im Laden', amount: 0, pickup: true },
   ],
   addressLookup?: AddressLookup,
+  options: { savePaymentMethod?: boolean } = {},
 ) {
   const visits: string[] = [];
+  const modes: string[] = [];
   const state = { customer: null as { externalId: string } | null };
 
   const provider: PaymentProvider = {
     id: 'fake',
-    createHostedPayment: () =>
-      Promise.resolve({ url: 'https://pay.example/1', reference: 'gw' }),
+    createHostedPayment: (params) => {
+      modes.push(params.mode);
+      return Promise.resolve({ url: 'https://pay.example/1', reference: 'gw' });
+    },
     parseWebhook: () => Promise.resolve([]),
+    chargeToken: () =>
+      Promise.resolve({ status: 'succeeded', transactionId: 'charge' }),
   };
 
   const shop = createShop({
@@ -63,6 +69,7 @@ async function setup(
     identify: () => state.customer,
     orderUrl: (_request, order) => `https://shop.example/o/${order.id}`,
     addressLookup,
+    savePaymentMethod: options.savePaymentMethod,
   });
 
   const client = createShopClient({
@@ -89,6 +96,7 @@ async function setup(
     client,
     ui,
     visits,
+    modes,
     state,
     variantId: product.variants[0]!.id,
   };
@@ -254,6 +262,59 @@ describe('shop components', () => {
       name: 'Anna Muster',
       line1: '',
     });
+  });
+
+  it('lets a signed-in customer save the payment method', async () => {
+    const { ui, client, variantId, visits, modes, state } = await setup(
+      undefined,
+      undefined,
+      { savePaymentMethod: true },
+    );
+
+    state.customer = { externalId: 'kunde-1' };
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'pickup' });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(<Checkout orderHref={() => '/unused'} />);
+
+    fireEvent.change(await screen.findByLabelText('E-Mail'), {
+      target: { value: 'anna@example.ch' },
+    });
+    fireEvent.change(screen.getByLabelText('Vor- und Nachname'), {
+      target: { value: 'Anna Muster' },
+    });
+    fireEvent.click(
+      screen.getByLabelText('Zahlungsart für weitere Bestellungen speichern'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt bezahlen' }));
+
+    await waitFor(() => expect(visits).toEqual(['https://pay.example/1']), {
+      timeout: 5_000,
+    });
+    expect(modes).toEqual(['charge_and_save']);
+  });
+
+  it('offers no saving to guests', async () => {
+    const { ui, client, variantId } = await setup(undefined, undefined, {
+      savePaymentMethod: true,
+    });
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'pickup' });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(<Checkout orderHref={() => '/unused'} />);
+
+    await screen.findByLabelText('E-Mail');
+    expect(
+      screen.queryByLabelText('Zahlungsart für weitere Bestellungen speichern'),
+    ).toBeNull();
   });
 
   it('asks for the pickup day and time window', async () => {

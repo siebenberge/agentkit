@@ -63,6 +63,7 @@ the App Router (`export const { GET, POST } = …`). Both handlers only use
 | `receipts` | `{ seller, paymentSlip?, messages?, accentColor? }` | – | Enables `GET /orders/:id/receipt` – see [emails-receipts](emails-receipts.md) |
 | `rateLimit` | `(check: RateLimitCheck) => RateLimitDecision \| Promise<…>` | – | See [rate limits](#rate-limits) |
 | `addressLookup` | `AddressLookup \| null` | – | Enables the `/address/*` routes – e.g. `swisspost.addressLookup` ([swisspost](swisspost.md)) |
+| `savePaymentMethod` | `boolean` | `false` | Signed-in customers can save the card / TWINT of their online payment for later orders: `savePaymentMethod` in the cart, a checkbox in `<Checkout>`. Needs a provider with `chargeToken` – see [saved payment methods](cart-checkout.md#saved-payment-methods) |
 | `onError` | `(error, request) => void` | – | Unexpected errors (answered `500 INTERNAL_ERROR`) |
 
 `identify` runs on every cart, checkout and order request. A new cart of a
@@ -145,6 +146,7 @@ All answer the whole cart as `CartDto`:
 | `totals` | `itemsSubtotal`, `discountTotal`, `shippingTotal`, `taxLines`, `taxTotal`, `taxInclusive`, `rounding`, `total` |
 | `missing` | What checkout still needs |
 | `addressLookup` | The `/address/*` routes are there |
+| `savePaymentMethod` | The customer can save the online payment method: the handler's `savePaymentMethod`, a provider with `chargeToken` and a cart of a signed-in customer |
 
 | Route | Body | Does |
 |---|---|---|
@@ -165,7 +167,7 @@ Errors (with status): `CART_NOT_FOUND` 404, `CART_CLOSED` 409,
 ### Checkout route
 
 **`POST /checkout`**
-`{ paymentMethod: 'online' | 'invoice', giftCardCodes?: string[] }` with
+`{ paymentMethod: 'online' | 'invoice', giftCardCodes?: string[], savePaymentMethod?: boolean }` with
 `x-cart-token` → `CheckoutResultDto`. More than 5 gift card codes answer
 `400 INVALID_INPUT`.
 
@@ -180,8 +182,11 @@ Errors (with status): `CART_NOT_FOUND` 404, `CART_CLOSED` 409,
 `redirect`: send the customer to `url`; the provider returns them to
 `orderUrl` with `?checkout=success` (`cancel`, `failed`). `placed`: invoice,
 or nothing left to pay. Only the first 5 gift card codes are used. The
-customer of `identify` places the order (else the cart's). The storefront
-checkout does not save payment methods.
+customer of `identify` places the order (else the cart's).
+`savePaymentMethod: true` opens the payment page in `charge_and_save` mode
+when the cart says `savePaymentMethod` and `identify` returns a customer;
+otherwise it is ignored. The storefront checkout does not charge a saved
+payment method – that is the customer MCP server or your own code.
 
 Rate limits: `checkout`, and `gift-card` when codes are sent. Errors: those
 of [checkout](api.md#checkout) – `CART_EMPTY` 400, `EMAIL_REQUIRED` 400,

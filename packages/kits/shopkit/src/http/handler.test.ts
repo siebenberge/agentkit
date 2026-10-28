@@ -22,15 +22,18 @@ async function setup(
     customer?: { externalId: string; email?: string; name?: string } | null;
     rateLimit?: (check: RateLimitCheck) => { allowed: boolean };
     orderUrl?: (order: { id: string; accessToken: string }) => string;
+    savePaymentMethod?: boolean;
   } = {},
 ) {
   const pages: string[] = [];
+  const modes: string[] = [];
   const state = { customer: options.customer ?? null, admin: true };
 
   const provider: PaymentProvider = {
     id: 'fake',
     createHostedPayment(params) {
       pages.push(params.successUrl);
+      modes.push(params.mode);
       return Promise.resolve({
         url: `https://pay.example/${pages.length}`,
         reference: 'gw',
@@ -47,6 +50,8 @@ async function setup(
 
       return known;
     },
+    chargeToken: () =>
+      Promise.resolve({ status: 'succeeded', transactionId: 'charge' }),
   };
 
   const receipts = {
@@ -107,6 +112,7 @@ async function setup(
       `https://shop.example/bestellung/${order.id}?token=${order.accessToken}`,
     receipts,
     rateLimit: options.rateLimit,
+    savePaymentMethod: options.savePaymentMethod,
   });
 
   const admin = createShopAdminHandler({
@@ -144,6 +150,7 @@ async function setup(
     receipts,
     state,
     pages,
+    modes,
     variantId: product.variants[0]!.id,
   };
 }
@@ -374,6 +381,68 @@ describe('createShopHandler', () => {
     const again = await client.payOrder(result.orderId, result.accessToken);
 
     expect(again.url).toBe('https://pay.example/2');
+  });
+
+  it('saves the payment method of a signed-in customer who asks for it', async () => {
+    const { client, variantId, modes, state } = await setup({
+      customer: { externalId: 'kunde-1', email: 'anna@example.ch' },
+      savePaymentMethod: true,
+    });
+    const order = async (savePaymentMethod?: boolean) => {
+      let cart = await client.createCart();
+
+      cart = await client.addItem(cart.token, variantId);
+      cart = await client.updateDetails(cart.token, {
+        email: 'anna@example.ch',
+        shippingRateId: 'pickup',
+      });
+
+      return {
+        cart,
+        result: await client.checkout(cart.token, {
+          paymentMethod: 'online',
+          savePaymentMethod,
+        }),
+      };
+    };
+
+    const first = await order(true);
+
+    expect(first.cart.savePaymentMethod).toBe(true);
+    expect(modes).toEqual(['charge_and_save']);
+
+    await order();
+
+    expect(modes).toEqual(['charge_and_save', 'charge']);
+
+    // a guest never saves
+    state.customer = null;
+    const guest = await order(true);
+
+    expect(guest.cart.savePaymentMethod).toBe(false);
+    expect(modes.at(-1)).toBe('charge');
+  });
+
+  it('does not save payment methods without the option', async () => {
+    const { client, variantId, modes } = await setup({
+      customer: { externalId: 'kunde-1', email: 'anna@example.ch' },
+    });
+    let cart = await client.createCart();
+
+    cart = await client.addItem(cart.token, variantId);
+    cart = await client.updateDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'pickup',
+    });
+
+    expect(cart.savePaymentMethod).toBe(false);
+
+    await client.checkout(cart.token, {
+      paymentMethod: 'online',
+      savePaymentMethod: true,
+    });
+
+    expect(modes).toEqual(['charge']);
   });
 
   it('resolves a relative order page against the API URL', async () => {

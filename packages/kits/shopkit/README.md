@@ -68,7 +68,8 @@ The package ships ES modules with type declarations; peer dependencies
   `invoice.allow` decides who may buy on invoice); orders fully covered by
   gift cards need no payment.
 - **Saved payment methods**: signed-in customers save their card or TWINT
-  while paying (`savePaymentMethod: true`, zahls.ch tokenization) and pay
+  while paying (`savePaymentMethod: true`, zahls.ch tokenization; in
+  `<Checkout>` a checkbox with the handler's `savePaymentMethod`) and pay
   later orders with it, without the payment page
   (`payOrderWithSavedMethod`); a declined charge falls back to the page.
 - **Orders**: numbers, guest links with access token, statuses for order,

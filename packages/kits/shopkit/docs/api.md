@@ -36,6 +36,7 @@ Not a method: the resolved options.
 | `currency` | `string` | `CHF` |
 | `tax` | `{ inclusive: boolean; defaultRateBps: number }` | |
 | `paymentMethods` | `('online' \| 'invoice')[]` | Without `online` when no provider is set |
+| `savePaymentMethods` | `boolean` | Online payments can save the card / TWINT (`online` and a provider with `chargeToken`) |
 | `shippingRates` | `ShippingRate[]` | |
 | `invoiceDueDays` | `number` | |
 | `roundToFiveRappen` | `boolean` | |

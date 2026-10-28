@@ -487,8 +487,10 @@ orders without the payment page. Needs a provider with `chargeToken`
 `listPaymentMethods(customerExternalId)` returns them (active first) and
 `removePaymentMethod({ customerExternalId, paymentMethodId })` sets one
 `inactive`. Tokens never leave the engine: both return `PaymentMethodView`,
-the method without `token`. The storefront HTTP checkout does not save
-payment methods; the customer MCP server and your own code do.
+the method without `token`. The storefront HTTP checkout saves them with
+its `savePaymentMethod` option (a checkbox in `<Checkout>`, see
+[http](http.md#checkout-route)); paying with a saved method is up to the
+customer MCP server and your own code.
 
 ### payOrderWithSavedMethod()
 
