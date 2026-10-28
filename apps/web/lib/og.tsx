@@ -708,3 +708,48 @@ export function ErrorCard() {
     </div>
   );
 }
+
+/** Prompt generator: the project prompt as a file. */
+export function PromptCard({ file, lines }: { file: string; lines: string[] }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: 460,
+        padding: 26,
+        borderRadius: 26,
+        background: 'rgba(10,10,11,0.88)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        boxShadow: '0 30px 80px -20px rgba(0,0,0,0.6)',
+        fontFamily: 'Geist Mono',
+        fontSize: 18,
+        lineHeight: 1.7,
+        color: 'rgba(255,255,255,0.72)',
+      }}
+    >
+      <div style={{ ...ROW, gap: 10, marginBottom: 16, fontSize: 16 }}>
+        <span
+          style={{
+            display: 'flex',
+            padding: '2px 10px',
+            borderRadius: 6,
+            background: 'rgba(255,75,62,0.18)',
+            color: SIGNAL,
+          }}
+        >
+          .md
+        </span>
+        <span style={{ color: 'rgba(255,255,255,0.6)' }}>{file}</span>
+      </div>
+      {lines.map((line) => (
+        <span
+          key={line}
+          style={{ color: line.includes('zahls.ch') ? '#3dd68c' : 'white' }}
+        >
+          {line}
+        </span>
+      ))}
+    </div>
+  );
+}

@@ -1089,4 +1089,286 @@ export const en: Dict = {
       theme: { light: 'Light', dark: 'Dark', system: 'System' },
     },
   },
+  promptGenerator: {
+    meta: {
+      title: 'Build a website with AI: prompt generator | agentkit',
+      description:
+        'Put together, in six steps, the prompt with which Claude Code, Codex or Cursor builds your whole website – importing the old site, a shop with TWINT and QR-bill through zahls.ch, and four languages.',
+    },
+    nav: 'Prompt generator',
+    eyebrow: 'Prompt generator · build a website with AI',
+    title: 'One prompt for your whole website',
+    lead: 'Answer six questions and get the **complete brief** for your coding agent: content of the old website, pages, a shop with **TWINT and QR-bill**, technology, languages and go-live. The agent builds the website from it in one go.',
+    privacy:
+      'Your answers stay in your browser and reach no server. Share them with «Copy link»: they then sit after the # of the address.',
+    presets: {
+      label: 'Pick a template',
+      items: {
+        gastro: {
+          title: 'Restaurant, bar, brewery',
+          text: 'Menu, events, opening hours, shop with pickup',
+        },
+        shop: {
+          title: 'Online shop',
+          text: 'Move from WooCommerce, shipping, invoice',
+        },
+        club: {
+          title: 'Club or association',
+          text: 'Events, news, membership fees, donations',
+        },
+        saas: {
+          title: 'Software with subscriptions',
+          text: 'Offer, pricing, subscriptions with invoice',
+        },
+        services: {
+          title: 'Services',
+          text: 'Services, team, jobs, no selling',
+        },
+        blank: { title: 'Blank', text: 'Choose everything yourself' },
+      },
+    },
+    steps: {
+      project: {
+        title: 'Project',
+        lead: 'What is it about, who is it for, and what should the website achieve?',
+      },
+      legacy: {
+        title: 'Existing website',
+        lead: 'Is there a website already? Then the agent takes over content, images and products and redirects every old address.',
+      },
+      pages: {
+        title: 'Pages',
+        lead: 'Which pages are needed, and should the team manage the content itself?',
+      },
+      sales: {
+        title: 'Selling',
+        lead: 'What is sold? Payment always runs through zahls.ch – with TWINT, card and QR-bill.',
+      },
+      tech: {
+        title: 'Technology',
+        lead: 'What it is built with, where it is hosted, and which agent builds it.',
+      },
+      style: {
+        title: 'Language and design',
+        lead: 'Languages, form of address and what is already settled for the design.',
+      },
+    },
+    fields: {
+      name: { label: 'Name', placeholder: 'Sample Brewery' },
+      domain: { label: 'Domain', placeholder: 'www.sample-brewery.ch' },
+      industry: { label: 'Industry', placeholder: 'Brewery with bar and shop' },
+      description: {
+        label: 'What it is about',
+        placeholder:
+          'Small brewery in the Toggenburg, own bar at weekends, beer in the shop and online.',
+      },
+      audiences: {
+        label: 'Audiences',
+        hint: 'Most important first.',
+        placeholder: 'Locals, day-trippers, companies for apéros',
+      },
+      goals: {
+        label: 'Goals',
+        placeholder: 'More orders online, fuller events',
+      },
+      repo: {
+        label: 'Repository',
+        hint: 'Leave empty and the agent creates one.',
+        placeholder: 'github.com/company/website',
+      },
+      legacySystem: { label: 'System' },
+      legacyUrl: {
+        label: 'Address of the existing website',
+        placeholder: 'https://www.sample-brewery.ch',
+      },
+      dumpPath: {
+        label: 'Database dump (optional)',
+        hint: 'Path on your computer, e.g. the MySQL dump of WordPress.',
+        placeholder: 'D:\\Clients\\Brewery\\dump.sql',
+      },
+      filesPath: {
+        label: 'Folder with files (optional)',
+        hint: 'Images, PDFs, exports – e.g. wp-content/uploads.',
+        placeholder: 'D:\\Clients\\Brewery\\uploads',
+      },
+      pages: {
+        label: 'Pages',
+        hint: 'Imprint and privacy policy are always included.',
+      },
+      pagesExtra: {
+        label: 'Further wishes',
+        placeholder: 'Group booking requests, newsletter',
+      },
+      admin: {
+        label: 'Admin of its own to manage the content',
+        hint: 'Change pages, events, menu and products without a developer.',
+      },
+      sales: {
+        label: 'What is sold?',
+        hint: 'Nothing selected: no selling.',
+      },
+      delivery: { label: 'Delivery' },
+      invoice: {
+        label: 'Pay by invoice with Swiss QR-bill',
+        hint: 'In addition to TWINT and card.',
+      },
+      stack: { label: 'Technology and hosting' },
+      otherStack: {
+        label: 'Which stack?',
+        placeholder: 'Laravel on Hostpoint, Astro on Netlify …',
+      },
+      typescript: {
+        label: 'The stack is TypeScript or JavaScript',
+        hint: 'Then the agentkit kits run in it.',
+      },
+      agent: { label: 'Coding agent' },
+      languages: { label: 'Website languages' },
+      defaultLanguage: { label: 'Default language' },
+      address: { label: 'Form of address' },
+      colors: {
+        label: 'Colours (optional)',
+        placeholder: 'Dark green #1f3d2b, copper #b87333',
+      },
+      fonts: {
+        label: 'Fonts (optional)',
+        placeholder: 'Alice for headings, Open Sans for text',
+      },
+      logo: {
+        label: 'Logo (optional)',
+        placeholder: 'D:\\Clients\\Brewery\\logo.svg',
+      },
+      inspiration: {
+        label: 'References (optional)',
+        placeholder: 'Websites you like, and why',
+      },
+    },
+    legacySystems: {
+      none: 'None',
+      wordpress: 'WordPress',
+      woocommerce: 'WooCommerce',
+      wix: 'Wix',
+      jimdo: 'Jimdo',
+      shopify: 'Shopify',
+      static: 'Static',
+      other: 'Other',
+    },
+    pages: {
+      home: 'Home',
+      about: 'About',
+      offer: 'Services',
+      events: 'Events',
+      menu: 'Menu',
+      locations: 'Locations and hours',
+      shop: 'Shop',
+      news: 'News',
+      team: 'Team',
+      gallery: 'Gallery',
+      faq: 'FAQ',
+      jobs: 'Jobs',
+      contact: 'Contact',
+    },
+    sales: {
+      products: 'Products',
+      giftCards: 'Gift cards',
+      tickets: 'Tickets',
+      subscriptions: 'Subscriptions and memberships',
+      donations: 'Donations',
+    },
+    deliveries: { shipping: 'Shipping', pickup: 'Pickup' },
+    stacks: {
+      vercel: {
+        title: 'Next.js on Vercel, Postgres on Railway',
+        text: 'Our default: TypeScript, Tailwind, shadcn, Drizzle, Cloudflare.',
+      },
+      railway: {
+        title: 'Everything on Railway',
+        text: 'Same stack, website and database with one provider.',
+      },
+      keep: {
+        title: 'Keep the existing system',
+        text: 'No rebuild, e.g. rework WordPress.',
+      },
+      other: { title: 'Another stack', text: 'Describe it yourself.' },
+    },
+    agentHints: {
+      claude:
+        'Runs locally in the project folder: reads dump and files, drives gh, vercel and railway.',
+      codex:
+        'Runs locally in the project folder: reads dump and files, drives the CLIs.',
+      cursor:
+        'Work in agent mode inside the project folder so it reaches dump and files.',
+      lovable:
+        'Lovable cannot reach local files: upload dump and images. For a move with a dump, Claude Code or Codex fit better.',
+    },
+    address: { informal: 'Informal', formal: 'Formal' },
+    payment: {
+      title: 'How payment works',
+      none: 'No selling planned. The prompt records that later payments run through **zahls.ch** with shopkit or subkit.',
+      kits: 'Payment runs through **zahls.ch** with TWINT and card. The agent builds selling with the agentkit kits instead of programming it from scratch.',
+      plugin:
+        'The existing system stays. The agent integrates **zahls.ch** there – with the plugin or through the API.',
+      api: 'The kits do not fit here. The agent integrates **zahls.ch** directly through its API, with the rules for safe webhooks.',
+    },
+    preview: {
+      title: 'Your project prompt',
+      language: 'Prompt language',
+      copy: 'Copy',
+      copied: 'Copied',
+      download: 'Download',
+      share: 'Copy link',
+      shared: 'Link copied',
+      reset: 'Reset',
+      starterTitle: 'How to start',
+      starterLead:
+        'Put {file} into an empty folder, start your agent there and give it this starter prompt:',
+      copyStarter: 'Copy starter prompt',
+      lines: 'lines',
+    },
+    stepper: { back: 'Back', next: 'Next', step: 'Step' },
+    how: {
+      eyebrow: 'How it works',
+      title: 'From questions to a finished website',
+      lead: 'This is how we build websites ourselves: one complete brief instead of many small prompts. The agent works phase by phase and records assumptions instead of asking.',
+      items: [
+        {
+          title: 'Answer the questions',
+          text: 'Pick a template and adjust it. Whatever you leave empty becomes an open point in the prompt.',
+        },
+        {
+          title: 'Get the data ready',
+          text: 'Dump of the old website, images and logo into one folder. The agent reads them with scripts, not by hand.',
+        },
+        {
+          title: 'Start the agent',
+          text: 'Prompt as a file in the project folder, paste the starter prompt. Every phase ends with a preview to check.',
+        },
+      ],
+    },
+    faq: {
+      eyebrow: 'FAQ',
+      title: 'Common questions',
+      items: [
+        {
+          q: 'Which coding agent fits?',
+          a: 'Ideally one that runs locally in the project folder – Claude Code or Codex. It reads the dump of the old website, drives GitHub, Vercel and Railway and can build the whole website in one go. Cursor works in agent mode, Lovable suits websites without a move.',
+        },
+        {
+          q: 'Are my answers stored?',
+          a: 'No. The prompt is made in your browser and the answers are stored only there. A shared link carries them after the # of the address – a part that is not sent to the server.',
+        },
+        {
+          q: 'Why always zahls.ch?',
+          a: 'zahls.ch is a Swiss payment provider with TWINT, cards and PostFinance, and the agentkit kits are built on it. Where no kit fits, the prompt describes the direct API integration – with the rules that keep payments safe.',
+        },
+        {
+          q: 'What happens to the old website?',
+          a: 'The agent takes over copy, images and products from the dump or reads them from the website. Every old address redirects to the new pages so links and Google rankings are kept.',
+        },
+        {
+          q: 'Does the prompt generator cost anything?',
+          a: 'No. The kits are open source (MIT). Costs come only from the agent, the hosting and zahls.ch per payment.',
+        },
+      ],
+    },
+  },
 };

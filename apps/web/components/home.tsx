@@ -63,6 +63,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
   const nav = [
     { href: `/${locale}/subkit`, label: 'subkit' },
     { href: `/${locale}/shopkit`, label: 'shopkit' },
+    { href: `/${locale}/prompt-generator`, label: t.promptGenerator.nav },
     { href: '#agents', label: h.nav.news },
     { href: '#switzerland', label: t.nav.switzerland },
     { href: '#developers', label: h.dev.eyebrow },

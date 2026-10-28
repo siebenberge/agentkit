@@ -1,3 +1,13 @@
+import type {
+  AgentId,
+  DeliveryId,
+  LegacySystem,
+  PageId,
+  PresetId,
+  SaleId,
+  StackId,
+} from '~/lib/prompt/answers';
+
 export const LOCALES = ['de', 'fr', 'it', 'en'] as const;
 export type Locale = (typeof LOCALES)[number];
 
@@ -441,4 +451,103 @@ export type Dict = {
     total: string;
     note: string;
   };
+  /**
+   * Prompt generator at `/[locale]/prompt-generator`: the form and its
+   * options. The text of the generated prompt is in `lib/prompt/build.ts`
+   * (German and English).
+   */
+  promptGenerator: PromptGeneratorCopy;
+};
+
+type Field = { label: string; hint?: string; placeholder?: string };
+
+type PromptGeneratorCopy = {
+  meta: { title: string; description: string };
+  /** Link text in header and footer. */
+  nav: string;
+  eyebrow: string;
+  /** Headline of the hero and the OG image; gets the closing full stop. */
+  title: string;
+  /** `**emphasis**` allowed. */
+  lead: string;
+  /** Nothing leaves the browser. */
+  privacy: string;
+  presets: {
+    label: string;
+    items: Record<PresetId, { title: string; text: string }>;
+  };
+  steps: Record<
+    'project' | 'legacy' | 'pages' | 'sales' | 'tech' | 'style',
+    { title: string; lead: string }
+  >;
+  fields: Record<
+    | 'name'
+    | 'domain'
+    | 'industry'
+    | 'description'
+    | 'audiences'
+    | 'goals'
+    | 'repo'
+    | 'legacySystem'
+    | 'legacyUrl'
+    | 'dumpPath'
+    | 'filesPath'
+    | 'pages'
+    | 'pagesExtra'
+    | 'admin'
+    | 'sales'
+    | 'delivery'
+    | 'invoice'
+    | 'stack'
+    | 'otherStack'
+    | 'typescript'
+    | 'agent'
+    | 'languages'
+    | 'defaultLanguage'
+    | 'address'
+    | 'colors'
+    | 'fonts'
+    | 'logo'
+    | 'inspiration',
+    Field
+  >;
+  legacySystems: Record<LegacySystem, string>;
+  pages: Record<PageId, string>;
+  sales: Record<SaleId, string>;
+  deliveries: Record<DeliveryId, string>;
+  stacks: Record<StackId, { title: string; text: string }>;
+  /** Shown under the agent choice. */
+  agentHints: Record<AgentId, string>;
+  address: { informal: string; formal: string };
+  /** Live explanation of where the payments go, `**emphasis**` allowed. */
+  payment: {
+    title: string;
+    none: string;
+    kits: string;
+    plugin: string;
+    api: string;
+  };
+  preview: {
+    title: string;
+    language: string;
+    copy: string;
+    copied: string;
+    download: string;
+    share: string;
+    shared: string;
+    reset: string;
+    starterTitle: string;
+    /** `{file}` is replaced with the file name. */
+    starterLead: string;
+    copyStarter: string;
+    lines: string;
+  };
+  stepper: { back: string; next: string; step: string };
+  how: {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    items: { title: string; text: string }[];
+  };
+  faq: { eyebrow: string; title: string; items: { q: string; a: string }[] };
 };
