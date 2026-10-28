@@ -245,7 +245,7 @@ export const en: Dict = {
       {
         title: 'subkit + shopkit',
         when: 'on npm',
-        text: 'subkit 0.2 and shopkit 0.2 as @agentkit.ch/subkit and @agentkit.ch/shopkit, the code under MIT on GitHub: QR-bill, bank reconciliation (camt.053 / camt.054), VAT, zahls.ch with TWINT, Drizzle adapter for Postgres. New in shopkit 0.2: ordering through AI agents (MCP), the HS-Soft (WaWiAssist) connection and the back office to embed.',
+        text: 'subkit 0.2 and shopkit 0.4 as @agentkit.ch/subkit and @agentkit.ch/shopkit, the code under MIT on GitHub: QR-bill, bank reconciliation (camt.053 / camt.054), VAT, zahls.ch with TWINT, Drizzle adapter for Postgres. New in shopkit: ordering through AI agents (MCP), the HS-Soft (WaWiAssist) connection, the back office to embed and Swiss Post labels with address check.',
       },
       {
         title: 'core + CLI',
@@ -567,7 +567,7 @@ export const en: Dict = {
       note: 'No per-transaction fee · data in your database',
     },
     news: {
-      pill: 'Customers order through AI agents',
+      pill: 'Swiss Post labels and address check',
       docs: 'Guide in the README',
       agent: {
         eyebrow: 'New in shopkit 0.2 · Ordering through AI agents',
@@ -613,6 +613,24 @@ export const en: Dict = {
         pickup: 'Pickup 31.10.2026',
         sending: 'sending …',
         synced: 'Order',
+      },
+      swisspost: {
+        eyebrow: 'New in shopkit 0.4 · Swiss Post',
+        title: 'Swiss Post labels and addresses.',
+        lead: 'One click in the order and the label with barcode is ready – with the order’s shipping method, billed to your franking licence. At checkout Swiss Post suggests postcode, locality, street and house number and checks the address before the order is placed.',
+        points: [
+          'PostPac Economy and Priority, bulky goods, Swiss-Express «Moon», VinoLog and A Mail Plus',
+          'A5, A6 or A7 as PDF or ZPL2 for the label printer',
+          'Additional services such as signature, fragile or Saturday delivery',
+          'Tracking number with Track & Trace in the shipping e-mail',
+        ],
+        street: 'Street and number',
+        postalCode: 'Postcode and city',
+        checked: 'Address confirmed by Swiss Post',
+        create: 'Create label',
+        recipient: 'Anna Muster',
+        tracking: 'Tracking number',
+        shipped: 'Shipping e-mail sent',
       },
     },
     diy: {
@@ -802,6 +820,10 @@ export const en: Dict = {
         {
           q: 'Does shopkit work with HS-Soft (WaWiAssist)?',
           a: 'Yes. @agentkit.ch/shopkit/hssoft imports the articles from WaWiAssist as products and sends every order back as a WaWiAssist order, with the pickup day as the order date. All you need is the API key of your WaWiAssist from HS-Soft.',
+        },
+        {
+          q: 'Does shopkit create Swiss Post shipping labels?',
+          a: 'Yes, since shopkit 0.4. @agentkit.ch/shopkit/swisspost creates the label with barcode from the order – in the back office, through the API or MCP – and sends the customer the tracking number with Track & Trace. At checkout it suggests Swiss Post addresses and checks them. You need a franking licence and access to the Digital Commerce API of Swiss Post. Labels for items abroad and live tariffs are planned.',
         },
         {
           q: 'Is agentkit really open source?',

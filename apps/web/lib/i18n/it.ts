@@ -248,7 +248,7 @@ export const it: Dict = {
       {
         title: 'subkit + shopkit',
         when: 'su npm',
-        text: 'subkit 0.2 e shopkit 0.2 come @agentkit.ch/subkit e @agentkit.ch/shopkit, il codice con licenza MIT su GitHub: fattura QR, riconciliazione bancaria (camt.053 / camt.054), IVA, zahls.ch con TWINT, adapter Drizzle per Postgres. Novità in shopkit 0.2: ordini tramite agente IA (MCP), collegamento a HS-Soft (WaWiAssist) e il back office da integrare.',
+        text: 'subkit 0.2 e shopkit 0.4 come @agentkit.ch/subkit e @agentkit.ch/shopkit, il codice con licenza MIT su GitHub: fattura QR, riconciliazione bancaria (camt.053 / camt.054), IVA, zahls.ch con TWINT, adapter Drizzle per Postgres. Novità in shopkit: ordini tramite agente IA (MCP), collegamento a HS-Soft (WaWiAssist), il back office da integrare e le etichette della Posta con verifica dell’indirizzo.',
       },
       {
         title: 'core + CLI',
@@ -571,7 +571,7 @@ export const it: Dict = {
       note: 'Nessuna commissione per transazione · dati nel tuo database',
     },
     news: {
-      pill: 'Ordinare tramite agente IA',
+      pill: 'Etichette e verifica dell’indirizzo della Posta',
       docs: 'Guida nel README',
       agent: {
         eyebrow: 'Novità in shopkit 0.2 · Ordinare tramite agente IA',
@@ -617,6 +617,24 @@ export const it: Dict = {
         pickup: 'Ritiro il 31.10.2026',
         sending: 'invio …',
         synced: 'Ordine',
+      },
+      swisspost: {
+        eyebrow: 'Novità in shopkit 0.4 · La Posta',
+        title: 'Etichette e indirizzi della Posta.',
+        lead: 'Un clic nell’ordine e l’etichetta con codice a barre è pronta – con la modalità di spedizione dell’ordine, fatturata sulla tua licenza d’affrancatura. Nel checkout la Posta propone NPA, località, via e numero e verifica l’indirizzo prima dell’ordine.',
+        points: [
+          'PostPac Economy e Priority, invii ingombranti, Swiss-Express «Luna», VinoLog e Posta A Plus',
+          'A5, A6 o A7 in PDF o ZPL2 per la stampante di etichette',
+          'Prestazioni complementari come firma, fragile o distribuzione il sabato',
+          'Numero d’invio con Track & Trace nell’e-mail di spedizione',
+        ],
+        street: 'Via e numero',
+        postalCode: 'NPA e località',
+        checked: 'Indirizzo confermato dalla Posta',
+        create: 'Crea etichetta',
+        recipient: 'Anna Muster',
+        tracking: 'Numero d’invio',
+        shipped: 'E-mail di spedizione inviata',
       },
     },
     diy: {
@@ -806,6 +824,10 @@ export const it: Dict = {
         {
           q: 'shopkit funziona con HS-Soft (WaWiAssist)?',
           a: 'Sì. @agentkit.ch/shopkit/hssoft importa gli articoli di WaWiAssist come prodotti e vi invia ogni ordine, con il giorno di ritiro come data dell’ordine. Ti serve solo la chiave API del tuo WaWiAssist, fornita da HS-Soft.',
+        },
+        {
+          q: 'shopkit crea etichette di spedizione della Posta?',
+          a: 'Sì, da shopkit 0.4. @agentkit.ch/shopkit/swisspost crea l’etichetta con codice a barre dall’ordine – nel back office, tramite API o MCP – e invia alla cliente il numero d’invio con Track & Trace. Nel checkout propone gli indirizzi della Posta e li verifica. Ti servono una licenza d’affrancatura e un accesso alla Digital Commerce API della Posta. Le etichette per l’estero e le tariffe in tempo reale sono previste.',
         },
         {
           q: 'agentkit è davvero open source?',

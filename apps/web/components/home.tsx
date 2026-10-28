@@ -12,6 +12,7 @@ import {
   MailMock,
   PlanMock,
   ShopMock,
+  SwissPostMock,
   SwissTabs,
   TerminalMock,
   UiMock,
@@ -157,7 +158,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
             <div className="relative mx-auto flex max-w-[1300px] flex-col items-start px-5 pt-16 text-left text-white sm:px-8 sm:pt-24 lg:px-12">
               <div className="animate-hero-in flex max-w-full flex-wrap gap-2">
                 <a
-                  href="#agents"
+                  href="#swiss-post"
                   className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-white/15 p-1 pr-3.5 text-[13px] backdrop-blur-md transition hover:bg-white/25"
                 >
                   <span className="rounded-full bg-signal px-2.5 py-0.5 text-xs font-semibold text-white">
@@ -355,6 +356,31 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
             flip
           >
             <HsSoftMock t={h.news.hssoft} />
+          </FeatureRow>
+        </section>
+
+        {/* New in shopkit: Swiss Post labels and address check */}
+        <section
+          id="swiss-post"
+          className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+        >
+          <SplitHead
+            eyebrow={h.news.swisspost.eyebrow}
+            title={h.news.swisspost.title}
+            lead={h.news.swisspost.lead}
+          />
+          <FeatureRow
+            icon={<IconParcel />}
+            points={h.news.swisspost.points}
+            code="createSwissPost"
+            entry="@agentkit.ch/shopkit/swisspost"
+            docs={{
+              href: `${SHOPKIT_README}#swiss-post`,
+              label: h.news.docs,
+            }}
+            scene="lake"
+          >
+            <SwissPostMock t={h.news.swisspost} />
           </FeatureRow>
         </section>
 
@@ -1319,6 +1345,12 @@ const IconChat = () => (
   <Svg>
     <path d="M20 12.5a7.5 7.5 0 0 1-11 6.6L4 20l1-4.4A7.5 7.5 0 1 1 20 12.5z" />
     <path d="M9 11h6M9 14h3.5" />
+  </Svg>
+);
+const IconParcel = () => (
+  <Svg>
+    <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" />
+    <path d="M4 7.5l8 4.5 8-4.5M12 12v9M8 5.3l8 4.5" />
   </Svg>
 );
 const IconSync = () => (

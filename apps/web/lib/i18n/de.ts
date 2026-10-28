@@ -251,7 +251,7 @@ export const de: Dict = {
       {
         title: 'subkit + shopkit',
         when: 'auf npm',
-        text: 'subkit 0.2 und shopkit 0.2 als @agentkit.ch/subkit und @agentkit.ch/shopkit, der Code unter MIT auf GitHub: QR-Rechnung, Bankabgleich (camt.053 / camt.054), MWST, zahls.ch mit TWINT, Drizzle-Adapter für Postgres. Neu in shopkit 0.2: Bestellen per KI-Agent (MCP), Anbindung an HS-Soft (WaWiAssist) und das Backoffice zum Einbauen.',
+        text: 'subkit 0.2 und shopkit 0.4 als @agentkit.ch/subkit und @agentkit.ch/shopkit, der Code unter MIT auf GitHub: QR-Rechnung, Bankabgleich (camt.053 / camt.054), MWST, zahls.ch mit TWINT, Drizzle-Adapter für Postgres. Neu in shopkit: Bestellen per KI-Agent (MCP), Anbindung an HS-Soft (WaWiAssist), das Backoffice zum Einbauen und Versandetiketten der Post mit Adressprüfung.',
       },
       {
         title: 'core + CLI',
@@ -576,7 +576,7 @@ export const de: Dict = {
       note: 'Keine Gebühr pro Transaktion · Daten in deiner Datenbank',
     },
     news: {
-      pill: 'Kundschaft bestellt per KI-Agent',
+      pill: 'Etiketten und Adressprüfung der Post',
       docs: 'Anleitung im README',
       agent: {
         eyebrow: 'Neu in shopkit 0.2 · Bestellen per KI-Agent',
@@ -622,6 +622,24 @@ export const de: Dict = {
         pickup: 'Abholung 31.10.2026',
         sending: 'wird gesendet …',
         synced: 'Auftrag',
+      },
+      swisspost: {
+        eyebrow: 'Neu in shopkit 0.4 · Die Post',
+        title: 'Etiketten und Adressen der Post.',
+        lead: 'Ein Klick in der Bestellung und das Etikett mit Barcode ist da – mit der Versandart der Bestellung, abgerechnet über deine Frankierlizenz. Im Checkout schlägt die Post PLZ, Ort, Strasse und Hausnummer vor und prüft die Adresse, bevor bestellt wird.',
+        points: [
+          'PostPac Economy und Priority, Sperrgut, Swiss-Express «Mond», VinoLog und A-Post Plus',
+          'A5, A6 oder A7 als PDF oder ZPL2 für den Etikettendrucker',
+          'Zusatzleistungen wie Unterschrift, Fragil oder Samstagszustellung',
+          'Sendungsnummer mit Track & Trace in der Versand-E-Mail',
+        ],
+        street: 'Strasse und Nr.',
+        postalCode: 'PLZ und Ort',
+        checked: 'Adresse von der Post bestätigt',
+        create: 'Etikett erstellen',
+        recipient: 'Anna Muster',
+        tracking: 'Sendungsnummer',
+        shipped: 'Versand-E-Mail gesendet',
       },
     },
     diy: {
@@ -808,6 +826,10 @@ export const de: Dict = {
         {
           q: 'Funktioniert shopkit mit HS-Soft (WaWiAssist)?',
           a: 'Ja. @agentkit.ch/shopkit/hssoft importiert die Artikel aus WaWiAssist als Produkte und sendet jede Bestellung als Auftrag zurück, mit dem Abholtag als Bestelldatum. Du brauchst nur den API-Key deines WaWiAssist von HS-Soft.',
+        },
+        {
+          q: 'Erstellt shopkit Versandetiketten der Post?',
+          a: 'Ja, seit shopkit 0.4. @agentkit.ch/shopkit/swisspost erstellt das Etikett mit Barcode aus der Bestellung – im Backoffice, per API oder per MCP – und schickt der Kundin die Sendungsnummer mit Track & Trace. Im Checkout schlägt es Adressen der Post vor und prüft sie. Du brauchst eine Frankierlizenz und einen Zugang zur Digital Commerce API der Post. Etiketten ins Ausland und Live-Tarife sind geplant.',
         },
         {
           q: 'Ist agentkit wirklich Open Source?',

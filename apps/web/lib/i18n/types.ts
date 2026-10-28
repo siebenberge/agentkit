@@ -262,6 +262,20 @@ export type Dict = {
         /** Followed by the WaWiAssist order number. */
         synced: string;
       };
+      swisspost: NewsFeature & {
+        /** Checkout mock: label of the street field (`<Checkout>`). */
+        street: string;
+        postalCode: string;
+        /** The address check confirmed the address. */
+        checked: string;
+        /** Back office button of the label part. */
+        create: string;
+        /** Recipient on the label, sender in MOCK.swisspost. */
+        recipient: string;
+        tracking: string;
+        /** The shipping e-mail went out with the Track & Trace link. */
+        shipped: string;
+      };
     };
     /** Why not to vibe-code billing: bugs that only show up in production. */
     diy: {

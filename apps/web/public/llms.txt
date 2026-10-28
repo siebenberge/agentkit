@@ -7,7 +7,7 @@
 > Postgres; Prisma and Kysely planned). No hosted service in between.
 
 Status: early, open source (MIT). subkit 0.2 (extracted from production
-code) and shopkit 0.2 (preview) are on npm – the two kits we focus on. npm
+code) and shopkit 0.4 (preview) are on npm – the two kits we focus on. npm
 scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
 
 ## Install
