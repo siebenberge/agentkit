@@ -258,6 +258,8 @@ export type OrderQuery = {
   status?: OrderStatus | OrderStatus[];
   paymentStatus?: PaymentStatus | PaymentStatus[];
   fulfillmentStatus?: Order['fulfillmentStatus'] | Order['fulfillmentStatus'][];
+  /** Only orders created at or after this time. */
+  createdAfter?: Date;
   limit?: number;
   offset?: number;
 };
@@ -2430,6 +2432,13 @@ export function createShop(options: ShopOptions) {
         value: fulfillmentStatus,
       });
     }
+    if (query.createdAfter) {
+      where.push({
+        field: 'createdAt',
+        operator: 'gte',
+        value: query.createdAfter,
+      });
+    }
 
     return db.findMany('order', {
       where,
@@ -2437,6 +2446,49 @@ export function createShop(options: ShopOptions) {
       limit: query.limit ?? 50,
       offset: query.offset,
     });
+  }
+
+  /**
+   * Changes `order.metadata` with compare-and-set on `updatedAt`, so
+   * concurrent changes are not lost: `change` gets the current metadata and
+   * returns the new one, or `null` to leave the order as it is (→ `null`).
+   * Integrations keep their sync state here.
+   */
+  async function updateOrderMetadata(
+    orderId: string,
+    change: (
+      metadata: Record<string, unknown>,
+      order: Order,
+    ) => Record<string, unknown> | null,
+  ): Promise<Order | null> {
+    for (let attempt = 0; attempt < CAS_ATTEMPTS; attempt++) {
+      const order = await getOrder(orderId);
+
+      if (!order) throw new ShopError('ORDER_NOT_FOUND', 'Unknown order');
+
+      const metadata = change(order.metadata, order);
+
+      if (metadata === null) return null;
+
+      const updated = await db.update(
+        'order',
+        [
+          { field: 'id', value: order.id },
+          { field: 'updatedAt', value: order.updatedAt },
+        ],
+        {
+          metadata,
+          // two changes within one millisecond must not share a CAS token
+          updatedAt: new Date(
+            Math.max(now().getTime(), order.updatedAt.getTime() + 1),
+          ),
+        },
+      );
+
+      if (updated) return updated;
+    }
+
+    throw new ShopError('BUSY', 'Order is changing, try again');
   }
 
   async function updateOrderWhere(
@@ -3112,6 +3164,7 @@ export function createShop(options: ShopOptions) {
     getOrder,
     getOrderWithToken,
     listOrders,
+    updateOrderMetadata,
     markPaid,
     reconcileBankPayments,
     markShipped,

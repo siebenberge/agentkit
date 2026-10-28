@@ -5,6 +5,7 @@ import type {
   Shop,
   VariantInput,
 } from '../engine';
+import type { HsSoftSync } from '../hssoft';
 import { LOCALES, type MessageOverrides, resolveLocale } from '../i18n';
 import type { PaymentSlip } from '../receipt/payment-slip';
 import { type ReceiptSeller, renderReceiptHtml } from '../receipt/render';
@@ -42,6 +43,8 @@ export type ShopAdminHandlerOptions = {
     messages?: MessageOverrides;
     accentColor?: string;
   };
+  /** HS-Soft (WaWiAssist) routes: `createHsSoftSync()` of `/hssoft`. */
+  hssoft?: HsSoftSync;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -85,6 +88,8 @@ const FULFILLMENT_STATUSES: FulfillmentStatus[] = [
  * - `POST /orders/:id/ship` `{ carrier?, trackingNumber?, trackingUrl? }`
  * - `POST /orders/:id/deliver`, `POST /orders/:id/cancel` `{ reason? }`
  * - `POST /orders/:id/refund` `{ amount?, reason?, restock? }`
+ * - with `hssoft`: `POST /hssoft/import` `{ force? }` (products),
+ *   `POST /hssoft/sync` (due orders), `POST /orders/:id/hssoft` `{ force? }`
  */
 export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
   const { shop } = options;
@@ -250,6 +255,21 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
             }),
           );
         }
+        case 'hssoft': {
+          if (get || !options.hssoft || action) {
+            throw new HttpError(404, 'NOT_FOUND');
+          }
+          if (id === 'import') {
+            return json(
+              await options.hssoft.importProducts({
+                force: body.force === true,
+              }),
+            );
+          }
+          if (id === 'sync') return json(await options.hssoft.syncOrders());
+
+          throw new HttpError(404, 'NOT_FOUND');
+        }
         case 'orders': {
           if (get && !id) {
             const list = (name: string, allowed: readonly string[]) => {
@@ -348,6 +368,14 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
                     body.amount === undefined ? undefined : number(body.amount),
                   reason: optionalString(body.reason),
                   restock: body.restock === true,
+                }),
+              );
+            case 'hssoft':
+              if (!options.hssoft) break;
+
+              return json(
+                await options.hssoft.syncOrder(id, {
+                  force: body.force === true,
                 }),
               );
           }

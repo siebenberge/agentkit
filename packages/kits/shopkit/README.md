@@ -27,6 +27,7 @@ The package ships ES modules with type declarations; peer dependencies
 | `@agentkit.ch/shopkit` | `createShop()`: catalog, stock, carts, checkout, orders, discount codes, gift cards, refunds, `runDue()` |
 | `@agentkit.ch/shopkit/drizzle`, `/memory` | Storage adapters (or implement `StorageAdapter`: five methods, with `transaction`) |
 | `@agentkit.ch/shopkit/zahls` | zahls.ch provider (TWINT, cards, PostFinance) – or pass subkit's `zahlsProvider`, it fits both kits |
+| `@agentkit.ch/shopkit/hssoft` | HS-Soft (WaWiAssist): `createHsSoftSync()` – product import and orders to WaWiAssist, `hsSoftClient()` for the API |
 | `@agentkit.ch/shopkit/http` | Storefront API + webhook (`createShopHandler`) and back office API (`createShopAdminHandler`) as fetch handlers |
 | `@agentkit.ch/shopkit/react` | `<ShopProvider>`, `<AddToCartButton>`, `<Cart>`, `<Checkout>`, `<OrderStatus>`, `<OrderHistory>`, hooks `useCart()`, `useOrder()`, `useOrders()` |
 | `@agentkit.ch/shopkit/react/styles.css` | Styles of the components, themed with `--sk-*` CSS variables |
@@ -68,6 +69,9 @@ The package ships ES modules with type declarations; peer dependencies
 - **Emails**: confirmation (with the invoice for invoice orders), payment
   received, shipped / ready for pickup, canceled, refunded, reminder, gift
   card code; copies for the shop on new orders, late payments, low stock.
+- **HS-Soft (WaWiAssist)**: products imported from the articles (price
+  category, special prices, image, declaration, allergens, nutrition,
+  delivery days), orders sent to WaWiAssist once they are placed.
 
 Next / planned (not built yet): Swiss Post labels and live tariffs,
 refunds through the zahls.ch API,
@@ -209,6 +213,95 @@ Refunds with zahls.ch: refund in the zahls dashboard, then record it with
 
 Theming: `.my-app :is(.sk-root, .sk-add) { --sk-primary: #f97316; --sk-radius: 4px; }`.
 
+### HS-Soft (WaWiAssist)
+
+For bakeries and confectioners with the WaWiAssist ERP of HS-Soft: products
+come from WaWiAssist, orders go there. Needs the API key of your WaWiAssist (from HS-Soft, [API
+reference](https://api.hssoft.com/rest/docs)).
+
+```ts
+// lib/shop.ts
+import { createHsSoftSync } from '@agentkit.ch/shopkit/hssoft';
+
+export const shop = createShop({
+  database: drizzleAdapter(db),
+  tax: { inclusive: true, defaultRateBps: 260 }, // prices with VAT, as kept in WaWiAssist
+  // …
+  onEvent: async (event) => {
+    await emails(event);
+    await hssoft.onEvent(event); // placed orders → WaWiAssist
+  },
+});
+
+export const hssoft = createHsSoftSync({
+  shop,
+  apiKey: process.env.HSSOFT_API_KEY!,
+  products: {
+    marketingGroupIds: [3, 7], // the marketing groups to import (required)
+    priceCategory: 1, // K1 … K10
+    images: { save: (image) => uploadToBucket(`products/${image.articleNumber}.jpg`, image.jpeg) },
+  },
+  orders: {
+    shippingArticleId: { post: 9001, laden: 9002 }, // article per rate (costs or pickup location)
+    caOrderName: 'Onlineshop',
+    onFailure: ({ order, sync }) => mailer.send(staffAlert(order, sync)),
+  },
+});
+```
+
+```ts
+// cron: every few minutes / once a night
+await hssoft.syncOrders(); // retries while HS-Soft is unavailable
+await hssoft.importProducts(); // e.g. daily at 03:00
+```
+
+- **Products**: the active articles of the chosen marketing groups (dough
+  articles never), one product per article (SKU = article number, not
+  counted in stock – made to order). Name, description (consumer
+  information), price of the chosen price category (empty → the default
+  price), a current special price with the normal price struck through,
+  weight (`weight: 'recipe'` for K2; missing → the other one), image (JPEG,
+  saved by your `images.save`). Declaration, allergens, nutrition,
+  attributes (vegan, gluten-free …), shelf life and delivery days are in
+  `hsSoftProductData(product, sku)` for the product page. Unchanged articles
+  are not written again; products whose article is gone, inactive or
+  skipped become drafts (`missing`). Fields you maintain in the shop stay
+  with `keep: ['name', 'description', …]`; `newProductStatus: 'draft'` with
+  `keep: ['status']` lets you check new products before you publish them.
+  Articles sold per 100 g / kg or open amounts are skipped; the API has no
+  VAT rate per article – set `taxRateBps(article)` if your rates differ.
+- **Variants as articles**: give the variants of a product the article
+  numbers as SKU (Zopf 500 g = `A1`, 1 kg = `A2`) and the import keeps the
+  price, weight and status of each variant; name, texts and image stay
+  yours. A variant without an article of its own (Zopf «geschnitten») is
+  ordered as the product's article, its name on the delivery note.
+- **Orders**: sent once when placed (`when: 'paid'`: after the payment), as
+  a one-time customer with the address, or to a WaWiAssist customer of
+  `customerId(order)` (e.g. B2B). Positions carry the price paid, the
+  discount in percent and the VAT code, the note the order number, payment,
+  shipping, the customer's note and the variants ordered. WaWiAssist stores
+  Latin-1 only: typographic quotes and dashes become plain ones, emojis are
+  removed. The shipping rate goes as its article (`shippingArticleId`), also
+  at CHF 0 – the pickup location; a rate with costs but without article
+  fails the order. `dateOffsetDays` moves the order date (per rate, e.g. `-1`
+  for the production day). Canceled orders stay in WaWiAssist
+  (`deleteCanceled: true` deletes them). The customer has paid: positions
+  that break WaWiAssist's min/max, lot size or days-to-produce rules are
+  kept and reported as warnings.
+- **State** in `order.metadata.hssoft` (`hsSoftOrderSync(order)`): `synced`
+  with the WaWiAssist order number, `retry` (unavailable, `syncOrders()`
+  tries again), `failed` (refused – fix and resend), `uncertain` (no
+  answer – check WaWiAssist first, then resend), `skipped` (gift cards
+  only), `deleted` / `delete_failed` (canceled). Resend by hand with
+  `hssoft.syncOrder(orderId, { force: true })`, or pass `hssoft` to
+  `createShopAdminHandler` (`POST /orders/:id/hssoft`, `POST /hssoft/import`,
+  `POST /hssoft/sync`) and `createShopMcpHandler` (tools `hssoft_sync_order`,
+  `hssoft_import_products`).
+- Not possible with the API: categories from the marketing groups (it has
+  no names for them), the availability periods of the articles, stock.
+  Not built yet: checking the delivery date against the delivery days at
+  checkout.
+
 
 Errors: every `ShopError` has a `code` and `docsUrl`, the link to its cause
 and fix (e.g. https://agentkit.ch/errors#shopkit-OUT_OF_STOCK); the message
@@ -242,7 +335,8 @@ claude mcp add --transport http shop https://acme.ch/api/shop-mcp \
 Tools: `list_orders`, `get_order`, `mark_order_paid`, `ship_order`,
 `mark_order_delivered`, `cancel_order`, `refund_order`, `list_products`,
 `set_stock`, `list_discounts`, `set_discount_active`, `list_gift_cards`,
-`issue_gift_card`, `disable_gift_card`. Guest-link tokens are removed from
+`issue_gift_card`, `disable_gift_card` (with `hssoft`: `hssoft_sync_order`,
+`hssoft_import_products`). Guest-link tokens are removed from
 orders; listed gift card codes show only their last 4 characters.
 
 ## Development
