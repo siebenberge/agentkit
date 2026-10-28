@@ -5,13 +5,14 @@ import { useState } from 'react';
 import { AdminBankImport } from './bank-import';
 import { AdminDiscounts } from './discounts';
 import { AdminGiftCards } from './gift-cards';
+import { AdminHsSoft } from './hssoft';
 import { AdminOrders } from './orders';
 import { AdminProducts } from './products';
 import { useShopAdmin } from './provider';
 import { cx } from './ui';
 
 export type AdminSection =
-  'orders' | 'products' | 'discounts' | 'giftCards' | 'bank';
+  'orders' | 'products' | 'discounts' | 'giftCards' | 'bank' | 'hssoft';
 
 const SECTIONS: AdminSection[] = [
   'orders',
@@ -22,7 +23,7 @@ const SECTIONS: AdminSection[] = [
 ];
 
 export type ShopAdminProps = {
-  /** Shown sections, in this order (default: all). */
+  /** Shown sections, in this order (default: all; `hssoft` only with the plugin on). */
   sections?: AdminSection[];
   initialSection?: AdminSection;
   /** Opens this order first (e.g. from the link in the merchant email). */
@@ -38,8 +39,11 @@ export type ShopAdminProps = {
  * only staff can open – the API checks the session again on every request.
  */
 export function ShopAdmin(props: ShopAdminProps) {
-  const { m } = useShopAdmin();
-  const sections = props.sections ?? SECTIONS;
+  const { m, hssoft } = useShopAdmin();
+  const sections = (props.sections ?? [...SECTIONS, 'hssoft']).filter(
+    // the HS-Soft plugin is off: its section is not there
+    (name) => name !== 'hssoft' || hssoft,
+  );
   const [section, setSection] = useState<AdminSection>(
     props.initialSection ?? sections[0] ?? 'orders',
   );
@@ -75,6 +79,8 @@ export function ShopAdmin(props: ShopAdminProps) {
           <AdminDiscounts onChange={props.onChange} />
         ) : section === 'giftCards' ? (
           <AdminGiftCards onChange={props.onChange} />
+        ) : section === 'hssoft' ? (
+          <AdminHsSoft onChange={props.onChange} />
         ) : (
           <AdminBankImport onChange={props.onChange} />
         )}

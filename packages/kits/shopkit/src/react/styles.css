@@ -646,3 +646,20 @@
   width: auto;
   min-width: 0;
 }
+
+.sk-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+  color: var(--sk-muted);
+  font-size: 0.75rem;
+}
+
+.sk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}

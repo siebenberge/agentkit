@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { LOCALES, interpolate } from '../../i18n';
 import type { Locale, ProductKind, ProductStatus } from '../../types';
+import { HsSoftProductPanel, productArticles } from './hssoft';
 import { useShopAdmin } from './provider';
 import type {
   AdminProduct,
@@ -208,7 +209,7 @@ export type AdminProductsProps = {
 
 /** Catalog: products with their variants, prices, VAT and stock. */
 export function AdminProducts(props: AdminProductsProps) {
-  const { client, m, money } = useShopAdmin();
+  const { client, m, money, hssoft } = useShopAdmin();
   const [selected, setSelected] = useState<string | null>(null);
   const {
     data: products,
@@ -302,6 +303,9 @@ export function AdminProducts(props: AdminProductsProps) {
                           </button>
                           <div className="sk-muted">
                             {product.slug}
+                            {hssoft && productArticles(product).length > 0
+                              ? ` · ${m.hssoft.order}`
+                              : ''}
                             {product.variants.length > 1
                               ? ` · ${interpolate(t.variantCount, { count: product.variants.length })}`
                               : ''}
@@ -354,7 +358,7 @@ function ProductEditor(props: {
   onChange?: () => void;
   className?: string;
 }) {
-  const { client, m } = useShopAdmin();
+  const { client, m, hssoft } = useShopAdmin();
   const creating = props.productId === undefined;
   const {
     data: product,
@@ -643,6 +647,16 @@ function ProductEditor(props: {
           </button>
         </div>
       </form>
+
+      {product && hssoft ? (
+        <HsSoftProductPanel
+          product={product}
+          onSaved={(next) => {
+            setData({ ...product, metadata: next.metadata });
+            props.onChange?.();
+          }}
+        />
+      ) : null}
 
       {product ? (
         <section className="sk-section">
