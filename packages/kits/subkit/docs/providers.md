@@ -80,9 +80,11 @@ type ChargeResult =
 A thrown error counts as `error`. In a plan change, `failed` and `error`
 abort the upgrade (`PAYMENT_FAILED` / `PROVIDER_UNAVAILABLE`).
 
-Without `getTransactionStatus` a charge that stays `pending` (no webhook)
-is charged again as a new attempt when its 6-hour lease runs out – a
-provider that can return `pending` should implement it.
+Without `getTransactionStatus` a charge that stays `pending` is never
+charged again: only its webhook settles it, and `runDue()` logs
+`subscriptions: charge still pending, waiting for the webhook` every 6
+hours until then. A provider that can return `pending` should implement
+`getTransactionStatus`.
 
 ### `parseWebhook()` and `ProviderEvent`
 

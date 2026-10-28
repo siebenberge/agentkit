@@ -10,7 +10,8 @@ const LIVE = ['trialing', 'active', 'past_due', 'unpaid'];
 export type UseBillingOptions = {
   /**
    * After a hosted checkout the webhook activates the subscription within
-   * seconds: poll until it shows up (default: when `?checkout=success`).
+   * seconds: poll until it shows up (default `false`; `<BillingPortal />`
+   * turns it on when the URL has `?checkout=success`).
    */
   awaitActivation?: boolean;
 };

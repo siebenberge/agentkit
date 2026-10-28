@@ -31,6 +31,7 @@ export type AuthorizedCustomer = {
   externalId: string;
   email: string;
   name: string;
+  /** Omitted: the stored address stays; `null` removes it. */
   address?: Address | null;
 };
 
@@ -63,7 +64,10 @@ export type SubscriptionsHandlerOptions<
    * "not allowed" (401). Called for every request except the webhook.
    */
   authorize: (request: Request) => MaybePromise<C | null>;
-  /** Page the payment provider redirects back to (`?checkout=…` is appended). */
+  /**
+   * Page the payment provider redirects back to (`?checkout=…` is appended);
+   * a relative URL is resolved against the API request's URL.
+   */
   returnUrl: (request: Request, customer: C) => MaybePromise<string>;
   /** Payment options offered (default: automatic charge only). */
   collectionMethods?: CollectionMethod[] | (() => CollectionMethod[]);
@@ -197,7 +201,7 @@ export function createSubscriptionsHandler<
 
       const body = await readBody(request);
       const returnUrl = await options.returnUrl(request, customer);
-      const urls = redirectUrls(returnUrl);
+      const urls = redirectUrls(returnUrl, request.url);
 
       switch (path) {
         case '/subscribe': {
@@ -307,7 +311,9 @@ export function createSubscriptionsHandler<
                   ? 402
                   : error.code === 'RATE_LIMITED'
                     ? 429
-                    : 400;
+                    : error.code === 'PROVIDER_UNAVAILABLE'
+                      ? 503
+                      : 400;
 
         return json(errorBody(error.code), status);
       }
@@ -349,7 +355,9 @@ export function createSubscriptionsHandler<
         features: data.entitlements.features,
         limits: data.entitlements.limits,
       },
-      invoices: data.invoices.map(invoiceDto),
+      invoices: data.invoices.map((invoice) =>
+        invoiceDto(invoice, subscriptions.now()),
+      ),
       collectionMethods: allowedMethods(),
       invoiceDueDays: subscriptions.settings.invoiceDueDays,
       trialEligible: data.trialEligible,
@@ -371,7 +379,8 @@ export function createSubscriptionsHandler<
 
     if (!result) throw new HttpError(404, 'INVOICE_NOT_FOUND');
 
-    if (!options.invoices) return json(invoiceDto(result.invoice));
+    if (!options.invoices)
+      return json(invoiceDto(result.invoice, subscriptions.now()));
 
     const locale =
       typeof options.invoices.locale === 'function'
@@ -410,13 +419,14 @@ function customerData(customer: AuthorizedCustomer): AuthorizedCustomer {
     externalId: customer.externalId,
     email: customer.email,
     name: customer.name,
-    address: customer.address ?? null,
+    ...(customer.address !== undefined ? { address: customer.address } : {}),
   };
 }
 
-function redirectUrls(returnUrl: string) {
+/** A relative `returnUrl` is resolved against the API request's URL. */
+function redirectUrls(returnUrl: string, base: string) {
   const withParam = (state: string) => {
-    const url = new URL(returnUrl);
+    const url = new URL(returnUrl, base);
     url.searchParams.set('checkout', state);
     return url.toString();
   };
@@ -493,7 +503,7 @@ function subscriptionDto(subscription: Subscription): BillingSubscriptionDto {
   };
 }
 
-function invoiceDto(invoice: Invoice): BillingInvoiceDto {
+function invoiceDto(invoice: Invoice, now: Date): BillingInvoiceDto {
   const open = invoice.status === 'open';
   const byInvoice = invoice.collectionMethod === 'send_invoice';
   // a card invoice is the customer's to pay only once a charge failed (not
@@ -505,7 +515,9 @@ function invoiceDto(invoice: Invoice): BillingInvoiceDto {
   return {
     overdue:
       open &&
-      (byInvoice ? invoice.dueAt.getTime() <= Date.now() : cardNeedsCustomer),
+      (byInvoice
+        ? invoice.dueAt.getTime() <= now.getTime()
+        : cardNeedsCustomer),
     // written off: still payable, a new subscription waits for it
     payable:
       (open && (byInvoice || cardNeedsCustomer)) ||

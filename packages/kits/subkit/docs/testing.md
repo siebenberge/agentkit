@@ -289,8 +289,8 @@ await client.subscribe({ planId: 'pro', interval: 'month', collectionMethod: 'se
 expect((await client.overview()).subscription?.status).toBe('active');
 ```
 
-The `overdue` flag of `BillingInvoiceDto` uses the real time
-(`Date.now()`), not the engine's `now`.
+The `overdue` flag of `BillingInvoiceDto` follows the engine's clock
+(`subscriptions.now()`), so a fake `now` moves it too.
 
 ## Postgres
 

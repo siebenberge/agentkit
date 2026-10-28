@@ -33,7 +33,7 @@ export const { GET, POST } = toNextJsHandler(
 | `subscriptions` | `Subscriptions` | required | The engine from `createSubscriptions()` |
 | `basePath` | `string` | required | Path the handler is mounted at, e.g. `/api/billing` (trailing `/` ignored) |
 | `authorize` | `(request) => C \| null \| Promise<…>` | required | The signed-in user's customer; `null` → 401. Called for every request except the webhook |
-| `returnUrl` | `(request, customer) => string \| Promise<string>` | required | Absolute URL the payment page returns to |
+| `returnUrl` | `(request, customer) => string \| Promise<string>` | required | URL the payment page returns to (relative to the API request, or absolute) |
 | `collectionMethods` | `CollectionMethod[] \| () => CollectionMethod[]` | `['charge_automatically']` | Payment options offered to customers |
 | `invoices` | object | none | Printable invoices at `GET /invoices/:id` (see below) |
 | `rateLimit` | `(check) => RateLimitDecision \| Promise<…>` | none | Limits the routes that cost provider API calls |
@@ -48,7 +48,8 @@ type AuthorizedCustomer = {
   externalId: string;       // your id: user, team, club
   email: string;
   name: string;
-  address?: Address | null; // for invoices and the QR-bill
+  address?: Address | null; // for invoices and the QR-bill; omitted keeps
+                            // the stored one, null removes it
 };
 ```
 
@@ -67,7 +68,8 @@ To manage one of several accounts, pass the account in the query
 The payment page redirects to this URL with `?checkout=success`,
 `?checkout=cancel` or `?checkout=failed`. `<BillingPortal />` reads the
 parameter, shows a banner and polls until the webhook activated the
-subscription. It must be absolute (`https://…`).
+subscription. A relative URL (`/settings/billing`) is resolved against the
+URL of the API request.
 
 ### `collectionMethods`
 
@@ -252,7 +254,7 @@ Response: `{ "type": "changed" | "scheduled" | "unchanged", "effectiveAt":
 
 Errors: `CUSTOMER_NOT_FOUND`, `PLAN_NOT_FOUND` (404), `NO_SUBSCRIPTION`,
 `PLAN_NOT_PURCHASABLE`, `INVALID_STATE`, `PAYMENT_METHOD_REQUIRED`,
-`PAYMENT_FAILED`, `PROVIDER_UNAVAILABLE` (400), `BUSY` (409).
+`PAYMENT_FAILED` (400), `BUSY` (409), `PROVIDER_UNAVAILABLE` (503).
 
 ### `POST /cancel` and `POST /resume`
 
@@ -298,12 +300,13 @@ Errors answer `{ "error": "<CODE>", "docs": "https://agentkit.ch/errors#subkit-<
 
 | Status | Codes |
 |---|---|
-| 400 | `INVALID_JSON`, `INVALID_INPUT`, `COLLECTION_METHOD_UNAVAILABLE`, `PLAN_NOT_PURCHASABLE`, `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `INVALID_STATE`, `PAYMENT_METHOD_REQUIRED`, `PAYMENT_FAILED`, `PROVIDER_UNAVAILABLE` |
+| 400 | `INVALID_JSON`, `INVALID_INPUT`, `COLLECTION_METHOD_UNAVAILABLE`, `PLAN_NOT_PURCHASABLE`, `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `INVALID_STATE`, `PAYMENT_METHOD_REQUIRED`, `PAYMENT_FAILED` |
 | 401 | `UNAUTHORIZED` |
 | 402 | `OVERDUE_INVOICE` |
 | 404 | `NOT_FOUND`, `PLAN_NOT_FOUND`, `INVOICE_NOT_FOUND`, `CUSTOMER_NOT_FOUND` |
 | 409 | `BUSY` |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` |
+| 503 | `PROVIDER_UNAVAILABLE` |
 | 429 | `RATE_LIMITED` (+ `Retry-After`) |
 | 500 | `INTERNAL_ERROR` (passed to `onError`) |
 

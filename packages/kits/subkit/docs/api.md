@@ -17,11 +17,12 @@ billed customer ([concepts](concepts.md#customers-and-externalid)).
 
 ## Plans and settings
 
-### `plans`, `getPlan()`, `settings`
+### `plans`, `getPlan()`, `settings`, `now()`
 
 ```ts
 subscriptions.plans: Plan[]
 subscriptions.getPlan(planId: string): Plan | null
+subscriptions.now(): Date // the clock (`options.now`)
 subscriptions.settings: {
   defaultPlanId: string;
   invoiceDueDays: number;
@@ -45,8 +46,8 @@ upsertCustomer(params: {
 }): Promise<Customer>
 ```
 
-Creates the customer or updates `email`, `name` and `address`. A missing or
-`null` address keeps the stored one. A concurrent first call for the same
+Creates the customer or updates `email`, `name` and `address`. A missing
+address keeps the stored one, `null` removes it. A concurrent first call for the same
 `externalId` returns the row the other call created. Call it before
 `subscribe()`; the [HTTP handler](http.md) does it for you.
 

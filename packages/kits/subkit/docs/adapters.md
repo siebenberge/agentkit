@@ -29,7 +29,7 @@ delete: the engine never deletes rows.
 | Method | Must |
 |---|---|
 | `id` | Name of the adapter (`drizzle-pg`, `memory`) |
-| `create` | Store the row as given (ids come from the engine) and return it. Reject a duplicate `customer.externalId`, `paymentMethod.token` or `invoice.billingKey` (throw) |
+| `create` | Store the row as given (ids come from the engine) and return it. Reject a duplicate `customer.externalId`, `paymentMethod.token`, `invoice.billingKey` or `invoice.number` (throw) |
 | `findOne` | Return the first row matching all conditions, or `null` |
 | `findMany` | Return the matching rows, sorted and limited as asked |
 | `update` | Apply `patch` to every row matching `where`, atomically per row; return the first updated row (after the update) or `null` when nothing matched |
@@ -259,7 +259,7 @@ database.tables.invoice; // Invoice[] – the stored rows, for assertions
 
 Keeps the rows in the process (gone on restart) – for tests, prototypes and
 demos (sub.agentkit.ch runs on it in the browser). Returns copies, enforces
-the unique fields of the contract (`invoice.number` is not checked), and
+the unique fields of the contract, and
 runs transactions one at a time: a throwing transaction undoes only its own
 writes. `tables` exposes the rows by model. Not for production.
 

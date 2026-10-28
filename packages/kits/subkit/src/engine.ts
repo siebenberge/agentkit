@@ -9,6 +9,7 @@ import {
   nextPeriodEnd,
   remainingFraction,
   yearlyValue,
+  zurichDayKey,
 } from './periods';
 import type { PaymentProvider, ProviderEvent } from './provider';
 import { type TaxConfig, computeTotals } from './tax';
@@ -213,8 +214,12 @@ export function createSubscriptions(options: SubscriptionsOptions) {
   const generateNumber =
     options.invoices?.generateNumber ??
     (({ now: date }: { now: Date }) => {
-      const day = date.toISOString().slice(0, 10).replaceAll('-', '');
-      const random = generateId().replaceAll('-', '').slice(0, 6).toUpperCase();
+      const day = zurichDayKey(date);
+      // its own randomness: ids from `generateId` may be sequential
+      const random = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
 
       return `INV-${day}-${random}`;
     });
@@ -483,6 +488,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     externalId: string;
     email: string;
     name: string;
+    /** Omitted: the stored address stays; `null` removes it. */
     address?: Address | null;
   }): Promise<Customer> {
     const existing = await db.findOne('customer', [
@@ -497,7 +503,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         {
           email: params.email,
           name: params.name,
-          address: params.address ?? existing.address,
+          address:
+            params.address === undefined ? existing.address : params.address,
           updatedAt: date,
         },
       );
@@ -3106,6 +3113,23 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       return 'failed';
     }
 
+    // a pending charge the provider cannot be asked about: only its webhook
+    // settles it – charging again could take the money twice
+    if (invoice.providerTransactionId) {
+      await db.update('invoice', [{ field: 'id', value: invoice.id }], {
+        nextAttemptAt: addHours(now(), CHARGE_LEASE_HOURS),
+        updatedAt: now(),
+      });
+      logger.error(
+        {
+          invoiceId: invoice.id,
+          transactionId: invoice.providerTransactionId,
+        },
+        'subscriptions: charge still pending, waiting for the webhook',
+      );
+      return 'pending';
+    }
+
     const attempt = invoice.attemptCount + 1;
     const claimed = await db.update(
       'invoice',
@@ -3213,6 +3237,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       tax: options.tax ?? null,
     },
     getPlan: (planId: string) => plansById.get(planId) ?? null,
+    /** The engine's clock (`options.now`). */
+    now,
     upsertCustomer,
     getCustomer,
     findCustomers,

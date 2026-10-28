@@ -255,7 +255,7 @@ export function subscriptionTools(subscriptions: Subscriptions): McpTool[] {
       name: 'switch_to_invoice',
       title: 'Switch to invoice',
       description:
-        'From the next period on, bill this customer by invoice (QR-bill, payable within the due days) instead of charging the card / TWINT.',
+        'Bill this customer by invoice (QR-bill, payable within the due days) instead of charging the card / TWINT – from now on: open card invoices become QR-bill invoices too (one already in card dunning is due right away).',
       inputSchema: {
         type: 'object',
         properties: { externalId },

@@ -52,7 +52,10 @@ export type Plan = {
   prices: Partial<Record<BillingInterval, PlanPrice>>;
   /** Free trial on the first subscription of a customer. */
   trialDays?: number;
-  /** Hidden plans can be assigned but are not offered for self-service. */
+  /**
+   * Not offered and not purchasable (retired plans); subscriptions on it keep
+   * it until they change plan.
+   */
   hidden?: boolean;
 };
 

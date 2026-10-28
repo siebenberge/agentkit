@@ -4,7 +4,7 @@ import type { ModelMap, ModelName } from '../types';
 const UNIQUE: { [M in ModelName]?: (keyof ModelMap[M])[] } = {
   customer: ['externalId'],
   paymentMethod: ['token'],
-  invoice: ['billingKey'],
+  invoice: ['billingKey', 'number'],
 };
 
 type Tables = { [M in ModelName]: ModelMap[M][] };

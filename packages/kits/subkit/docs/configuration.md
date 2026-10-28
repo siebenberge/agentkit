@@ -44,7 +44,7 @@ id of one of `plans`.
 The returned object exposes what it was configured with:
 `subscriptions.plans`, `subscriptions.getPlan(id)` (`Plan | null`) and
 `subscriptions.settings` (`{ defaultPlanId, invoiceDueDays, tax }`, `tax` is
-`null` without VAT).
+`null` without VAT); `subscriptions.now()` is its clock.
 
 ## Plans
 
@@ -172,7 +172,8 @@ How totals are computed: [concepts – VAT](concepts.md#vat).
 
 ### Invoice numbers
 
-The default number is `INV-` + the UTC date + 6 characters of a new id, e.g.
+The default number is `INV-` + the date in Zurich + 6 random hex characters,
+e.g.
 `INV-20261015-3F9A1C`. Unique, but not gapless. For gapless numbers use a
 database sequence:
 
