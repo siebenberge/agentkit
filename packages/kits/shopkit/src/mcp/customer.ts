@@ -86,6 +86,7 @@ const INSTRUCTIONS = `Shop of this store (shopkit), acting for the signed-in cus
  */
 export function createShopCustomerMcpHandler(options: ShopCustomerMcpOptions) {
   const customers = new WeakMap<Request, Promise<McpCustomer | null>>();
+  const orderMetadata = new WeakMap<Request, Record<string, unknown>>();
 
   const identify = (request: Request) => {
     let customer = customers.get(request);
@@ -109,6 +110,7 @@ export function createShopCustomerMcpHandler(options: ShopCustomerMcpOptions) {
       locale: resolveLocale(options.locale),
       orderUrl: options.orderUrl,
       savePaymentMethod: options.savePaymentMethod,
+      orderMetadata: (request) => orderMetadata.get(request) ?? {},
       customer: async (request) => {
         const customer = await identify(request);
 
@@ -130,13 +132,21 @@ export function createShopCustomerMcpHandler(options: ShopCustomerMcpOptions) {
   /**
    * `context.customer`: the customer your auth already verified (its
    * wrapper verified the access token) – `identify` is not called then.
+   * `context.orderMetadata`: stored on orders placed in this request, next
+   * to `channel: 'mcp'` – e.g. `{ client: 'Claude' }` from the OAuth client.
    */
   return (
     request: Request,
-    context: { customer?: McpCustomer | null } = {},
+    context: {
+      customer?: McpCustomer | null;
+      orderMetadata?: Record<string, unknown>;
+    } = {},
   ) => {
     if (context.customer !== undefined) {
       customers.set(request, Promise.resolve(context.customer));
+    }
+    if (context.orderMetadata) {
+      orderMetadata.set(request, context.orderMetadata);
     }
 
     return handler(request);
@@ -149,6 +159,8 @@ type ToolsContext = {
   orderUrl: ShopCustomerMcpOptions['orderUrl'];
   savePaymentMethod?: ShopCustomerMcpOptions['savePaymentMethod'];
   customer: (request: Request) => Promise<McpCustomer>;
+  /** Stored on orders of the request (`channel: 'mcp'` is added). */
+  orderMetadata: (request: Request) => Record<string, unknown>;
 };
 
 const PAY_WITH = ['payment_link', 'saved_payment_method'] as const;
@@ -470,6 +482,7 @@ export function customerTools(context: ToolsContext): McpTool[] {
             : 'online';
         const result = await shop.placeOrder({
           ...orderInput(customer, args, paymentMethod),
+          metadata: { ...context.orderMetadata(request), channel: 'mcp' },
           paymentMethod,
           urls: redirectUrls,
           savePaymentMethod:

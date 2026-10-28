@@ -277,6 +277,8 @@ export type CheckoutParams = {
    * ask the customer first.
    */
   savePaymentMethod?: boolean;
+  /** Stored on the new order (`order.metadata`), e.g. where it came from. */
+  metadata?: Record<string, unknown>;
 };
 
 /** A saved payment method as customers and agents see it (no token). */
@@ -306,6 +308,8 @@ export type OrderInput = {
   note?: string | null;
   discountCode?: string | null;
   locale?: string | null;
+  /** Stored on the new order (`order.metadata`); `placeOrder` only. */
+  metadata?: Record<string, unknown>;
 };
 
 export type OrderQuote = Omit<CartSummary, 'cart'> & {
@@ -2201,7 +2205,7 @@ export function createShop(options: ShopOptions) {
         carrier: null,
         trackingNumber: null,
         trackingUrl: null,
-        metadata: {},
+        metadata: { ...params.metadata },
         createdAt: date,
         updatedAt: date,
       };
@@ -2990,6 +2994,7 @@ export function createShop(options: ShopOptions) {
         giftCardCodes: input.giftCardCodes,
         urls: input.urls,
         savePaymentMethod: input.savePaymentMethod,
+        metadata: input.metadata,
         deferPayment: useSaved !== null,
       });
     } catch (error) {
