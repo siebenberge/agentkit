@@ -74,6 +74,7 @@ export const en: Messages = {
       shippingAddress: 'Shipping address',
       billingAddress: 'Billing address',
       sameAsShipping: 'Billing address same as shipping',
+      invoiceAddress: 'I need an invoice with my address',
       name: 'Full name',
       company: 'Company (optional)',
       line1: 'Street and number',

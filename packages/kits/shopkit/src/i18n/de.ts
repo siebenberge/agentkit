@@ -76,6 +76,7 @@ export const de = {
       shippingAddress: 'Lieferadresse',
       billingAddress: 'Rechnungsadresse',
       sameAsShipping: 'Rechnungsadresse wie Lieferadresse',
+      invoiceAddress: 'Ich brauche eine Rechnung mit Adresse',
       name: 'Vor- und Nachname',
       company: 'Firma (optional)',
       line1: 'Strasse und Nr.',
