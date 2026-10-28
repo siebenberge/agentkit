@@ -9,7 +9,10 @@ import type {
   PaymentProvider,
   ProviderEvent,
 } from '../provider';
-import { createShopCustomerMcpHandler } from './index';
+import {
+  type ShopCustomerMcpOptions,
+  createShopCustomerMcpHandler,
+} from './index';
 
 const ENDPOINT = 'https://baeckerei.example/api/shop-agent';
 
@@ -22,7 +25,7 @@ type Result = {
   };
 };
 
-async function setup() {
+async function setup(extra: Partial<ShopCustomerMcpOptions> = {}) {
   const pages: CreateHostedPaymentParams[] = [];
   const charges: ChargeTokenParams[] = [];
   const state: { charge: ChargeResult } = {
@@ -99,6 +102,7 @@ async function setup() {
     },
     orderUrl: (order) =>
       `https://baeckerei.example/bestellung/${order.id}?token=${order.accessToken}`,
+    ...extra,
   });
 
   async function call(
@@ -332,6 +336,36 @@ describe('createShopCustomerMcpHandler', () => {
 
     const mine = await result('anna', 'list_my_orders');
     expect(mine.structuredContent.orders).toHaveLength(1);
+  });
+
+  it('saves the payment method for customers who chose it, until one is saved', async () => {
+    const asked: string[] = [];
+    const { result, order, pages, annaSavesTwint } = await setup({
+      savePaymentMethod: (customer) => {
+        asked.push(customer.externalId);
+        return customer.externalId === 'user_anna';
+      },
+    });
+
+    // Anna chose it: her payment page saves, though the agent did not ask
+    const first = await result('anna', 'place_order', order);
+    expect(pages.at(-1)!.mode).toBe('charge_and_save');
+    expect(asked).toEqual(['user_anna']);
+
+    // the open order paid again: still saving
+    await result('anna', 'pay_order', {
+      orderId: first.structuredContent.order!.id,
+    });
+    expect(pages.at(-1)!.mode).toBe('charge_and_save');
+
+    // Beat did not choose it
+    await result('beat', 'place_order', order);
+    expect(pages.at(-1)!.mode).toBe('charge');
+
+    // once TWINT is saved, later payment pages keep it
+    await annaSavesTwint();
+    await result('anna', 'place_order', order);
+    expect(pages.at(-1)!.mode).toBe('charge');
   });
 
   it('pays an open order again and removes a payment method', async () => {

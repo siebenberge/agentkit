@@ -1,6 +1,6 @@
 {
   "name": "@agentkit.ch/shopkit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shop engine for Swiss products: catalog with variants and stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping, orders and refunds. Storefront API, React hooks and components, emails, receipts and Swiss Post labels with address check included. Database- and framework-agnostic (zahls.ch provider included).",
   "keywords": [
     "shop",
