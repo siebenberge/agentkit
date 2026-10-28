@@ -1,4 +1,9 @@
-import type { FulfillmentDateContext, Logger, Shop } from '../engine';
+import type {
+  FulfillmentDateContext,
+  Logger,
+  ProductWithVariants,
+  Shop,
+} from '../engine';
 import { ShopError, isShopError } from '../errors';
 import { formatFulfillmentDate } from '../i18n';
 import type {
@@ -34,9 +39,11 @@ type MaybePromise<T> = T | Promise<T>;
 export type { Weekday };
 
 /**
- * What the import keeps of an article in `product.metadata.hssoft` (read it
- * with `hsSoftProductData(product)`): declaration, allergens, nutrition and
- * delivery days for the product page.
+ * What the import keeps of an article (read it with
+ * `hsSoftProductData(product, sku)`): declaration, allergens, nutrition and
+ * delivery days for the product page. A product that is one article keeps
+ * it in `product.metadata.hssoft`; a product whose variants are articles
+ * (Zopf 500 g / 1 kg) in `product.metadata.hssoftVariants[sku]`.
  */
 export type HsSoftProductData = {
   articleId: number;
@@ -89,16 +96,23 @@ export type HsSoftImage = {
 
 export type HsSoftProductOptions = {
   /**
-   * Import only these marketing groups; default every active article.
+   * Marketing groups to import (required): only articles with a marketing
+   * group belong in the shop. Dough articles are never imported.
    */
   marketingGroupIds?: number[];
   /** Further check per article (`false` → skipped). */
   filter?: (article: HsSoftArticle) => boolean;
-  /** Price category used as the shop price, 1–10 (default 1 = K1). */
+  /**
+   * Price category used as the shop price, 1–10 (default 1 = K1). Empty for
+   * an article → its default price.
+   */
   priceCategory?: number;
   /** A current special price becomes the price, the normal one the struck-through price (default `true`). */
   specialPrices?: boolean;
-  /** `article`: selling weight (K1, default); `recipe`: weight of the recipe (K2). */
+  /**
+   * `article`: selling weight (K1, default); `recipe`: weight of the recipe
+   * (K2). Missing → the other one.
+   */
   weight?: 'article' | 'recipe';
   /** Skip articles without an image in WaWiAssist (default `false`). */
   requireImage?: boolean;
@@ -114,11 +128,20 @@ export type HsSoftProductOptions = {
   description?: (article: HsSoftArticle) => string | null;
   /** URL key of new products (default from the name). */
   slug?: (article: HsSoftArticle) => string;
-  /** Fields you maintain in the shop after the first import. */
+  /**
+   * Fields you maintain in the shop after the first import. `status`: the
+   * import never changes the status of existing products (and variants).
+   */
   keep?: HsSoftImportField[];
   /**
+   * Status of the products the import creates (default `active`). `draft`
+   * with `keep: ['status']`: new products wait until you publish them.
+   */
+  newProductStatus?: Extract<ProductStatus, 'active' | 'draft'>;
+  /**
    * Products of earlier imports whose article is gone, inactive or skipped
-   * (default `draft`; `keep` leaves them).
+   * (default `draft`; `keep` leaves them). Variants that are articles are
+   * archived instead.
    */
   missing?: Extract<ProductStatus, 'draft' | 'archived'> | 'keep';
   /** Articles loaded at the same time (default 4). */
@@ -190,7 +213,12 @@ export type HsSoftOrderOptions = {
     line: OrderLine,
     order: Order,
   ) => MaybePromise<number | null | undefined>;
-  /** HS-Soft article for the shipping costs: one for all, per rate id, or a function. */
+  /**
+   * HS-Soft article of the shipping rate (costs, or the pickup location):
+   * one for all, per rate id, or a function. Sent for every rate it is set
+   * for, also at CHF 0; a rate with costs but without article fails the
+   * order.
+   */
   shippingArticleId?:
     number | Record<string, number> | ((order: Order) => number | null);
   /** VAT codes per rate (default 810 → NORMAL, 260 → REDUCED, 0 → ZERO; others: the article's). */
@@ -205,6 +233,11 @@ export type HsSoftOrderOptions = {
    * (`order.fulfillmentDate`), else the day of the payment or of the order.
    */
   date?: (order: Order) => Date | string;
+  /**
+   * Days added to the order date (negative: earlier), one for all or per
+   * shipping rate id – e.g. `-1` when WaWiAssist plans by production day.
+   */
+  dateOffsetDays?: number | Record<string, number>;
   /** `HH:mm` (default: the start of the chosen time window `07:00–09:00`). */
   deliveryTime?: (order: Order) => string | null | undefined;
   tourplanId?: (order: Order) => number | null | undefined;
@@ -216,7 +249,7 @@ export type HsSoftOrderOptions = {
    * reports them as warnings.
    */
   creationOptions?: HsSoftCreationOptions;
-  /** Delete the WaWiAssist order when the order is canceled (default `true`). */
+  /** Delete the WaWiAssist order when the order is canceled (default `false`). */
   deleteCanceled?: boolean;
   /** Attempts while HS-Soft is unavailable (default 5). */
   maxAttempts?: number;
@@ -231,6 +264,30 @@ export type HsSoftOrderOptions = {
   }) => void | Promise<void>;
 };
 
+/**
+ * When a product can be picked up or delivered, for
+ * `hssoft.allowFulfillmentDate`.
+ */
+export type HsSoftAvailabilityOptions = {
+  /**
+   * WaWiAssist customer (e.g. «Onlineshop») whose orderable articles
+   * WaWiAssist reports per day – lead times, assortment. Without it only
+   * the delivery days and the shop's own periods count.
+   */
+  customerId?: number;
+  /** How long an answer per day is kept (default 10 minutes). */
+  cacheMinutes?: number;
+};
+
+/** A product's own availability period, set in the shop. */
+export type HsSoftAvailabilityPeriod = {
+  /** `YYYY-MM-DD`, both days included. */
+  from: string;
+  to: string;
+  /** Every year (only day and month count, e.g. 1.11.–6.12.). */
+  recurring?: boolean;
+};
+
 export type HsSoftSyncOptions = {
   shop: Shop;
   /** API key of WaWiAssist, or pass a `client`. */
@@ -238,6 +295,7 @@ export type HsSoftSyncOptions = {
   client?: HsSoftClient;
   products?: HsSoftProductOptions;
   orders?: HsSoftOrderOptions;
+  availability?: HsSoftAvailabilityOptions;
   logger?: Logger;
   now?: () => Date;
 };
@@ -253,7 +311,8 @@ export type HsSoftImportSummary = {
   skipped: {
     articleId: number;
     articleNumber: string;
-    reason: 'inactive' | 'filtered' | 'sale_unit' | 'no_price' | 'no_image';
+    reason:
+      'inactive' | 'dough' | 'filtered' | 'sale_unit' | 'no_price' | 'no_image';
   }[];
   failed: {
     articleId: number;
@@ -274,6 +333,8 @@ export type HsSoftOrdersSummary = {
 };
 
 const KEY = 'hssoft';
+const VARIANTS_KEY = 'hssoftVariants';
+const PERIOD_KEY = 'hssoftAvailability';
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
 const STALE_SENDING = 10 * MINUTE;
@@ -301,24 +362,85 @@ const WEEKDAYS: [Weekday, keyof HsSoftArticle][] = [
   ['sun', 'isDeliveredSun'],
 ];
 
-/** HS-Soft data of an imported product, `null` for other products. */
-export function hsSoftProductData(product: Product): HsSoftProductData | null {
-  const data = product.metadata[KEY] as HsSoftProductData | undefined;
+/**
+ * HS-Soft data of an imported product, or of its variant `sku`; `null` for
+ * products (and variants) that are not from HS-Soft.
+ */
+export function hsSoftProductData(
+  product: Product,
+  sku?: string,
+): HsSoftProductData | null {
+  const valid = (data: HsSoftProductData | undefined) =>
+    data && typeof data.articleId === 'number' ? data : null;
 
-  return data && typeof data.articleId === 'number' ? data : null;
+  if (sku !== undefined) {
+    const variants = product.metadata[VARIANTS_KEY] as
+      Record<string, HsSoftProductData> | undefined;
+    const variant = valid(variants?.[sku]);
+
+    if (variant) return variant;
+  }
+
+  const data = valid(product.metadata[KEY] as HsSoftProductData | undefined);
+
+  return data && (sku === undefined || data.articleNumber === sku)
+    ? data
+    : null;
+}
+
+/** HS-Soft data of every article of a product (product and variants). */
+function articlesOf(product: Product) {
+  const variants = Object.values(
+    (product.metadata[VARIANTS_KEY] as
+      Record<string, HsSoftProductData> | undefined) ?? {},
+  ).filter((data) => typeof data.articleId === 'number');
+  const own = hsSoftProductData(product);
+
+  return own ? [own, ...variants] : variants;
+}
+
+/** Data of the article an order or cart line is (its variant's, else the product's). */
+function lineArticle(product: Product, sku: string) {
+  return hsSoftProductData(product, sku) ?? hsSoftProductData(product);
 }
 
 /**
- * For `createShop({ allowFulfillmentDate })`: only days on which WaWiAssist
- * delivers every imported product of the cart.
- * Products that are not from HS-Soft do not limit the days.
+ * Only days on which WaWiAssist delivers every HS-Soft product of the cart
+ * (delivery days, per variant for variant articles). Products that are not
+ * from HS-Soft do not limit the days. `hssoft.allowFulfillmentDate` adds the
+ * shop's own periods and the live check.
  */
 export function hsSoftDeliveryDays(context: FulfillmentDateContext) {
-  return context.products.every((product) => {
-    const data = hsSoftProductData(product);
+  return context.lines.every((line) => {
+    const data = lineArticle(line.product, line.variant.sku);
 
     return !data || data.deliveryDays.includes(context.weekday);
   });
+}
+
+/** The product's own availability period, `null` without one. */
+export function hsSoftAvailabilityPeriod(
+  product: Product,
+): HsSoftAvailabilityPeriod | null {
+  const period = product.metadata[PERIOD_KEY] as
+    HsSoftAvailabilityPeriod | undefined;
+
+  return period && typeof period.from === 'string' ? period : null;
+}
+
+/** Whether `day` (`YYYY-MM-DD`) is in the period. */
+export function inAvailabilityPeriod(
+  period: HsSoftAvailabilityPeriod,
+  day: string,
+) {
+  if (!period.recurring) return period.from <= day && day <= period.to;
+
+  // only month and day count; 01.11.–06.01. spans the new year
+  const from = period.from.slice(5);
+  const to = period.to.slice(5);
+  const date = day.slice(5);
+
+  return from <= to ? from <= date && date <= to : date >= from || date <= to;
 }
 
 /** Sync state of an order, `null` before its first sync. */
@@ -336,7 +458,8 @@ export function hsSoftOrderSync(order: Order): HsSoftOrderSync | null {
  *   from a cron job; unchanged articles are not written again, products of
  *   articles that are gone become drafts.
  * - Orders → WaWiAssist: pass `onEvent` to the shop (sends placed orders,
- *   deletes canceled ones) and run `syncOrders()` every few minutes (tries
+ *   with `deleteCanceled` deletes canceled ones) and run `syncOrders()`
+ *   every few minutes (tries
  *   again while HS-Soft is unavailable). Each order is sent once; the state
  *   (WaWiAssist order number, errors) is in `order.metadata.hssoft`.
  * - `syncOrder(id, { force: true })`: send an order again by hand.
@@ -364,8 +487,10 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
   const maxAttempts = Math.max(1, orders.maxAttempts ?? 5);
   const retryMs = (orders.retryMinutes ?? 5) * MINUTE;
   const lookbackMs = (orders.lookbackDays ?? 7) * DAY;
-  const deleteCanceled = orders.deleteCanceled ?? true;
+  const deleteCanceled = orders.deleteCanceled ?? false;
   const vatRates = orders.vatRates ?? DEFAULT_VAT;
+  const availability = options.availability ?? {};
+  const availabilityMs = (availability.cacheMinutes ?? 10) * MINUTE;
 
   if (
     !Number.isInteger(priceCategory) ||
@@ -379,7 +504,10 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
 
   function mapArticle(article: HsSoftArticle, groups: number[]) {
     const recipe = article.recipe;
-    const regular = rappen(article.priceCategories?.[priceCategory - 1]);
+    // an empty price category falls back to the default price
+    const regular =
+      positive(rappen(article.priceCategories?.[priceCategory - 1])) ??
+      positive(rappen(article.defaultPrice));
     const special =
       products.specialPrices === false
         ? null
@@ -391,8 +519,8 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
             );
     const weight =
       products.weight === 'recipe'
-        ? recipe?.weightInGrams
-        : article.sellingWeight;
+        ? (positive(recipe?.weightInGrams) ?? positive(article.sellingWeight))
+        : (positive(article.sellingWeight) ?? positive(recipe?.weightInGrams));
     const name = clean(products.name?.(article) ?? article.description);
 
     const data: Omit<HsSoftProductData, 'hash' | 'imageHash' | 'importedAt'> = {
@@ -439,8 +567,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
       price: special ?? regular,
       compareAtPrice:
         special !== null && special !== undefined ? regular : null,
-      weightGrams:
-        typeof weight === 'number' && weight > 0 ? Math.round(weight) : 0,
+      weightGrams: weight === null ? 0 : Math.round(weight),
     };
 
     return { data, fields, hash: hash(JSON.stringify({ data, fields })) };
@@ -466,6 +593,13 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
       articleIds?: number[];
     } = {},
   ): Promise<HsSoftImportSummary> {
+    if (!params.articleIds && !products.marketingGroupIds?.length) {
+      throw new ShopError(
+        'INVALID_INPUT',
+        'hssoft: set products.marketingGroupIds, the marketing groups to import',
+      );
+    }
+
     const summary: HsSoftImportSummary = {
       loaded: 0,
       created: 0,
@@ -476,14 +610,35 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
       failed: [],
     };
 
+    type Existing = ProductWithVariants;
+
     const existing = await shop.listProducts({ includeArchivedVariants: true });
-    const byArticle = new Map<number, (typeof existing)[number]>();
-    const bySku = new Map<string, (typeof existing)[number]>();
+    // article id → the product (and its variant, for a variant article)
+    const byArticle = new Map<
+      number,
+      { product: Existing; sku: string; variantLevel: boolean }
+    >();
+    const bySku = new Map<string, Existing>();
 
     for (const product of existing) {
-      const data = hsSoftProductData(product);
+      const own = hsSoftProductData(product);
 
-      if (data) byArticle.set(data.articleId, product);
+      if (own) {
+        byArticle.set(own.articleId, {
+          product,
+          sku: own.articleNumber,
+          variantLevel: false,
+        });
+      }
+      for (const data of articlesOf(product)) {
+        if (data !== own) {
+          byArticle.set(data.articleId, {
+            product,
+            sku: data.articleNumber,
+            variantLevel: true,
+          });
+        }
+      }
       for (const variant of product.variants) bySku.set(variant.sku, product);
     }
 
@@ -492,15 +647,18 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
 
     if (params.articleIds) {
       for (const id of params.articleIds) {
+        const known = byArticle.get(id);
+
         listed.set(
           id,
-          byArticle.get(id)
-            ? hsSoftProductData(byArticle.get(id)!)!.marketingGroupIds
+          known
+            ? (hsSoftProductData(known.product, known.sku)?.marketingGroupIds ??
+                [])
             : [],
         );
       }
-    } else if (products.marketingGroupIds?.length) {
-      for (const group of products.marketingGroupIds) {
+    } else {
+      for (const group of products.marketingGroupIds!) {
         for (const article of await client.listAllArticles({
           isActive: true,
           marketingGroupId: group,
@@ -508,16 +666,24 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
           listed.set(article.id, [...(listed.get(article.id) ?? []), group]);
         }
       }
-    } else {
-      for (const article of await client.listAllArticles({ isActive: true })) {
-        listed.set(article.id, []);
-      }
     }
 
     summary.loaded = listed.size;
 
-    // products that keep their status: imported, unchanged or failed
+    // articles that keep their status: imported, unchanged or failed
     const present = new Set<number>();
+    // writes of one product one after the other (several variant articles)
+    const locks = new Map<string, Promise<unknown>>();
+    const locked = <T>(productId: string, fn: () => Promise<T>) => {
+      const run = (locks.get(productId) ?? Promise.resolve()).then(fn, fn);
+
+      locks.set(
+        productId,
+        run.catch(() => undefined),
+      );
+
+      return run;
+    };
 
     await eachLimited([...listed], concurrency, async ([id, groups]) => {
       let articleNumber = String(id);
@@ -534,6 +700,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
         };
 
         if (!article.isActive) return skip('inactive');
+        if (article.isDough) return skip('dough');
         if (products.filter && !products.filter(article))
           return skip('filtered');
         if (!PIECE_UNITS.includes(article.saleUnit ?? null))
@@ -545,118 +712,53 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
         if (products.requireImage && article.hasImage === false)
           return skip('no_image');
 
-        const product = byArticle.get(id) ?? bySku.get(article.articleNumber);
-        const previous = product ? hsSoftProductData(product) : null;
-        const changed = params.force === true || previous?.hash !== mapped.hash;
-        const wantsImage =
-          Boolean(products.images) &&
-          article.hasImage !== false &&
-          !(product && keep.has('images')) &&
-          (changed || !product?.images.length);
+        const known = byArticle.get(id);
+        const found = known?.product ?? bySku.get(article.articleNumber);
 
-        if (
-          product &&
-          !changed &&
-          !wantsImage &&
-          (keep.has('status') || product.status === 'active')
-        ) {
-          present.add(id);
-          summary.unchanged += 1;
-          return;
-        }
+        if (!found) {
+          const images = await articleImages(article, null, null, true);
 
-        let images: string[] | undefined;
-        let imageHash = previous?.imageHash ?? null;
+          if (images === 'skip') return skip('no_image');
 
-        if (wantsImage) {
-          const image = await loadImage(article);
-
-          if (image) {
-            const digest = hash(image.base64);
-
-            if (digest !== imageHash || !product?.images.length) {
-              const url = await products.images!.save({
-                articleId: article.id,
-                articleNumber: article.articleNumber,
-                jpeg: decodeBase64(image.base64),
-                width: image.width,
-                height: image.height,
-              });
-
-              images = [url, ...(product?.images.slice(1) ?? [])];
-              imageHash = digest;
-            }
-          } else if (products.requireImage) {
-            return skip('no_image');
-          }
-        }
-
-        const data: HsSoftProductData = {
-          ...mapped.data,
-          hash: mapped.hash,
-          imageHash,
-          importedAt: now().toISOString(),
-        };
-        const { fields } = mapped;
-        const variantFields = {
-          price: fields.price,
-          compareAtPrice: fields.compareAtPrice,
-          weightGrams: fields.weightGrams,
-        };
-
-        if (!product) {
-          await createProduct(
-            article,
-            fields,
-            variantFields,
-            data,
-            images ?? [],
-          );
+          await createProduct(article, mapped, images?.urls ?? [], images);
           present.add(id);
           summary.created += 1;
           return;
         }
 
-        await shop.updateProduct(product.id, {
-          ...(keep.has('name') ? {} : { name: fields.name }),
-          ...(keep.has('description')
-            ? {}
-            : { description: fields.description }),
-          ...(keep.has('tax') ? {} : { taxRateBps: fields.taxRateBps }),
-          ...(keep.has('status') ? {} : { status: 'active' as const }),
-          ...(images ? { images } : {}),
-          metadata: { ...product.metadata, [KEY]: data },
+        await locked(found.id, async () => {
+          // re-read: an earlier article may have changed the product
+          const product =
+            (await shop.getProduct(found.id, {
+              includeArchivedVariants: true,
+            })) ?? found;
+          const variant = product.variants.find(
+            (entry) => entry.sku === article.articleNumber,
+          );
+          // a variant is the article when the product has several variants
+          const variantLevel =
+            variant !== undefined && product.variants.length > 1;
+          const outcome = variantLevel
+            ? await updateVariantArticle(
+                product,
+                variant,
+                article,
+                mapped,
+                params,
+              )
+            : await updateProductArticle(
+                product,
+                variant,
+                article,
+                mapped,
+                params,
+              );
+
+          if (outcome === 'skip_no_image') return skip('no_image');
+
+          present.add(id);
+          summary[outcome] += 1;
         });
-
-        const variant = product.variants.find(
-          (entry: Variant) => entry.sku === article.articleNumber,
-        );
-        const patch = {
-          ...(keep.has('price')
-            ? {}
-            : {
-                price: variantFields.price!,
-                compareAtPrice: variantFields.compareAtPrice,
-              }),
-          ...(keep.has('weight')
-            ? {}
-            : { weightGrams: variantFields.weightGrams }),
-          ...(keep.has('status') ? {} : { status: 'active' as const }),
-        };
-
-        if (variant) await shop.updateVariant(variant.id, patch);
-        else {
-          await shop.createVariant(product.id, {
-            sku: article.articleNumber,
-            price: variantFields.price!,
-            compareAtPrice: variantFields.compareAtPrice,
-            weightGrams: variantFields.weightGrams,
-            trackStock: false,
-          });
-        }
-
-        present.add(id);
-        summary.updated += 1;
       } catch (error) {
         present.add(id);
         summary.failed.push({
@@ -672,10 +774,29 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     });
 
     if (!params.articleIds && missing !== 'keep' && !keep.has('status')) {
-      for (const [articleId, product] of byArticle) {
-        if (present.has(articleId) || product.status !== 'active') continue;
+      for (const [articleId, entry] of byArticle) {
+        if (present.has(articleId)) continue;
 
-        await shop.updateProduct(product.id, { status: missing });
+        const product = await shop.getProduct(entry.product.id, {
+          includeArchivedVariants: true,
+        });
+
+        if (!product) continue;
+
+        if (entry.variantLevel) {
+          const variant = product.variants.find(
+            (candidate) => candidate.sku === entry.sku,
+          );
+
+          if (variant?.status !== 'active') continue;
+
+          await shop.updateVariant(variant.id, { status: 'archived' });
+        } else {
+          if (product.status !== 'active') continue;
+
+          await shop.updateProduct(product.id, { status: missing });
+        }
+
         summary.deactivated += 1;
       }
     }
@@ -693,17 +814,169 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     return summary;
   }
 
+  type Mapped = ReturnType<typeof mapArticle>;
+
+  /**
+   * Image of the article for a product, when it is new or changed:
+   * `undefined` → leave the images, `'skip'` → `requireImage` and none.
+   */
+  async function articleImages(
+    article: HsSoftArticle,
+    current: string[] | null,
+    imageHash: string | null,
+    changed: boolean,
+  ) {
+    const wanted =
+      Boolean(products.images) &&
+      article.hasImage !== false &&
+      !(current && keep.has('images')) &&
+      (changed || !current?.length);
+
+    if (!wanted) return undefined;
+
+    const image = await loadImage(article);
+
+    if (!image) return products.requireImage ? ('skip' as const) : undefined;
+
+    const digest = hash(image.base64);
+
+    if (digest === imageHash && current?.length) return undefined;
+
+    const url = await products.images!.save({
+      articleId: article.id,
+      articleNumber: article.articleNumber,
+      jpeg: decodeBase64(image.base64),
+      width: image.width,
+      height: image.height,
+    });
+
+    return { urls: [url, ...(current?.slice(1) ?? [])], hash: digest };
+  }
+
+  function dataOf(mapped: Mapped, imageHash: string | null): HsSoftProductData {
+    return {
+      ...mapped.data,
+      hash: mapped.hash,
+      imageHash,
+      importedAt: now().toISOString(),
+    };
+  }
+
+  function variantPatch(mapped: Mapped) {
+    return {
+      ...(keep.has('price')
+        ? {}
+        : {
+            price: mapped.fields.price!,
+            compareAtPrice: mapped.fields.compareAtPrice,
+          }),
+      ...(keep.has('weight') ? {} : { weightGrams: mapped.fields.weightGrams }),
+      ...(keep.has('status') ? {} : { status: 'active' as const }),
+    };
+  }
+
+  /** The product is the article: name, texts, image, price, status. */
+  async function updateProductArticle(
+    product: ProductWithVariants,
+    variant: Variant | undefined,
+    article: HsSoftArticle,
+    mapped: Mapped,
+    params: { force?: boolean },
+  ): Promise<'updated' | 'unchanged' | 'skip_no_image'> {
+    const previous = hsSoftProductData(product);
+    const changed = params.force === true || previous?.hash !== mapped.hash;
+    const images = await articleImages(
+      article,
+      product.images,
+      previous?.imageHash ?? null,
+      changed,
+    );
+
+    if (images === 'skip') return 'skip_no_image';
+    if (
+      !changed &&
+      !images &&
+      variant &&
+      (keep.has('status') ||
+        (product.status === 'active' && variant.status === 'active'))
+    ) {
+      return 'unchanged';
+    }
+
+    const { fields } = mapped;
+
+    await shop.updateProduct(product.id, {
+      ...(keep.has('name') ? {} : { name: fields.name }),
+      ...(keep.has('description') ? {} : { description: fields.description }),
+      ...(keep.has('tax') ? {} : { taxRateBps: fields.taxRateBps }),
+      ...(keep.has('status') ? {} : { status: 'active' as const }),
+      ...(images ? { images: images.urls } : {}),
+      metadata: {
+        ...product.metadata,
+        [KEY]: dataOf(mapped, images?.hash ?? previous?.imageHash ?? null),
+      },
+    });
+
+    if (variant) await shop.updateVariant(variant.id, variantPatch(mapped));
+    else {
+      await shop.createVariant(product.id, {
+        sku: article.articleNumber,
+        price: fields.price!,
+        compareAtPrice: fields.compareAtPrice,
+        weightGrams: fields.weightGrams,
+        trackStock: false,
+      });
+    }
+
+    return 'updated';
+  }
+
+  /**
+   * One variant of the product is the article (Zopf 500 g / 1 kg): price,
+   * weight and status of the variant; name, texts and image stay yours.
+   */
+  async function updateVariantArticle(
+    product: ProductWithVariants,
+    variant: Variant,
+    article: HsSoftArticle,
+    mapped: Mapped,
+    params: { force?: boolean },
+  ): Promise<'updated' | 'unchanged'> {
+    const variants =
+      (product.metadata[VARIANTS_KEY] as
+        Record<string, HsSoftProductData> | undefined) ?? {};
+    const previous = variants[article.articleNumber];
+    const changed = params.force === true || previous?.hash !== mapped.hash;
+
+    if (!changed && (keep.has('status') || variant.status === 'active')) {
+      return 'unchanged';
+    }
+
+    const own = hsSoftProductData(product);
+
+    await shop.updateProduct(product.id, {
+      metadata: {
+        ...product.metadata,
+        // the product-level entry described this variant before
+        ...(own?.articleId === article.id ? { [KEY]: undefined } : {}),
+        [VARIANTS_KEY]: {
+          ...variants,
+          [article.articleNumber]: dataOf(mapped, null),
+        },
+      },
+    });
+    await shop.updateVariant(variant.id, variantPatch(mapped));
+
+    return 'updated';
+  }
+
   async function createProduct(
     article: HsSoftArticle,
-    fields: ReturnType<typeof mapArticle>['fields'],
-    variant: {
-      price: number | null;
-      compareAtPrice: number | null;
-      weightGrams: number;
-    },
-    data: HsSoftProductData,
+    mapped: Mapped,
     images: string[],
+    image: { hash: string } | undefined,
   ) {
+    const { fields } = mapped;
     const base =
       products.slug?.(article) ??
       (slugify(fields.name) || `artikel-${slugify(article.articleNumber)}`);
@@ -712,15 +985,15 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
       description: fields.description,
       taxRateBps: fields.taxRateBps,
       kind: 'physical' as const,
-      status: 'active' as const,
+      status: products.newProductStatus ?? ('active' as const),
       images,
-      metadata: { [KEY]: data },
+      metadata: { [KEY]: dataOf(mapped, image?.hash ?? null) },
       variants: [
         {
           sku: article.articleNumber,
-          price: variant.price!,
-          compareAtPrice: variant.compareAtPrice,
-          weightGrams: variant.weightGrams,
+          price: fields.price!,
+          compareAtPrice: fields.compareAtPrice,
+          weightGrams: fields.weightGrams,
           // made to order: WaWiAssist has no stock for the shop
           trackStock: false,
         },
@@ -740,6 +1013,123 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     }
   }
 
+  // ------------------------------------------------------------ availability
+
+  // day → articles WaWiAssist can deliver (null: HS-Soft could not be asked)
+  const availableCache = new Map<
+    string,
+    { expires: number; ids: Promise<Set<number> | null> }
+  >();
+
+  function availableOn(date: string, customerId: number) {
+    const cached = availableCache.get(date);
+
+    if (cached && cached.expires > now().getTime()) return cached.ids;
+
+    const ids = client
+      .listArticlesAvailableForOrder({ date, customerId })
+      .then((list) => new Set(list))
+      .catch((error: unknown) => {
+        logger.error(
+          { error, date },
+          'hssoft: available articles could not be loaded',
+        );
+        // ask again in a minute, not with every cart
+        availableCache.set(date, {
+          expires: now().getTime() + MINUTE,
+          ids: Promise.resolve(null),
+        });
+
+        return null;
+      });
+
+    availableCache.set(date, {
+      expires: now().getTime() + availabilityMs,
+      ids,
+    });
+
+    return ids;
+  }
+
+  /**
+   * For `createShop({ allowFulfillmentDate })`: a day is offered when every
+   * product of the cart can be had – its delivery days in WaWiAssist, its
+   * own period (`setAvailabilityPeriod`) and, with `availability.customerId`,
+   * what WaWiAssist answers for the day. If HS-Soft cannot be reached, the
+   * first two rules decide.
+   */
+  async function allowFulfillmentDate(context: FulfillmentDateContext) {
+    if (!hsSoftDeliveryDays(context)) return false;
+
+    for (const product of context.products) {
+      const period = hsSoftAvailabilityPeriod(product);
+
+      if (period && !inAvailabilityPeriod(period, context.date)) return false;
+    }
+
+    if (availability.customerId === undefined) return true;
+
+    const articleIds = context.lines.flatMap((line) => {
+      const data = lineArticle(line.product, line.variant.sku);
+
+      return data ? [data.articleId] : [];
+    });
+
+    if (articleIds.length === 0) return true;
+
+    const available = await availableOn(context.date, availability.customerId);
+
+    return available === null || articleIds.every((id) => available.has(id));
+  }
+
+  /**
+   * Own availability period of a product (WaWiAssist knows none), e.g.
+   * Grittibänz from 1.11. to 6.12. every year; `null` removes it. The import
+   * leaves it alone.
+   */
+  async function setAvailabilityPeriod(
+    productId: string,
+    period: HsSoftAvailabilityPeriod | null,
+  ) {
+    if (period) {
+      const day = /^\d{4}-\d{2}-\d{2}$/;
+
+      if (!day.test(period.from) || !day.test(period.to)) {
+        throw new ShopError(
+          'INVALID_INPUT',
+          'hssoft: period from / to must be YYYY-MM-DD',
+        );
+      }
+      if (!period.recurring && period.from > period.to) {
+        throw new ShopError(
+          'INVALID_INPUT',
+          'hssoft: period ends before it starts',
+        );
+      }
+    }
+
+    const product = await shop.getProduct(productId, {
+      includeArchivedVariants: true,
+    });
+
+    if (!product) throw new ShopError('PRODUCT_NOT_FOUND', 'Unknown product');
+
+    const { [PERIOD_KEY]: _previous, ...metadata } = product.metadata;
+
+    return shop.updateProduct(product.id, {
+      metadata: period
+        ? {
+            ...metadata,
+            [PERIOD_KEY]: {
+              from: period.from,
+              to: period.to,
+              recurring: period.recurring === true,
+            },
+          }
+        : metadata,
+    });
+  }
+
   // ------------------------------------------------------------ orders
 
   function eligible(order: Order) {
@@ -755,16 +1145,29 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     return orders.filter ? orders.filter(order) : true;
   }
 
+  /**
+   * Article of an order line: its variant's own article, else the product's
+   * (`shared`: several shop variants of one article – the variant name goes
+   * on the delivery note).
+   */
   async function articleOf(line: OrderLine, order: Order) {
     const chosen = await orders.articleId?.(line, order);
 
-    if (chosen !== undefined) return chosen;
+    if (chosen !== undefined) return { articleId: chosen, shared: false };
 
     const product = await shop.getProduct(line.productId, {
       includeArchivedVariants: true,
     });
 
-    return (product && hsSoftProductData(product)?.articleId) ?? null;
+    if (!product) return { articleId: null, shared: false };
+
+    const own = hsSoftProductData(product, line.sku);
+
+    if (own) return { articleId: own.articleId, shared: false };
+
+    const shared = hsSoftProductData(product);
+
+    return { articleId: shared?.articleId ?? null, shared: shared !== null };
   }
 
   function shippingArticle(order: Order) {
@@ -777,6 +1180,15 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     return option[order.shipping.rateId] ?? null;
   }
 
+  function dateOffset(order: Order) {
+    const option = orders.dateOffsetDays;
+
+    if (option === undefined) return 0;
+    if (typeof option === 'number') return option;
+
+    return (order.shipping && option[order.shipping.rateId]) ?? 0;
+  }
+
   function vatOf(rateBps: number): HsSoftVatRate | undefined {
     return vatRates[rateBps];
   }
@@ -785,7 +1197,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     const positions: HsSoftOrderPosition[] = [];
 
     for (const line of order.lines) {
-      const articleId = await articleOf(line, order);
+      const { articleId, shared } = await articleOf(line, order);
 
       if (articleId === null) {
         if (line.kind === 'gift_card') continue;
@@ -803,12 +1215,16 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
         // 0, not omitted: WaWiAssist would add the customer's discount
         discount: percent(line.discount, line.subtotal),
         ...withVat(vatOf(line.taxRateBps)),
+        ...(shared && line.variantName
+          ? { indTextDeliveryNote: toWawi(line.variantName) }
+          : {}),
       });
     }
 
-    if (order.shipping && order.shipping.amount > 0) {
+    if (order.shipping) {
       const articleId = shippingArticle(order);
 
+      // also at CHF 0: the article names the pickup location
       if (articleId !== null) {
         positions.push({
           articleId,
@@ -816,7 +1232,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
           price: chf(order.shipping.amount),
           discount: percent(order.shipping.discount, order.shipping.amount),
         });
-      } else if (positions.length > 0) {
+      } else if (order.shipping.amount > 0 && positions.length > 0) {
         throw new ShopError(
           'HSSOFT_UNMAPPED',
           `hssoft: shipping "${order.shipping.rateId}" has no HS-Soft article (orders.shippingArticleId)`,
@@ -839,14 +1255,15 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
           order.fulfillmentDate ??
           order.paidAt ??
           order.createdAt,
+        dateOffset(order),
       ),
       orderType: orders.orderType ?? 'ORDER',
       positions,
       referenceOrderNo: order.number,
       ...(orders.caOrderName
-        ? { caOrderName: clean(orders.caOrderName).slice(0, 40) }
+        ? { caOrderName: toWawi(orders.caOrderName).slice(0, 40) }
         : {}),
-      ...(comment ? { notePlainText: clean(comment, true) } : {}),
+      ...(comment ? { notePlainText: toWawi(comment, true) } : {}),
       ...(deliveryTime ? { deliveryTime } : {}),
       ...(tourplanId ? { tourplanId } : {}),
       creationOptions: {
@@ -866,7 +1283,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
           ...body,
           ...(order.shippingAddress
             ? {
-                specialAddress: clean(
+                specialAddress: toWawi(
                   formatAddress(order.shippingAddress),
                   true,
                 ),
@@ -938,7 +1355,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
         .filter(([, value]) => value !== undefined && value !== '')
         .map(([key, value]) => [
           key,
-          typeof value === 'string' ? clean(value) : value,
+          typeof value === 'string' ? toWawi(value) : value,
         ]),
     ) as HsSoftOneTimeCustomer;
   }
@@ -1193,7 +1610,8 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
 
   /**
    * For the shop's `onEvent`: sends placed (or paid) orders, deletes
-   * canceled ones. Failures are stored on the order, not thrown.
+   * canceled ones with `deleteCanceled`. Failures are stored on the order,
+   * not thrown.
    */
   async function onEvent(event: ShopEvent) {
     try {
@@ -1211,7 +1629,8 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
   }
 
   /**
-   * Sends what is due (new orders, retries) and deletes canceled orders –
+   * Sends what is due (new orders, retries) and, with `deleteCanceled`,
+   * deletes canceled orders –
    * run it every few minutes from a cron job.
    */
   async function syncOrders(
@@ -1293,6 +1712,8 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
   return {
     client,
     importProducts,
+    allowFulfillmentDate,
+    setAvailabilityPeriod,
     syncOrder,
     syncOrders,
     onEvent,
@@ -1307,6 +1728,11 @@ function rappen(chf: number | null | undefined) {
   return typeof chf === 'number' && Number.isFinite(chf) && chf >= 0
     ? Math.round(chf * 100)
     : null;
+}
+
+/** `null` for missing, zero or negative values (an empty price or weight). */
+function positive(value: number | null | undefined) {
+  return typeof value === 'number' && value > 0 ? value : null;
 }
 
 function chf(rappen: number) {
@@ -1327,7 +1753,8 @@ function withVat(vatRate: HsSoftVatRate | undefined) {
 }
 
 /** `YYYY-MM-DDT00:00:00.000Z` of the day in Zurich (WaWiAssist dates). */
-function orderDate(value: Date | string) {
+/** `YYYY-MM-DDT00:00:00.000Z` of the day in Zurich, moved by `offsetDays`. */
+function orderDate(value: Date | string, offsetDays = 0) {
   const day =
     typeof value === 'string'
       ? value.slice(0, 10)
@@ -1345,18 +1772,16 @@ function orderDate(value: Date | string) {
     );
   }
 
-  return `${day}T00:00:00.000Z`;
+  const date = new Date(`${day}T00:00:00.000Z`);
+
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+
+  return date.toISOString();
 }
 
-/**
- * The HS-Soft API cannot store emojis and other characters outside the
- * Basic Multilingual Plane: they are removed.
- */
+/** Trimmed, whitespace collapsed (`multiline`: line breaks stay). */
 function clean(value: string, multiline = false) {
-  const stripped = value
-    .replace(/[\u{10000}-\u{10FFFF}]/gu, '')
-    .replace(/\u200D|\uFE0E|\uFE0F|\u20E3/g, '')
-    .replace(multiline ? /[^\S\n]+/g : /\s+/g, ' ');
+  const stripped = value.replace(multiline ? /[^\S\n]+/g : /\s+/g, ' ');
 
   return multiline
     ? stripped
@@ -1365,6 +1790,33 @@ function clean(value: string, multiline = false) {
         .join('\n')
         .trim()
     : stripped.trim();
+}
+
+const LATIN1: [RegExp, string][] = [
+  [/[\u2018\u2019\u201A\u2032]/g, "'"],
+  [/[\u201C\u201D\u201E\u2033]/g, '"'],
+  [/[\u2010-\u2015\u2212]/g, '-'],
+  [/\u2026/g, '...'],
+  [/[\u2022\u2023\u25CF]/g, '-'],
+  [/\u20AC/g, 'EUR'],
+  [/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' '],
+];
+
+/**
+ * Text for WaWiAssist, which stores Latin-1 only: typographic quotes and
+ * dashes become plain ones, emojis and other characters are removed.
+ */
+function toWawi(value: string, multiline = false) {
+  let text = value.normalize('NFC');
+
+  for (const [pattern, replacement] of LATIN1) {
+    text = text.replace(pattern, replacement);
+  }
+
+  return clean(
+    text.replace(/[^\n\t\u0020-\u007E\u00A0-\u00FF]/g, '').replace(/\t/g, ' '),
+    multiline,
+  );
 }
 
 function formatAddress(address: Address) {
@@ -1423,6 +1875,12 @@ function defaultComment(order: Order) {
       ? `Telefon: ${order.shippingAddress?.phone ?? order.billingAddress?.phone}`
       : null,
     order.note ? `Bemerkung: ${order.note}` : null,
+    ...order.lines
+      .filter((line) => line.variantName)
+      .map(
+        (line) =>
+          `${line.quantity} x ${line.productName} (${line.sku}): ${line.variantName}`,
+      ),
   ]
     .filter(Boolean)
     .join('\n');

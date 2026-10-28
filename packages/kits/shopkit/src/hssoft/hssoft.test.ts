@@ -12,10 +12,12 @@ import {
   type HsSoftProductOptions,
   type HsSoftSync,
   createHsSoftSync,
+  hsSoftAvailabilityPeriod,
   hsSoftClient,
   hsSoftDeliveryDays,
   hsSoftOrderSync,
   hsSoftProductData,
+  inAvailabilityPeriod,
 } from './index';
 
 type Answer = {
@@ -70,6 +72,8 @@ function fakeHsSoft() {
   const articles = new Map<number, HsSoftArticle>();
   const groups = new Map<number, number[]>();
   const images = new Map<number, string>();
+  // day → article ids orderable that day (missing: every article)
+  const available = new Map<string, number[]>();
   const orders: {
     id: number;
     orderNumber: number;
@@ -126,7 +130,8 @@ function fakeHsSoft() {
       const all = [...articles.values()].filter(
         (entry) =>
           entry.isActive &&
-          (group === null || (groups.get(entry.id) ?? []).includes(+group)),
+          // articles without an entry are in marketing group 1
+          (group === null || (groups.get(entry.id) ?? [1]).includes(+group)),
       );
 
       return Promise.resolve(
@@ -135,6 +140,26 @@ function fakeHsSoft() {
           body: {
             data: all.slice(offset, offset + limit),
             meta: { pagination: { limit, offset } },
+          },
+        }),
+      );
+    }
+
+    if (method === 'GET' && path === '/v1/articles-available-for-order') {
+      const day = (url.searchParams.get('date') ?? '').slice(0, 10);
+      const ids = available.get(day) ?? [...articles.keys()];
+
+      return Promise.resolve(
+        respond({
+          status: 200,
+          body: {
+            data: {
+              items: ids.map((id) => ({
+                id,
+                articleNumber: `A${id}`,
+                description: '',
+              })),
+            },
           },
         }),
       );
@@ -214,6 +239,7 @@ function fakeHsSoft() {
     articles,
     groups,
     images,
+    available,
     orders,
     next,
     fetch: fetchImpl,
@@ -267,6 +293,7 @@ function setup(
     now: () => new Date(clock.now),
     logger: { info: () => undefined, error: () => undefined },
     products: {
+      marketingGroupIds: [1],
       images: {
         save: (image) => {
           saved.push({
@@ -496,8 +523,9 @@ describe('importProducts', () => {
     hs.articles.set(
       3,
       article(3, {
+        defaultPrice: 0,
         priceCategories: [
-          5,
+          null,
           null,
           null,
           null,
@@ -985,8 +1013,22 @@ describe('orders → WaWiAssist', () => {
     expect(hs.orders).toHaveLength(0);
   });
 
-  it('deletes the WaWiAssist order of a canceled order', async () => {
-    const { shop, hs, sync, placeOrder, failures } = await withCatalog();
+  it('keeps the WaWiAssist order of a canceled order by default', async () => {
+    const { shop, hs, placeOrder } = await withCatalog();
+    const order = await placeOrder([{ sku: 'A1', quantity: 1 }]);
+
+    await shop.cancelOrder({ orderId: order.id });
+
+    expect(hs.calls.some((call) => call.method === 'DELETE')).toBe(false);
+    expect(hsSoftOrderSync((await shop.getOrder(order.id))!)!.state).toBe(
+      'synced',
+    );
+  });
+
+  it('deletes the WaWiAssist order of a canceled order when asked to', async () => {
+    const { shop, hs, sync, placeOrder, failures } = await withCatalog({
+      orders: { deleteCanceled: true },
+    });
     const order = await placeOrder([{ sku: 'A1', quantity: 1 }]);
 
     await shop.cancelOrder({ orderId: order.id });
@@ -1058,6 +1100,218 @@ describe('orders → WaWiAssist', () => {
   });
 });
 
+describe('like the existing WooCommerce plugin', () => {
+  it('needs the marketing groups and leaves out dough articles', async () => {
+    const { shop, hs } = setup();
+    const sync = createHsSoftSync({ shop, client: hs.client() });
+
+    await expect(sync.importProducts()).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    });
+
+    const withGroups = createHsSoftSync({
+      shop,
+      client: hs.client(),
+      products: { marketingGroupIds: [1] },
+      logger: { info: () => undefined, error: () => undefined },
+    });
+
+    hs.articles.set(1, article(1, { description: 'Zopfteig', isDough: true }));
+
+    expect((await withGroups.importProducts()).skipped).toEqual([
+      { articleId: 1, articleNumber: 'A1', reason: 'dough' },
+    ]);
+  });
+
+  it('falls back to the default price and the other weight', async () => {
+    const { shop, sync, hs } = setup({
+      products: { priceCategory: 3, weight: 'recipe' },
+    });
+
+    // K3 empty → default price; no recipe weight → selling weight
+    hs.articles.set(1, article(1, { description: 'Brot', defaultPrice: 4.2 }));
+
+    await sync.importProducts();
+
+    expect((await shop.getProduct('brot'))!.variants[0]).toMatchObject({
+      price: 420,
+      weightGrams: 500,
+    });
+  });
+
+  it('creates new products as drafts that stay drafts', async () => {
+    const { shop, sync, hs } = setup({
+      products: { newProductStatus: 'draft', keep: ['status'] },
+    });
+
+    hs.articles.set(1, article(1, { description: 'Brot' }));
+    await sync.importProducts();
+    expect((await shop.getProduct('brot'))!.status).toBe('draft');
+
+    hs.articles.get(1)!.priceCategories = [
+      6,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ];
+    await sync.importProducts();
+
+    const brot = (await shop.getProduct('brot'))!;
+
+    expect(brot.status).toBe('draft');
+    expect(brot.variants[0]!.price).toBe(600);
+  });
+
+  it('maps every variant of a product to its own article', async () => {
+    const { shop, sync, hs, placeOrder } = setup();
+    const zopf = await shop.createProduct({
+      slug: 'zopf',
+      name: 'Butterzopf',
+      description: 'Unser Sonntagszopf',
+      variants: [
+        { sku: 'A1', name: '500 g', price: 100, trackStock: false },
+        { sku: 'A2', name: '1 kg', price: 100, trackStock: false },
+      ],
+    });
+
+    hs.articles.set(1, article(1, { description: 'Zopf 500g' }));
+    hs.articles.set(
+      2,
+      article(2, {
+        description: 'Zopf 1kg',
+        sellingWeight: 1000,
+        priceCategories: [
+          9.8,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+        ],
+      }),
+    );
+
+    expect(await sync.importProducts()).toMatchObject({
+      created: 0,
+      updated: 2,
+    });
+
+    let product = (await shop.getProduct('zopf'))!;
+
+    // name and texts stay the shop's, price and weight per variant
+    expect(product).toMatchObject({
+      name: 'Butterzopf',
+      description: 'Unser Sonntagszopf',
+    });
+    expect(
+      product.variants.map((variant) => [
+        variant.sku,
+        variant.price,
+        variant.weightGrams,
+      ]),
+    ).toEqual([
+      ['A1', 550, 500],
+      ['A2', 980, 1000],
+    ]);
+    expect(hsSoftProductData(product, 'A2')!.articleId).toBe(2);
+    expect(hsSoftProductData(product)).toBeNull();
+
+    // unchanged on the next run
+    expect(await sync.importProducts()).toMatchObject({ unchanged: 2 });
+
+    await placeOrder([
+      { sku: 'A1', quantity: 1 },
+      { sku: 'A2', quantity: 2 },
+    ]);
+    const positions = hs.orders[0]!.body.positions as { articleId: number }[];
+
+    expect(positions.map((position) => position.articleId)).toEqual([
+      1, 2, 999,
+    ]);
+    expect(hs.orders[0]!.body.positions[0].indTextDeliveryNote).toBeUndefined();
+
+    // the 1 kg article is gone: its variant is archived, not the product
+    hs.articles.delete(2);
+    expect(await sync.importProducts()).toMatchObject({ deactivated: 1 });
+    product = (await shop.getProduct(zopf.id, {
+      includeArchivedVariants: true,
+    }))!;
+    expect(product.status).toBe('active');
+    expect(product.variants.map((variant) => variant.status)).toEqual([
+      'active',
+      'archived',
+    ]);
+  });
+
+  it('writes the variant of a shared article on the delivery note', async () => {
+    const { shop, hs, placeOrder } = await withCatalog();
+    const zopf = (await shop.getProduct('butterzopf-500g'))!;
+
+    // a shop variant without an article of its own
+    await shop.createVariant(zopf.id, {
+      sku: 'A1-GESCHNITTEN',
+      name: 'geschnitten',
+      price: 600,
+      trackStock: false,
+    });
+    await placeOrder([{ sku: 'A1-GESCHNITTEN', quantity: 1 }]);
+
+    expect(hs.orders[0]!.body.positions[0]).toMatchObject({
+      articleId: 1,
+      price: 6,
+      indTextDeliveryNote: 'geschnitten',
+    });
+    expect(hs.orders[0]!.body.notePlainText).toContain(
+      '1 x Butterzopf 500g (A1-GESCHNITTEN): geschnitten',
+    );
+  });
+
+  it('sends the pickup location as an article at CHF 0 and moves the date', async () => {
+    const { hs, placeOrder } = await withCatalog({
+      orders: {
+        shippingArticleId: { post: 999, pickup: 777 },
+        dateOffsetDays: { pickup: -1 },
+      },
+    });
+
+    await placeOrder([{ sku: 'A1', quantity: 1 }], {
+      shippingRateId: 'pickup',
+    });
+
+    expect(hs.orders[0]!.body).toMatchObject({
+      // ordered 15.10., planned a day earlier
+      date: '2026-10-14T00:00:00.000Z',
+      positions: [
+        { articleId: 1, quantity: 1 },
+        { articleId: 777, quantity: 1, price: 0, discount: 0 },
+      ],
+    });
+  });
+
+  it('sends Latin-1 text only', async () => {
+    const { hs, placeOrder } = await withCatalog();
+
+    await placeOrder([{ sku: 'A1', quantity: 1 }], {
+      note: 'Bitte „Happy Birthday“ – für Jürg’s 50. … 🎂 €',
+    });
+
+    expect(hs.orders[0]!.body.notePlainText).toContain(
+      'Bemerkung: Bitte "Happy Birthday" - für Jürg\'s 50. ... EUR',
+    );
+    expect(hs.orders[0]!.body.customer.city).toBe('Zürich');
+  });
+});
+
 describe('back office and MCP', () => {
   it('imports, sends and resends through the admin API and the MCP tools', async () => {
     const { shop, sync, hs, placeOrder } = setup({
@@ -1117,7 +1371,11 @@ describe('back office and MCP', () => {
       shop,
       basePath: '/admin',
       authorize: () => true,
-      hssoft: createHsSoftSync({ shop, client: hs.client('wrong') }),
+      hssoft: createHsSoftSync({
+        shop,
+        client: hs.client('wrong'),
+        products: { marketingGroupIds: [1] },
+      }),
     });
 
     response = await refused(
@@ -1190,6 +1448,7 @@ describe('pickup day', () => {
     sync = createHsSoftSync({
       shop,
       client: hs.client(),
+      products: { marketingGroupIds: [1] },
       logger: { info: () => undefined, error: () => undefined },
     });
     // delivered Mon, Tue, Thu, Fri, Sat
@@ -1247,7 +1506,251 @@ describe('pickup day', () => {
       deliveryTime: '07:00',
     });
     expect(hs.orders[0]!.body.notePlainText).toContain(
-      'Abholtag: Dienstag, 20.10.2026, 07:00–09:00',
+      'Abholtag: Dienstag, 20.10.2026, 07:00-09:00',
     );
+  });
+});
+
+describe('availability of pickup days', () => {
+  // Thursday 15.10.2026, 10:00 in Zurich; days offered from Friday 16.10.
+  function bakery(availability?: { customerId: number }) {
+    const hs = fakeHsSoft();
+    const holder: { sync: HsSoftSync | null } = { sync: null };
+    const clock = { now: new Date('2026-10-15T08:00:00.000Z') };
+    const shop = createShop({
+      database: memoryAdapter(),
+      paymentMethods: ['invoice'],
+      now: () => new Date(clock.now),
+      shipping: {
+        rates: [
+          {
+            id: 'laden',
+            name: 'Abholung',
+            amount: 0,
+            pickup: true,
+            schedule: { leadDays: 1, maxDays: 7 },
+          },
+        ],
+      },
+      allowFulfillmentDate: (context) =>
+        holder.sync!.allowFulfillmentDate(context),
+    });
+    const sync = createHsSoftSync({
+      shop,
+      client: hs.client(),
+      now: () => new Date(clock.now),
+      products: { marketingGroupIds: [1] },
+      availability,
+      logger: { info: () => undefined, error: () => undefined },
+    });
+
+    holder.sync = sync;
+
+    async function daysFor(skus: string[]) {
+      const cart = await shop.createCart({ locale: 'de' });
+      const variants = (
+        await shop.listProducts({ includeArchivedVariants: true })
+      ).flatMap((product) => product.variants);
+
+      for (const sku of skus) {
+        await shop.addToCart(cart.token, {
+          variantId: variants.find((variant) => variant.sku === sku)!.id,
+          quantity: 1,
+        });
+      }
+
+      return (await shop.getCartSummary(cart.token)).shippingOptions[0]!
+        .schedule!.dates;
+    }
+
+    return { hs, shop, sync, clock, daysFor };
+  }
+
+  it('uses the delivery days of each variant article', async () => {
+    const { hs, shop, sync, daysFor } = bakery();
+
+    await shop.createProduct({
+      slug: 'zopf',
+      name: 'Zopf',
+      variants: [
+        { sku: 'A1', name: '500 g', price: 100, trackStock: false },
+        { sku: 'A2', name: '1 kg', price: 100, trackStock: false },
+      ],
+    });
+    // A1: Mon, Tue, Thu, Fri, Sat; A2: Saturdays only
+    hs.articles.set(1, article(1));
+    hs.articles.set(
+      2,
+      article(2, {
+        isDeliveredMon: false,
+        isDeliveredTue: false,
+        isDeliveredThu: false,
+        isDeliveredFri: false,
+      }),
+    );
+    await sync.importProducts();
+
+    expect(await daysFor(['A1'])).toEqual([
+      '2026-10-16',
+      '2026-10-17',
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+    expect(await daysFor(['A2'])).toEqual(['2026-10-17']);
+    expect(await daysFor(['A1', 'A2'])).toEqual(['2026-10-17']);
+  });
+
+  it('keeps a product to its own period, also every year', async () => {
+    const { hs, shop, sync, daysFor } = bakery();
+
+    hs.articles.set(1, article(1, { description: 'Grittibänz' }));
+    await sync.importProducts();
+
+    const product = (await shop.getProduct('grittibaenz'))!;
+
+    await sync.setAvailabilityPeriod(product.id, {
+      from: '2026-10-19',
+      to: '2026-10-21',
+    });
+    expect(await daysFor(['A1'])).toEqual(['2026-10-19', '2026-10-20']);
+
+    // every year from 20.10. – the import keeps the period
+    await sync.setAvailabilityPeriod(product.id, {
+      from: '2020-10-20',
+      to: '2020-12-06',
+      recurring: true,
+    });
+    hs.articles.get(1)!.description = 'Grittibänz gross';
+    await sync.importProducts();
+    expect(
+      hsSoftAvailabilityPeriod((await shop.getProduct(product.id))!),
+    ).toEqual({
+      from: '2020-10-20',
+      to: '2020-12-06',
+      recurring: true,
+    });
+    expect(await daysFor(['A1'])).toEqual(['2026-10-20', '2026-10-22']);
+
+    await sync.setAvailabilityPeriod(product.id, null);
+    expect(await daysFor(['A1'])).toHaveLength(5);
+    await expect(
+      sync.setAvailabilityPeriod(product.id, { from: '1.11.', to: '6.12.' }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('asks WaWiAssist which days an article can be ordered, once per day', async () => {
+    const { hs, sync, clock, daysFor } = bakery({ customerId: 50 });
+
+    hs.articles.set(1, article(1, { description: 'Torte' }));
+    hs.articles.set(2, article(2, { description: 'Brot' }));
+    await sync.importProducts();
+    // the cake needs time: not on Friday and Saturday
+    hs.available.set('2026-10-16', [2]);
+    hs.available.set('2026-10-17', [2]);
+
+    expect(await daysFor(['A1'])).toEqual([
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+    expect(await daysFor(['A2'])).toHaveLength(5);
+
+    const asked = () =>
+      hs.calls.filter(
+        (call) => call.path === '/v1/articles-available-for-order',
+      );
+
+    expect(asked()).toHaveLength(5);
+    expect(asked()[0]!.query.get('customerId')).toBe('50');
+
+    // after the cache time it asks again; if HS-Soft is down, the delivery
+    // days decide
+    clock.now = new Date('2026-10-15T08:11:00.000Z');
+    hs.next.push(
+      ...Array.from({ length: 5 }, () => ({
+        match: 'GET /v1/articles-available-for-order',
+        answer: new TypeError('fetch failed'),
+      })),
+    );
+    expect(await daysFor(['A1'])).toHaveLength(5);
+    expect(asked()).toHaveLength(10);
+  });
+
+  it('sets the period through the back office and the MCP tool', async () => {
+    const { hs, shop, sync } = bakery();
+
+    hs.articles.set(1, article(1, { description: 'Grittibänz' }));
+    await sync.importProducts();
+
+    const admin = createShopAdminHandler({
+      shop,
+      basePath: '/admin',
+      authorize: () => true,
+      hssoft: sync,
+    });
+    const response = await admin(
+      new Request(
+        'https://shop.example/admin/products/grittibaenz/hssoft-availability',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            from: '2026-11-01',
+            to: '2026-12-06',
+            recurring: true,
+          }),
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      hsSoftAvailabilityPeriod((await shop.getProduct('grittibaenz'))!),
+    ).toEqual({
+      from: '2026-11-01',
+      to: '2026-12-06',
+      recurring: true,
+    });
+
+    const mcp = createShopMcpHandler({
+      shop,
+      authorize: () => true,
+      hssoft: sync,
+    });
+    const result = await mcp(
+      new Request('https://shop.example/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'hssoft_set_availability_period',
+            arguments: { productId: 'grittibaenz' },
+          },
+        }),
+      }),
+    );
+
+    expect(await result.json()).toMatchObject({ result: { isError: false } });
+    expect(
+      hsSoftAvailabilityPeriod((await shop.getProduct('grittibaenz'))!),
+    ).toBeNull();
+  });
+
+  it('knows periods across the new year', () => {
+    const winter = { from: '2025-12-01', to: '2026-01-06', recurring: true };
+
+    expect(inAvailabilityPeriod(winter, '2030-12-24')).toBe(true);
+    expect(inAvailabilityPeriod(winter, '2031-01-06')).toBe(true);
+    expect(inAvailabilityPeriod(winter, '2031-01-07')).toBe(false);
+    expect(
+      inAvailabilityPeriod(
+        { from: '2026-12-01', to: '2026-12-24' },
+        '2027-12-02',
+      ),
+    ).toBe(false);
   });
 });

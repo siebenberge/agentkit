@@ -89,7 +89,9 @@ const FULFILLMENT_STATUSES: FulfillmentStatus[] = [
  * - `POST /orders/:id/deliver`, `POST /orders/:id/cancel` `{ reason? }`
  * - `POST /orders/:id/refund` `{ amount?, reason?, restock? }`
  * - with `hssoft`: `POST /hssoft/import` `{ force? }` (products),
- *   `POST /hssoft/sync` (due orders), `POST /orders/:id/hssoft` `{ force? }`
+ *   `POST /hssoft/sync` (due orders), `POST /orders/:id/hssoft` `{ force? }`,
+ *   `POST /products/:id/hssoft-availability` `{ from, to, recurring? }`
+ *   (`{}` removes the period)
  */
 export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
   const { shop } = options;
@@ -159,6 +161,29 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
                 variantInput(body, true) as VariantInput,
               ),
               201,
+            );
+          }
+          if (
+            !get &&
+            id &&
+            action === 'hssoft-availability' &&
+            options.hssoft
+          ) {
+            // `{ from, to, recurring? }`, or `{}` to remove the period
+            const from = optionalString(body.from);
+            const to = optionalString(body.to);
+
+            return json(
+              await options.hssoft.setAvailabilityPeriod(
+                id,
+                from || to
+                  ? {
+                      from: from ?? '',
+                      to: to ?? '',
+                      recurring: body.recurring === true,
+                    }
+                  : null,
+              ),
             );
           }
           break;

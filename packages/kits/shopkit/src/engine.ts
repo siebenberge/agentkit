@@ -115,9 +115,12 @@ export type ShopOptions = {
   /**
    * Further limits the pickup / delivery days of rates with a `schedule`,
    * e.g. to the days the products of the cart are made
-   * (`hsSoftDeliveryDays` of `/hssoft`).
+   * (`hssoft.allowFulfillmentDate` of `/hssoft`). Called per day offered;
+   * cache what you look up.
    */
-  allowFulfillmentDate?: (context: FulfillmentDateContext) => boolean;
+  allowFulfillmentDate?: (
+    context: FulfillmentDateContext,
+  ) => boolean | Promise<boolean>;
   giftCards?: {
     /** Validity of issued gift cards in days (default: no expiry). */
     validityDays?: number | null;
@@ -218,6 +221,8 @@ export type FulfillmentDateContext = {
   rate: ShippingRate;
   /** Products of the cart (gift cards and digital products included). */
   products: Product[];
+  /** The cart's lines with product and variant. */
+  lines: { product: Product; variant: Variant; quantity: number }[];
 };
 
 export type ShippingOption = {
@@ -1574,10 +1579,10 @@ export function createShop(options: ShopOptions) {
   }
 
   /** Days (and time windows) a rate offers for these products from now on. */
-  function scheduleOf(
+  async function scheduleOf(
     rate: ShippingRate,
-    products: Product[],
-  ): ShippingOption['schedule'] {
+    lines: FulfillmentDateContext['lines'],
+  ): Promise<ShippingOption['schedule']> {
     const schedule = rate.schedule;
 
     if (!schedule) return null;
@@ -1591,6 +1596,7 @@ export function createShop(options: ShopOptions) {
 
     const closed = new Set(schedule.closedDates ?? []);
     const dates: string[] = [];
+    const products = [...new Set(lines.map((line) => line.product))];
 
     for (let offset = 0; offset < (schedule.maxDays ?? 14); offset++) {
       const day = addDays(first, offset);
@@ -1600,7 +1606,13 @@ export function createShop(options: ShopOptions) {
       if (closed.has(day)) continue;
       if (
         options.allowFulfillmentDate &&
-        !options.allowFulfillmentDate({ date: day, weekday, rate, products })
+        !(await options.allowFulfillmentDate({
+          date: day,
+          weekday,
+          rate,
+          products,
+          lines,
+        }))
       ) {
         continue;
       }
@@ -1632,12 +1644,12 @@ export function createShop(options: ShopOptions) {
     );
   }
 
-  function shippingOptionsFor(
+  async function shippingOptionsFor(
     pricing: PricingResult,
     country: string | null,
     locale: Locale,
-    products: Product[],
-  ): ShippingOption[] {
+    lines: FulfillmentDateContext['lines'],
+  ): Promise<ShippingOption[]> {
     if (!pricing.requiresShipping) return [];
 
     const goodsValue = pricing.lines.reduce(
@@ -1645,24 +1657,26 @@ export function createShop(options: ShopOptions) {
       0,
     );
 
-    return rates.flatMap((rate) => {
-      if (!shipsTo(rate, country)) return [];
+    const offered: ShippingOption[] = [];
+
+    for (const rate of rates) {
+      if (!shipsTo(rate, country)) continue;
 
       const amount = shippingAmount(rate, pricing.weightGrams, goodsValue);
 
-      if (amount === null) return [];
+      if (amount === null) continue;
 
-      return [
-        {
-          id: rate.id,
-          name: rateName(rate, locale),
-          description: rate.description ?? null,
-          pickup: rate.pickup ?? false,
-          amount,
-          schedule: scheduleOf(rate, products),
-        },
-      ];
-    });
+      offered.push({
+        id: rate.id,
+        name: rateName(rate, locale),
+        description: rate.description ?? null,
+        pickup: rate.pickup ?? false,
+        amount,
+        schedule: await scheduleOf(rate, lines),
+      });
+    }
+
+    return offered;
   }
 
   async function paymentMethodsFor(
@@ -1707,11 +1721,15 @@ export function createShop(options: ShopOptions) {
       tax,
       roundToFiveRappen: options.roundToFiveRappen,
     });
-    const shippingOptions = shippingOptionsFor(
+    const shippingOptions = await shippingOptionsFor(
       base,
       country,
       cart.locale,
-      loaded.map((line) => line.product),
+      loaded.map((line) => ({
+        product: line.product,
+        variant: line.variant,
+        quantity: line.input.quantity,
+      })),
     );
     const selected = shippingOptions.find(
       (option) => option.id === cart.shippingRateId,
