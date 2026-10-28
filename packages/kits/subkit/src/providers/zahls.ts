@@ -59,6 +59,9 @@ type ZahlsWebhookBody = {
   };
 };
 
+/** zahls messages for a token that cannot be charged any more. */
+const TOKEN_GONE = /expired|revoked|not found|abgelaufen|widerrufen/i;
+
 const SUCCEEDED = ['confirmed'];
 const PENDING = ['waiting', 'processing', 'uncaptured', 'reserved'];
 const FAILED = ['declined', 'error', 'cancelled', 'expired'];
@@ -225,8 +228,15 @@ export function zahlsProvider(options: ZahlsProviderOptions): PaymentProvider {
           return { status: 'error', error: message };
         }
 
-        // other 4xx: this token cannot be charged (expired, revoked …)
-        return { status: 'failed', error: message, retryable: false };
+        // the authorization behind the token is gone (expired, revoked):
+        // this token cannot be charged any more. Other 4xx refuse this
+        // request only (amount, reference …) – the token stays usable.
+        const tokenGone =
+          response.status === 404 ||
+          response.status === 410 ||
+          TOKEN_GONE.test(message);
+
+        return { status: 'failed', error: message, retryable: !tokenGone };
       }
 
       const status = transaction.status.toLowerCase();

@@ -284,6 +284,15 @@ describe('zahlsProvider (shop)', () => {
         })
       ).result,
     ).toMatchObject({ status: 'failed', retryable: false });
+    // a refused request (amount, reference …): the token stays usable
+    expect(
+      (
+        await charge({
+          status: 422,
+          body: { status: 'error', message: 'amount too small' },
+        })
+      ).result,
+    ).toMatchObject({ status: 'failed', retryable: true });
     expect((await charge(new Error('ECONNRESET'))).result).toMatchObject({
       status: 'error',
     });

@@ -1,7 +1,6 @@
 import type {
   OrderInput,
   OrderItemInput,
-  PaymentMethodView,
   ProductWithVariants,
   RedirectUrls,
   Shop,
@@ -256,7 +255,13 @@ export function customerTools(context: ToolsContext): McpTool[] {
     return order;
   }
 
-  function orderInput(customer: McpCustomer, args: JsonObject): OrderInput {
+  function orderInput(
+    customer: McpCustomer,
+    args: JsonObject,
+    paymentMethod: 'online' | 'invoice' = 'online',
+  ): OrderInput {
+    const shippingAddress = address(args, 'shippingAddress');
+
     return {
       customerExternalId: customer.externalId,
       email: customer.email,
@@ -264,11 +269,12 @@ export function customerTools(context: ToolsContext): McpTool[] {
       shippingRateId: optionalString(args, 'shippingRateId', 100),
       fulfillmentDate: optionalString(args, 'fulfillmentDate', 10),
       fulfillmentWindow: optionalString(args, 'fulfillmentWindow', 40),
-      shippingAddress: address(args, 'shippingAddress'),
+      shippingAddress,
       billingAddress:
         address(args, 'billingAddress') ??
-        // pickup paid online: the name is enough (shown on the payment page)
-        (customer.name
+        // pickup paid online: the name is enough (shown on the payment page);
+        // a delivery bills the shipping address, an invoice needs a real one
+        (customer.name && !shippingAddress && paymentMethod === 'online'
           ? { name: customer.name, line1: '', postalCode: '', city: '' }
           : null),
       note: optionalString(args, 'note', 1000),
@@ -425,12 +431,13 @@ export function customerTools(context: ToolsContext): McpTool[] {
       run: async (args, { request }) => {
         const customer = await context.customer(request);
         const payWith = payWithOf(args);
+        const paymentMethod =
+          optionalString(args, 'paymentMethod', 20) === 'invoice'
+            ? 'invoice'
+            : 'online';
         const result = await shop.placeOrder({
-          ...orderInput(customer, args),
-          paymentMethod:
-            optionalString(args, 'paymentMethod', 20) === 'invoice'
-              ? 'invoice'
-              : 'online',
+          ...orderInput(customer, args, paymentMethod),
+          paymentMethod,
           urls: redirectUrls,
           savePaymentMethod:
             optionalBoolean(args, 'savePaymentMethod') ?? false,
@@ -478,6 +485,15 @@ export function customerTools(context: ToolsContext): McpTool[] {
             expectedAmount: expectedAmount(args, payWith),
           });
 
+          if (charge.status === 'uncertain') {
+            return {
+              order: await orderView(charge.order),
+              payment: paymentView({
+                status: 'uncertain',
+                error: charge.error,
+              }),
+            };
+          }
           if (charge.status !== 'failed') {
             return {
               order: await orderView(charge.order),
@@ -572,9 +588,9 @@ export function customerTools(context: ToolsContext): McpTool[] {
         const methods = await shop.listPaymentMethods(customer.externalId);
 
         return {
-          paymentMethods: methods
-            .filter((method) => method.status === 'active')
-            .map(withoutToken),
+          paymentMethods: methods.filter(
+            (method) => method.status === 'active',
+          ),
         };
       },
     },
@@ -601,7 +617,7 @@ export function customerTools(context: ToolsContext): McpTool[] {
           paymentMethodId: requiredString(args, 'paymentMethodId'),
         });
 
-        return { paymentMethod: withoutToken(removed) };
+        return { paymentMethod: removed };
       },
     },
   ];
@@ -751,8 +767,16 @@ function publicOrder(order: Order) {
 function paymentView(
   payment:
     | { status: 'paid' | 'processing' | 'invoice' }
+    | { status: 'uncertain'; error: string }
     | { status: 'payment_page'; url: string; savedMethodError?: string },
 ) {
+  if (payment.status === 'uncertain') {
+    return {
+      status: 'uncertain',
+      message:
+        'The payment provider did not answer – the charge may have gone through. Do not pay again: check get_my_order in a few minutes.',
+    };
+  }
   if (payment.status !== 'payment_page') return { status: payment.status };
 
   return {
@@ -762,10 +786,4 @@ function paymentView(
       ? { savedPaymentMethodError: payment.savedMethodError }
       : {}),
   };
-}
-
-function withoutToken(method: PaymentMethodView & { token?: string }) {
-  const { token: _token, ...view } = method;
-
-  return view;
 }

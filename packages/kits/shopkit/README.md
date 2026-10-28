@@ -447,7 +447,10 @@ returns; payment tokens and guest-link tokens never reach the model.
 - `payWith: "saved_payment_method"` charges the saved payment method at once
   and needs `expectedAmount`, the total the customer confirmed – another
   amount fails with `AMOUNT_CHANGED` before anything is charged. A declined
-  charge returns a `paymentUrl` instead.
+  charge returns a `paymentUrl` instead. When the provider does not answer
+  (timeout, outage), the result is `uncertain`: the charge may have gone
+  through, so no other payment of the order starts until the webhook
+  settles it or 5 minutes pass.
 - The same works without MCP: `shop.quoteOrder()`, `shop.placeOrder()`,
   `shop.payOrderWithSavedMethod()`, `shop.listPaymentMethods()`.
 
