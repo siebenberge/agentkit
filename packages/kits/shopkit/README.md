@@ -585,7 +585,7 @@ endpoint (Streamable HTTP, protocol 2025-03-26 to 2026-07-28) with your own
 access check:
 
 ```ts
-// app/api/shop-mcp/route.ts
+// app/mcp/admin/route.ts
 import { createShopMcpHandler } from '@agentkit.ch/shopkit/mcp';
 import { shop } from '@/lib/shop';
 
@@ -598,7 +598,7 @@ export const POST = createShopMcpHandler({
 ```
 
 ```bash
-claude mcp add --transport http shop https://acme.ch/api/shop-mcp \
+claude mcp add --transport http shop https://acme.ch/mcp/admin \
   --header "Authorization: Bearer $SHOP_MCP_TOKEN"
 ```
 
@@ -617,7 +617,7 @@ the order, places it and gets a zahls.ch payment link back. A customer who
 saved a payment method pays directly – only the amount they confirmed.
 
 ```ts
-// app/api/shop-agent/route.ts
+// app/mcp/route.ts
 import { createShopCustomerMcpHandler } from '@agentkit.ch/shopkit/mcp';
 import { shop } from '@/lib/shop';
 
@@ -676,14 +676,14 @@ plugins: [
   mcp({
     loginPage: '/login', // your sign-in page, receives the signed OAuth query
     consentPage: '/connect', // «Allow» posts { accept, oauth_query } to /api/auth/oauth2/consent
-    resource: 'https://acme.ch/api/shop-agent',
+    resource: 'https://acme.ch/mcp',
     allowDynamicClientRegistration: true, // clients without CIMD (ChatGPT, Cursor …)
     allowUnauthenticatedClientRegistration: true,
   }),
   cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }), // Claude
 ],
 
-// app/api/shop-agent/route.ts
+// app/mcp/route.ts
 import { requireMcpAuth } from '@better-auth/mcp';
 
 const shopAgent = createShopCustomerMcpHandler({ shop, orderUrl, locale: 'de' });
@@ -695,12 +695,22 @@ export const POST = requireMcpAuth(
     if (!user) return new Response(null, { status: 401 });
     return shopAgent(request, { customer: { externalId: user.id, email: user.email, name: user.name } });
   },
-  { resource: 'https://acme.ch/api/shop-agent' },
+  { resource: 'https://acme.ch/mcp' },
 );
 ```
 
 Serve `/.well-known/*` with `auth.handler` too (protected resource and
-authorization server metadata). A «Connect with Claude» button can open
+authorization server metadata).
+
+The staff MCP can use the same sign-in at `/mcp/admin` as a second
+resource: list both in `mcp({ resources: [customer, staff],
+clientRegistrationDefaultResources: [customer, staff] })`, answer
+`/.well-known/oauth-protected-resource/mcp/admin` yourself (the plugin
+describes only its `resource`), wrap the staff handler with
+`requireMcpAuth(auth, …, { resource: 'https://acme.ch/mcp/admin' })` and
+check the staff role there. Tokens are bound to one resource, so a
+customer's token never reaches the staff tools – and staff connect the
+staff MCP on purpose, apart from their own shopping. A «Connect with Claude» button can open
 Claude's add-connector dialog prefilled:
 `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Acme&connectorUrl=<encoded endpoint>`.
 Prefer a one-time code over a magic link on the login page: a link opened

@@ -6,7 +6,7 @@ import type { PaymentProvider } from '../provider';
 import type { GiftCard, Order, Variant } from '../types';
 import { createShopMcpHandler } from './index';
 
-const ENDPOINT = 'https://shop.example/api/shop-mcp';
+const ENDPOINT = 'https://shop.example/mcp/admin';
 
 /** What the tools of this test return. */
 type Content = {
