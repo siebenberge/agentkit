@@ -250,7 +250,7 @@ export const it: Dict = {
       {
         title: 'core + CLI',
         when: 'in seguito',
-        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
+        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: un back office da integrare (ordini, prodotti, scorte, codici sconto, buoni regalo, import bancario – nel repository, su npm con la prossima release), etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
       },
       {
         title: 'Solleciti e adapter',
@@ -265,7 +265,7 @@ export const it: Dict = {
     button: 'Vedi la roadmap',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -597,7 +597,7 @@ export const it: Dict = {
         'Poi ci siamo accorti che ogni prodotto svizzero ricostruisce esattamente questo. Gli strumenti di fatturazione generici ragionano in Stripe, centesimi e inglese – la Svizzera arriva, se va bene, come plugin.',
         'Per questo estraiamo il codice dalla produzione e ne facciamo kit che ogni app TypeScript può usare. Gratis e open source con licenza MIT.',
       ],
-      sign: 'Il team di Siebenberge',
+      sign: 'Il team di siebenberge',
     },
     mock: {
       code: 'Il tuo codice',

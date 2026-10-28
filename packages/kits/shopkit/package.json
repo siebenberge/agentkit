@@ -85,6 +85,10 @@
         "types": "./dist/react/index.d.ts",
         "default": "./dist/react/index.js"
       },
+      "./react/admin": {
+        "types": "./dist/react/admin/index.d.ts",
+        "default": "./dist/react/admin/index.js"
+      },
       "./react/styles.css": "./dist/react/styles.css"
     },
     "typesVersions": {
@@ -127,6 +131,9 @@
         ],
         "react": [
           "dist/react/index.d.ts"
+        ],
+        "react/admin": [
+          "dist/react/admin/index.d.ts"
         ]
       }
     }
@@ -162,6 +169,7 @@
     "./camt": "./src/camt/index.ts",
     "./i18n": "./src/i18n/index.ts",
     "./react": "./src/react/index.ts",
+    "./react/admin": "./src/react/admin/index.ts",
     "./react/styles.css": "./src/react/styles.css"
   },
   "peerDependencies": {

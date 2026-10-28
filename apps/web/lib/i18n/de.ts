@@ -253,7 +253,7 @@ export const de: Dict = {
       {
         title: 'core + CLI',
         when: 'als Nächstes',
-        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: Versandetiketten der Post und Rückerstattungen über zahls.ch.',
+        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: das Backoffice zum Einbauen (Bestellungen, Produkte, Lager, Rabattcodes, Gutscheine, Bankimport – im Repo, auf npm mit dem nächsten Release), Versandetiketten der Post und Rückerstattungen über zahls.ch.',
       },
       {
         title: 'Mahnwesen & Adapter',
@@ -268,7 +268,7 @@ export const de: Dict = {
     button: 'Roadmap ansehen',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -602,7 +602,7 @@ export const de: Dict = {
         'Dann haben wir gemerkt, dass jedes Schweizer Produkt genau das wieder selbst baut. Generische Billing-Tools denken in Stripe, Cents und Englisch – die Schweiz kommt, wenn überhaupt, als Plugin.',
         'Darum lösen wir den Code aus der Produktion heraus und machen daraus Kits, die jede TypeScript-App nutzen kann. Kostenlos und Open Source unter MIT.',
       ],
-      sign: 'Das Team von Siebenberge',
+      sign: 'Das Team von siebenberge',
     },
     mock: {
       code: 'Dein Code',

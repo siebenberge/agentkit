@@ -8,7 +8,7 @@ export type { Locale, Messages };
 
 export const LOCALES: readonly Locale[] = ['de', 'en', 'fr', 'it'];
 
-type DeepPartial<T> = {
+export type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends string ? string : DeepPartial<T[K]>;
 };
 
@@ -32,10 +32,11 @@ export function getMessages(
 ): Messages {
   const base = catalogs[resolveLocale(locale)];
 
-  return overrides ? merge(base, overrides) : base;
+  return overrides ? mergeMessages(base, overrides) : base;
 }
 
-function merge<T>(base: T, overrides: DeepPartial<T>): T {
+/** `base` with the given texts replaced (nested objects merge). */
+export function mergeMessages<T>(base: T, overrides: DeepPartial<T>): T {
   const result = { ...base } as Record<string, unknown>;
 
   for (const [key, value] of Object.entries(overrides)) {
@@ -45,7 +46,7 @@ function merge<T>(base: T, overrides: DeepPartial<T>): T {
 
     result[key] =
       typeof value === 'object' && value !== null && typeof current === 'object'
-        ? merge(current, value as DeepPartial<typeof current>)
+        ? mergeMessages(current, value as DeepPartial<typeof current>)
         : value;
   }
 

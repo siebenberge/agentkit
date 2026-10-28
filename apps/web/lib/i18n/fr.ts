@@ -254,7 +254,7 @@ export const fr: Dict = {
       {
         title: 'core + CLI',
         when: 'ensuite',
-        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
+        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : un back-office à intégrer (commandes, produits, stock, codes de réduction, bons cadeaux, import bancaire – dans le dépôt, sur npm avec la prochaine version), étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
       },
       {
         title: 'Relances et adaptateurs',
@@ -269,7 +269,7 @@ export const fr: Dict = {
     button: 'Voir la feuille de route',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Fabriqué en Suisse',
   },
   errors: {
@@ -603,7 +603,7 @@ export const fr: Dict = {
         'Puis nous avons constaté que chaque produit suisse reconstruit exactement cela. Les outils de facturation génériques pensent en Stripe, en cents et en anglais – la Suisse arrive, au mieux, sous forme de plugin.',
         'C’est pourquoi nous extrayons ce code de la production pour en faire des kits que toute application TypeScript peut utiliser. Gratuitement, et en open source sous licence MIT.',
       ],
-      sign: 'L’équipe de Siebenberge',
+      sign: 'L’équipe de siebenberge',
     },
     mock: {
       code: 'Votre code',

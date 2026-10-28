@@ -114,4 +114,4 @@ Issues and pull requests are welcome – please read
 
 ## License
 
-[MIT](LICENSE) © Siebenberge GmbH
+[MIT](LICENSE) © siebenberge gmbh

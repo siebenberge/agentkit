@@ -49,7 +49,12 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   pickup day becomes the WaWiAssist order date; `hssoft.allowFulfillmentDate`
   offers only days every article can be had (delivery days, the shop's own
   periods, optionally WaWiAssist's orderable articles per day).
-  Next: Swiss Post labels and live tariffs, digital downloads.
+  Next: back office components – `<ShopAdmin />` from
+  `@agentkit.ch/shopkit/react/admin` (orders, products and stock, discount
+  codes, gift cards, bank import; your auth decides access through
+  `createShopAdminHandler({ authorize })`) are in the repo and reach npm
+  with the next release; Swiss Post labels and live tariffs, digital
+  downloads.
 
 ## Test sites
 
