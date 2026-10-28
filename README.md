@@ -23,8 +23,8 @@ your own database through adapters; there is no hosted service in between.
 
 | Kit | What it does | Docs |
 |---|---|---|
-| [`@agentkit.ch/subkit`](packages/kits/subkit) | Plans, subscriptions, trials, proration, card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`), lifecycle emails, printable invoices, Swiss QR-bill, bank reconciliation (camt.053 / camt.054), React `<BillingPortal />` | [README](packages/kits/subkit/README.md) |
-| [`@agentkit.ch/shopkit`](packages/kits/shopkit) | Products and variants with stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping rates, orders, fulfillment and refunds, React `<Cart />` and `<Checkout />` | [README](packages/kits/shopkit/README.md) |
+| [`@agentkit.ch/subkit`](https://www.npmjs.com/package/@agentkit.ch/subkit) | Plans, subscriptions, trials, proration, card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`), lifecycle emails, printable invoices, Swiss QR-bill, bank reconciliation (camt.053 / camt.054), React `<BillingPortal />` | [README](packages/kits/subkit/README.md) · [npm](https://www.npmjs.com/package/@agentkit.ch/subkit) |
+| [`@agentkit.ch/shopkit`](https://www.npmjs.com/package/@agentkit.ch/shopkit) | Products and variants with stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping rates, orders, fulfillment and refunds, React `<Cart />` and `<Checkout />` | [README](packages/kits/shopkit/README.md) · [npm](https://www.npmjs.com/package/@agentkit.ch/shopkit) |
 
 ```bash
 npm i @agentkit.ch/subkit    # subscriptions and invoices
@@ -85,8 +85,8 @@ the billing page. The full five-minute setup is in the
 
 | Path | Contents |
 |---|---|
-| [`packages/kits/subkit`](packages/kits/subkit) | `@agentkit.ch/subkit` |
-| [`packages/kits/shopkit`](packages/kits/shopkit) | `@agentkit.ch/shopkit` |
+| [`packages/kits/subkit`](packages/kits/subkit) | [`@agentkit.ch/subkit`](https://www.npmjs.com/package/@agentkit.ch/subkit) |
+| [`packages/kits/shopkit`](packages/kits/shopkit) | [`@agentkit.ch/shopkit`](https://www.npmjs.com/package/@agentkit.ch/shopkit) |
 | [`apps/web`](apps/web) | Website [agentkit.ch](https://agentkit.ch) (Next.js), docs MCP server, error reference |
 | [`apps/demos`](apps/demos) | Test sites – the kits running in the browser with a simulated payment page |
 | [`scripts`](scripts) | `check-pack.mjs` – packs the kits and imports every export with plain Node |

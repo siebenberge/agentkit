@@ -25,8 +25,8 @@ package on npm:
 
 | Package | Supported |
 |---|---|
-| `@agentkit.ch/subkit` | latest 0.x minor |
-| `@agentkit.ch/shopkit` | latest 0.x minor |
+| [`@agentkit.ch/subkit`](https://www.npmjs.com/package/@agentkit.ch/subkit) | latest 0.x minor |
+| [`@agentkit.ch/shopkit`](https://www.npmjs.com/package/@agentkit.ch/shopkit) | latest 0.x minor |
 
 ## Scope
 
