@@ -1,0 +1,51 @@
+name: Release
+# Creates the GitHub release <kit>@<version> (the version in
+# packages/kits/<kit>/package.json) on main, with notes from the merged pull
+# requests since the kit's last release, and runs Publish <kit> on its tag:
+# Actions → Release → Run workflow. A release made with the workflow token
+# starts no workflow by itself, so the publish run is started here.
+on:
+  workflow_dispatch:
+    inputs:
+      kit:
+        description: Kit
+        required: true
+        type: choice
+        options: [shopkit, subkit]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run only on main
+        if: github.ref != 'refs/heads/main'
+        run: echo "Release from main" && exit 1
+      - uses: actions/checkout@v4
+      - name: Create the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KIT: ${{ inputs.kit }}
+        run: |
+          version=$(node -p "require('./packages/kits/$KIT/package.json').version")
+          tag="$KIT@$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag exists already"; exit 1
+          fi
+          previous=$(gh release list --limit 100 --json tagName \
+            --jq "[.[] | select(.tagName | startswith(\"$KIT@\"))][0].tagName // empty")
+          gh release create "$tag" --target "$GITHUB_SHA" \
+            --title "@agentkit.ch/$KIT $version" --generate-notes \
+            ${previous:+--notes-start-tag "$previous"}
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KIT: ${{ inputs.kit }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh workflow run "publish-$KIT.yml" --ref "$TAG"

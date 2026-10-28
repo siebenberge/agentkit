@@ -2,6 +2,8 @@ name: Publish subkit
 # Publishes @agentkit.ch/subkit to npm: publish a GitHub release with the tag
 # `subkit@<version>` (the version in packages/kits/subkit/package.json, target main)
 # or run the workflow by hand on main (Actions → Publish subkit → Run workflow).
+# Actions → Release does both: it creates the release and runs this workflow
+# on its tag.
 # A version that is already on npm is not published again (a release made
 # afterwards only adds the notes).
 #
@@ -26,8 +28,8 @@ jobs:
     # releases of the other kit start this workflow too
     if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'subkit@')
     steps:
-      - name: Run by hand only on main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+      - name: Run by hand only on main or a subkit@<version> tag
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/subkit@')
         run: echo "Publish from main or a subkit@<version> release" && exit 1
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -40,9 +42,9 @@ jobs:
       - run: npm install -g npm@11.21.0
       - run: pnpm install --frozen-lockfile
       - name: Tag matches the package version
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.ref_type == 'tag'
         env:
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
           version=$(node -p "require('./packages/kits/subkit/package.json').version")
           test "subkit@$version" = "$TAG" || {
