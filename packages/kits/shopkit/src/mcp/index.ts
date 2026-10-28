@@ -97,7 +97,7 @@ const INSTRUCTIONS = `Back office of this shop (shopkit): orders, products and s
  * MCP server for the shop's staff: an agent (Claude, Cursor, …) can find and
  * handle orders, correct stock and manage discount codes and gift cards –
  * with your `authorize` on every request. Mount it like the back office
- * handler, e.g. at `app/api/shop-mcp/route.ts`: `export const POST = handler`.
+ * handler, e.g. at `app/mcp/admin/route.ts`: `export const POST = handler`.
  *
  * Tools: list_orders, get_order, mark_order_paid, ship_order,
  * mark_order_delivered, cancel_order, refund_order, list_products,

@@ -90,6 +90,25 @@ export type ErrorDocKey = (typeof ERROR_DOC_KEYS)[number];
  *
  * Inline emphasis: wrap words in **double asterisks** (rendered by `Rich`).
  */
+/** Copy of a kit page (`/[locale]/subkit`, `/[locale]/shopkit`). */
+type KitPageCopy = {
+  meta: { title: string; description: string };
+  /** Headline of the hero and the OG image; gets the closing full stop. */
+  title: string;
+  /** Under the headline, `**emphasis**` allowed. */
+  lead: string;
+  /** Setup prompt for a coding agent; `{url}` is replaced with the site URL. */
+  prompt: string;
+  /** Facts under the hero (only things that are true today). */
+  proof: { value: string; label: string }[];
+  /** Who the kit is for: three cases. */
+  audience: { title: string; lead: string; items: { title: string; text: string }[] };
+  features: { title: string; lead: string; items: { title: string; text: string }[] };
+  code: { title: string; lead: string };
+  faq: { q: string; a: string }[];
+  cta: { title: string; lead: string };
+};
+
 /** A section of the «new» part of the home page. */
 type NewsFeature = {
   eyebrow: string;
@@ -379,6 +398,24 @@ export type Dict = {
       demos: string;
       theme: { light: string; dark: string; system: string };
     };
+  };
+  /** Labels shared by both kit pages. */
+  kitPage: {
+    /** Link to a kit page; `{kit}` is replaced with the kit name. */
+    more: string;
+    /** Eyebrow of the audience section. */
+    audience: string;
+    /** Label of the npm install command. */
+    install: string;
+    /** Eyebrow of the card that links to the other kit. */
+    otherKit: string;
+  };
+  kitPages: {
+    subkit: KitPageCopy & {
+      /** Section with the animated billing portal (`<BillingPortal />`). */
+      portal: { eyebrow: string; title: string; lead: string };
+    };
+    shopkit: KitPageCopy;
   };
   /** Error reference at `/[locale]/errors` (code names stay English). */
   errors: {

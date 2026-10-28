@@ -275,6 +275,233 @@ export const fr: Dict = {
     company: '© 2026 siebenberge gmbh',
     made: 'Fabriqué en Suisse',
   },
+  kitPage: {
+    more: 'En savoir plus sur {kit}',
+    audience: 'Pour qui',
+    install: 'Installer',
+    otherKit: 'L’autre kit',
+  },
+  kitPages: {
+    subkit: {
+      meta: {
+        title: 'subkit – abonnements et factures avec TWINT et facture QR',
+        description:
+          'Abonnements, factures et self-service pour les SaaS, les adhésions et les cotisations d’associations : une bibliothèque TypeScript avec TWINT, facture QR, TVA, rapprochement bancaire et quatre langues. Gratuite et open source.',
+      },
+      title: 'Des abonnements qui se facturent tout seuls',
+      lead: 'subkit apporte plans, périodes d’essai, prorata et factures dans votre app TypeScript. Vos clientes et clients paient par **TWINT, carte ou facture QR** ; subkit renouvelle, envoie les rappels et rapproche les paiements avec la banque. Les données restent dans **votre** base de données.',
+      prompt:
+        'Ajoutez des abonnements avec facture QR et TWINT à l’aide de @agentkit.ch/subkit. Lisez d’abord {url}/llms.txt.',
+      proof: [
+        { value: '3', label: 'Moyens de paiement : TWINT, carte et facture QR' },
+        { value: '4', label: 'Langues pour le portail, les e-mails et les factures' },
+        { value: 'CHF 0', label: 'De frais par transaction pour nous' },
+        { value: 'MIT', label: 'Open source sur GitHub, paquets sur npm' },
+      ],
+      audience: {
+        title: 'Pour tout ce qui se paie chaque mois ou chaque année.',
+        lead: 'subkit s’occupe des paiements récurrents – du SaaS avec équipes et limites à l’association dont les membres paient en e-banking.',
+        items: [
+          {
+            title: 'SaaS',
+            text: 'Plans avec fonctions et limites, périodes d’essai et passages au plan supérieur au prorata. hasFeature() et getLimit() décident dans votre code de ce qu’une équipe peut faire.',
+          },
+          {
+            title: 'Adhésions',
+            text: 'Abonnements mensuels ou annuels par TWINT ou carte, enregistrés une fois et renouvelés automatiquement. Quittances et rappels en quatre langues.',
+          },
+          {
+            title: 'Cotisations d’associations',
+            text: 'Une facture QR plutôt qu’une carte : les membres paient en e-banking, le camt.054 de votre banque marque la facture comme payée.',
+          },
+        ],
+      },
+      portal: {
+        eyebrow: 'Self-service',
+        title: 'La page de facturation est déjà prête.',
+        lead: 'Avec <BillingPortal />, vos clientes et clients changent de plan, enregistrent TWINT ou une carte et téléchargent leurs factures. Chaque paiement arrive comme une ligne dans votre base de données.',
+      },
+      features: {
+        title: 'Tout ce qu’il faut à un abonnement.',
+        lead: 'Issu du code qui tourne en production chez Membear : plans, paiements, factures et les cas qui n’apparaissent qu’en production.',
+        items: [
+          {
+            title: 'Plans et périodes d’essai',
+            text: 'Mensuel ou annuel, avec période d’essai et plan gratuit. Les plans masqués restent chez leurs abonnés, mais ne sont plus vendus.',
+          },
+          {
+            title: 'Prorata au centime près',
+            text: 'Quand une équipe passe à un plan supérieur en cours de mois, subkit calcule la différence et la débite tout de suite.',
+          },
+          {
+            title: 'TWINT, carte ou facture',
+            text: 'Enregistrer un moyen de paiement une fois et le débiter à chaque période – ou faire payer par facture avec facture QR.',
+          },
+          {
+            title: 'Rappels et nouvelles tentatives',
+            text: 'Délais de paiement, nouvelles tentatives automatiques et e-mails de rappel. Les niveaux de rappel avec frais suivent prochainement.',
+          },
+          {
+            title: 'Droits d’accès et limites',
+            text: 'hasFeature() et getLimit() lisent le plan actuel – sans table à vous pour les fonctions.',
+          },
+          {
+            title: 'Rapprochement bancaire',
+            text: 'Importer les camt.053 et camt.054 de la banque, attribuer les références QR aux factures ouvertes, les marquer comme payées.',
+          },
+          {
+            title: 'E-mails et factures',
+            text: 'Quittances, rappels et renouvellements en HTML et en texte, factures imprimables avec section paiement QR – en quatre langues.',
+          },
+          {
+            title: 'TVA sur chaque facture',
+            text: 'Ligne de TVA et numéro CHE sur chaque facture, calculés en centimes entiers plutôt qu’en virgule flottante.',
+          },
+          {
+            title: 'MCP pour votre équipe',
+            text: 'Trouver des clients, changer de plan, résilier, marquer des factures comme payées – depuis Claude ou ChatGPT, protégé par votre connexion.',
+          },
+        ],
+      },
+      code: {
+        title: 'Facturé en cinq minutes.',
+        lead: 'Plans, prestataire de paiement et TVA dans un fichier, une route pour l’API et le webhook, un composant pour la page de facturation.',
+      },
+      faq: [
+        {
+          q: 'Pour quels produits subkit convient-il ?',
+          a: 'Pour tout ce qui se paie de manière récurrente : abonnements SaaS, adhésions, cotisations d’associations, cours sur abonnement. Pour vendre des produits, il y a shopkit.',
+        },
+        {
+          q: 'Comment mes clientes et clients paient-ils ?',
+          a: 'Par TWINT ou carte via zahls.ch – le moyen de paiement est enregistré une fois et débité à chaque période – ou par facture avec facture QR suisse. collectionMethods définit ceux que vous proposez.',
+        },
+        {
+          q: 'Que se passe-t-il si un paiement échoue ?',
+          a: 'subkit réessaie automatiquement et envoie un e-mail de rappel. Tant qu’une facture est en retard, subkit ne vend rien de nouveau au client.',
+        },
+        {
+          q: 'Où sont les données de mes clientes et clients ?',
+          a: 'Dans votre base de données. subkit tourne comme bibliothèque dans votre app et écrit dans vos tables Postgres via l’adaptateur Drizzle. Il n’y a pas de backend agentkit ni de sous-traitant supplémentaire.',
+        },
+        {
+          q: 'Combien coûte subkit ?',
+          a: 'Rien. subkit est open source sous MIT, sans frais par transaction. Vous ne payez que votre prestataire de paiement.',
+        },
+      ],
+      cta: {
+        title: 'Des abonnements dans votre app, dès aujourd’hui',
+        lead: 'Copiez le prompt d’installation dans votre agent de code – ou essayez d’abord subkit dans le navigateur.',
+      },
+    },
+    shopkit: {
+      meta: {
+        title: 'shopkit – boutique en ligne avec TWINT, facture QR et étiquettes de La Poste',
+        description:
+          'La boutique en ligne comme bibliothèque TypeScript : produits, panier et paiement par TWINT ou sur facture, TVA par produit, étiquettes de La Poste, bons cadeaux et commande via un agent IA. Gratuite et open source.',
+      },
+      title: 'Vendre avec TWINT et facture QR',
+      lead: 'shopkit apporte catalogue, panier, paiement et back-office dans votre app TypeScript. On paie par **TWINT, carte ou sur facture** ; shopkit calcule le stock, l’envoi et la TVA, les étiquettes viennent de **La Poste**. Les données restent dans **votre** base de données.',
+      prompt:
+        'Ajoutez une boutique avec TWINT et facture QR à l’aide de @agentkit.ch/shopkit. Lisez d’abord {url}/llms.txt.',
+      proof: [
+        { value: '3', label: 'Taux de TVA par produit : 8.1, 2.6 et 3.8 %' },
+        { value: '4', label: 'Langues pour la boutique, les e-mails et les quittances' },
+        { value: 'CHF 0', label: 'De frais par commande pour nous' },
+        { value: 'MIT', label: 'Open source sur GitHub, paquets sur npm' },
+      ],
+      audience: {
+        title: 'Pour les boutiques qui servent une clientèle suisse.',
+        lead: 'De la boutique d’un club à la boulangerie avec retrait : shopkit connaît TWINT, la facture QR, La Poste et les taux de TVA suisses.',
+        items: [
+          {
+            title: 'Boutiques de clubs et merch',
+            text: 'Maillots en plusieurs tailles, écharpes et bons cadeaux – payés par TWINT ou sur facture, envoyés par La Poste ou retirés sur place.',
+          },
+          {
+            title: 'Boulangeries et magasins à la ferme',
+            text: 'Jour de retrait avec créneau, heure limite de commande et jours de fermeture. Avec WaWiAssist de HS-Soft, les articles et leurs allergènes viennent de la gestion des marchandises.',
+          },
+          {
+            title: 'Torréfactions et PME',
+            text: 'Variantes, stock, envoi selon le poids et l’étiquette de La Poste en un clic. Les habitués commandent même via leur agent IA.',
+          },
+        ],
+      },
+      features: {
+        title: 'Tout ce qu’il faut à une boutique.',
+        lead: 'Catalogue, caisse et back-office, avec les détails suisses que les systèmes génériques ajoutent après coup sous forme de plugin.',
+        items: [
+          {
+            title: 'Produits et variantes',
+            text: 'Produits physiques et cartes cadeaux, variantes avec prix et stock propres, prix barrés, images et textes en quatre langues.',
+          },
+          {
+            title: 'Un stock fiable',
+            text: 'Le stock est réservé au paiement : shopkit ne vend le dernier article qu’une fois, même sous charge.',
+          },
+          {
+            title: 'TWINT, carte ou facture',
+            text: 'En ligne via zahls.ch ou sur facture avec facture QR. C’est vous qui décidez qui peut acheter sur facture.',
+          },
+          {
+            title: 'TVA par produit',
+            text: '8.1, 2.6 ou 3.8 % par produit, l’envoi réparti au prorata, chaque quittance avec tous les taux. Arrondi à 5 centimes sur demande.',
+          },
+          {
+            title: 'Envoi et retrait',
+            text: 'Forfait, selon le poids, gratuit dès un montant ou retrait. Jour de retrait et de livraison avec créneau et heure limite.',
+          },
+          {
+            title: 'Codes promo et bons cadeaux',
+            text: 'Pourcentage, montant ou livraison gratuite avec conditions. Vendre des cartes cadeaux et les utiliser sur plusieurs commandes.',
+          },
+          {
+            title: 'Commandes et remboursements',
+            text: 'Numéros de commande, liens pour les invités, statuts de paiement et d’expédition, remboursements partiels avec remise en stock.',
+          },
+          {
+            title: 'Back-office à intégrer',
+            text: '<ShopAdmin /> avec commandes, produits, stock, codes promo, bons cadeaux et import bancaire – protégé par votre connexion.',
+          },
+          {
+            title: 'Des e-mails à votre image',
+            text: 'Confirmation, paiement reçu, envoi, rappel, code du bon cadeau – en quatre langues, avec votre logo et vos couleurs.',
+          },
+        ],
+      },
+      code: {
+        title: 'Une boutique en dix minutes.',
+        lead: 'La boutique dans un fichier, une route pour l’API de la boutique et le webhook, des composants prêts pour le paiement et le back-office.',
+      },
+      faq: [
+        {
+          q: 'Pour qui est shopkit ?',
+          a: 'Pour toutes celles et ceux qui vendent des produits dans leur propre app : boutiques de clubs, boulangeries avec retrait, torréfactions, PME avec merch ou bons cadeaux. Pour les paiements récurrents, il y a subkit.',
+        },
+        {
+          q: 'Comment mes clientes et clients paient-ils ?',
+          a: 'Par TWINT ou carte via zahls.ch, ou sur facture avec facture QR suisse. Les clientes connectées peuvent enregistrer leur moyen de paiement et payer la commande suivante sans page de paiement. shopkit rapproche les factures avec le camt.054 de votre banque.',
+        },
+        {
+          q: 'shopkit crée-t-il des étiquettes d’envoi de La Poste ?',
+          a: 'Oui, depuis shopkit 0.4 : l’étiquette avec code-barres à partir de la commande, dans le back-office, par l’API ou par MCP, plus le numéro d’envoi avec Track & Trace dans l’e-mail d’expédition. Au paiement, La Poste propose des adresses et les vérifie. Il vous faut une licence d’affranchissement et un accès à la Digital Commerce API de La Poste. Les étiquettes pour l’étranger et les tarifs en direct sont prévus.',
+        },
+        {
+          q: 'shopkit fonctionne-t-il avec HS-Soft (WaWiAssist) ?',
+          a: 'Oui. @agentkit.ch/shopkit/hssoft importe les articles de WaWiAssist comme produits et y renvoie chaque commande, avec le jour de retrait comme date de commande. Il vous faut seulement la clé API de votre WaWiAssist, fournie par HS-Soft.',
+        },
+        {
+          q: 'Combien coûte shopkit ?',
+          a: 'Rien. shopkit est open source sous MIT, sans frais par commande. Vous ne payez que votre prestataire de paiement et La Poste pour vos envois.',
+        },
+      ],
+      cta: {
+        title: 'Votre boutique, dès aujourd’hui',
+        lead: 'Copiez le prompt d’installation dans votre agent de code – ou essayez d’abord shopkit dans le navigateur.',
+      },
+    },
+  },
   errors: {
     meta: {
       title: 'Codes d’erreur – agentkit',

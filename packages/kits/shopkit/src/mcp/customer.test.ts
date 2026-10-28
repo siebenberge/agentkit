@@ -14,7 +14,7 @@ import {
   createShopCustomerMcpHandler,
 } from './index';
 
-const ENDPOINT = 'https://baeckerei.example/api/shop-agent';
+const ENDPOINT = 'https://baeckerei.example/mcp';
 
 type Result = {
   isError: boolean;
