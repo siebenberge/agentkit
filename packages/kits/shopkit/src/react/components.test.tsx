@@ -418,6 +418,60 @@ describe('shop components', () => {
     expect(checked).toEqual(['Bahnhofstrasse 1']);
   });
 
+  it('turns suggestions and the address check off one by one', async () => {
+    const calls: string[] = [];
+    const lookup: AddressLookup = {
+      localities: () => {
+        calls.push('localities');
+        return Promise.resolve([{ postalCode: '8001', city: 'Zürich' }]);
+      },
+      streets: () => Promise.resolve([]),
+      houseNumbers: () => Promise.resolve([]),
+      check: () => {
+        calls.push('check');
+        return Promise.resolve({ status: 'invalid', address: null });
+      },
+    };
+    const { ui, client, variantId, visits } = await setup(undefined, lookup);
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'post' });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(
+      <Checkout
+        orderHref={() => '/unused'}
+        addressSuggestions={false}
+        addressCheck={false}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText('E-Mail'), {
+      target: { value: 'anna@example.ch' },
+    });
+
+    const fill = (label: string, value: string) =>
+      fireEvent.change(screen.getAllByLabelText(label)[0]!, {
+        target: { value },
+      });
+
+    fill('Vor- und Nachname', 'Anna Muster');
+    fill('Strasse und Nr.', 'Weg 1');
+    fireEvent.focus(screen.getAllByLabelText('PLZ')[0]!);
+    fill('PLZ', '80');
+    expect(screen.getAllByLabelText('PLZ')[0]!.getAttribute('list')).toBeNull();
+    fill('PLZ', '8001');
+    fill('Ort', 'Zürich');
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt bezahlen' }));
+
+    await waitFor(() => expect(visits).toEqual(['https://pay.example/1']), {
+      timeout: 5_000,
+    });
+    expect(calls).toEqual([]);
+  });
+
   it('shows an order and the customer’s history', async () => {
     const { ui, client, variantId, state } = await setup();
 

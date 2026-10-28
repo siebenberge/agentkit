@@ -16,7 +16,11 @@ import { type Shop, createShop } from '../../engine';
 import type { HsSoftSync } from '../../hssoft';
 import { createShopAdminHandler } from '../../http/admin';
 import { swissQrBill } from '../../receipt/swiss-qr-bill';
-import { type SwissPost, createSwissPost } from '../../swisspost';
+import {
+  type SwissPost,
+  type SwissPostServiceId,
+  createSwissPost,
+} from '../../swisspost';
 import { createShopAdminClient } from './client';
 import { ShopAdminProvider } from './provider';
 import { ShopAdmin } from './shop-admin';
@@ -48,6 +52,8 @@ async function setup(
     ) => HsSoftSync;
     /** The Swiss Post plugin (with a stand-in for the API). */
     swisspost?: (shop: Shop) => SwissPost;
+    /** `<ShopAdminProvider swisspost={{ services }}>`. */
+    swisspostServices?: SwissPostServiceId[];
   } = {},
 ) {
   const database = memoryAdapter();
@@ -141,7 +147,11 @@ async function setup(
         client={client}
         locale="de"
         hssoft={options.hssoft !== undefined}
-        swisspost={options.swisspost !== undefined}
+        swisspost={
+          options.swisspostServices
+            ? { services: options.swisspostServices }
+            : options.swisspost !== undefined
+        }
       >
         {children}
       </ShopAdminProvider>,
@@ -779,6 +789,38 @@ describe('Swiss Post plugin in the back office', () => {
       await screen.findByText('Etikett 99.60.048724.00000002 erstellt.'),
     ).toBeTruthy();
     expect(sent[1]!.przl).toEqual(['ECO']);
+  });
+
+  it('offers only the chosen services', async () => {
+    const { placeOrder, ui } = await setup({
+      swisspost: (shop) =>
+        createSwissPost({
+          shop,
+          clientId: 'client',
+          clientSecret: 'secret',
+          frankingLicense: '60048724',
+          sender: {
+            name: 'R',
+            street: 'Weg 1',
+            postalCode: '3000',
+            city: 'Bern',
+          },
+        }),
+      swisspostServices: ['ECO', 'PRI', 'APLUS'],
+    });
+    const order = await placeOrder();
+
+    ui(<ShopAdmin initialOrderId={order.id} />);
+
+    const select =
+      await screen.findByLabelText<HTMLSelectElement>('Versandart');
+
+    expect([...select.options].map((option) => option.value)).toEqual([
+      '',
+      'ECO',
+      'PRI',
+      'APLUS',
+    ]);
   });
 
   it('shows no label part for pickups', async () => {

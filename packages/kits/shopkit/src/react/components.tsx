@@ -373,6 +373,16 @@ export type CheckoutProps = {
   cartHref?: string;
   /** Terms the customer accepts (e.g. a link to your AGB). */
   terms?: React.ReactNode;
+  /**
+   * With the handler's `addressLookup`: suggest postcode, locality, street
+   * and number (default `true`).
+   */
+  addressSuggestions?: boolean;
+  /**
+   * With the handler's `addressLookup`: check the shipping address before
+   * the order (default `true`).
+   */
+  addressCheck?: boolean;
   className?: string;
 };
 
@@ -702,7 +712,12 @@ export function Checkout(props: CheckoutProps) {
 
   /** `false`: the customer should look at the address first. */
   const addressConfirmed = async () => {
-    if (!needsAddress || !cart.addressLookup || !isDomesticAddress(shipping)) {
+    if (
+      !needsAddress ||
+      !cart.addressLookup ||
+      props.addressCheck === false ||
+      !isDomesticAddress(shipping)
+    ) {
       return true;
     }
 
@@ -834,7 +849,7 @@ export function Checkout(props: CheckoutProps) {
             value={shipping}
             onChange={changeShipping}
             countries={countries}
-            lookup={cart.addressLookup}
+            lookup={cart.addressLookup && props.addressSuggestions !== false}
             // shipping options depend on the country
             onCountryChange={(country) =>
               void state

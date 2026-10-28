@@ -300,7 +300,8 @@ order shipped to Switzerland or Liechtenstein gets a label part – service
 (default: the shipment of its rate), additional services, delivery
 instructions and weight, «Etikett erstellen» downloads the label and marks
 the order shipped; the tracking number links to Track & Trace, a second
-label only on purpose.
+label only on purpose. `<ShopAdminProvider swisspost={{ services: ['ECO',
+'PRI', 'APLUS'] }}>` offers only the services you use.
 
 Invoice orders paid by QR-bill: import the camt.054 / camt.053 of your bank
 with `shop.reconcileBankPayments({ payments: parseCamt(xml), reference:
@@ -554,6 +555,8 @@ createShopMcpHandler({ shop, authorize, swisspost });
   the order it checks the shipping address: a corrected spelling or an
   unknown address is shown with the suggestion – the customer takes it or
   keeps their own. If Swiss Post cannot be reached, the checkout goes on.
+  Each part can be turned off on its own: `<Checkout addressSuggestions={false}>`
+  or `addressCheck={false}`.
 - Not possible yet: labels for international items, live tariffs.
 
 Errors: every `ShopError` has a `code` and `docsUrl`, the link to its cause

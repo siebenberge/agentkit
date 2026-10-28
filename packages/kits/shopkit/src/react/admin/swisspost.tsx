@@ -67,9 +67,12 @@ export function SwissPostOrderPanel(props: {
   /** After a label: reload the order (shipped, tracking number). */
   onCreated: () => void;
 }) {
-  const { client, m, dateTime } = useShopAdmin();
+  const { client, m, dateTime, swisspostServices } = useShopAdmin();
   const { busy, feedback, run } = useAction();
   const { order } = props;
+  const services = swisspostServices
+    ? SERVICES.filter((code) => swisspostServices.includes(code))
+    : SERVICES;
   const labels = orderLabels(order);
   const current = labels.at(-1) ?? null;
   const t = m.swisspost;
@@ -210,7 +213,7 @@ export function SwissPostOrderPanel(props: {
               }
             >
               <option value="">{t.rateService}</option>
-              {SERVICES.map((code) => (
+              {services.map((code) => (
                 <option key={code} value={code}>
                   {t.services[code]}
                 </option>
