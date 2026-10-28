@@ -125,7 +125,8 @@ function fakeHsSoft() {
       const all = [...articles.values()].filter(
         (entry) =>
           entry.isActive &&
-          (group === null || (groups.get(entry.id) ?? []).includes(+group)),
+          // articles without an entry are in marketing group 1
+          (group === null || (groups.get(entry.id) ?? [1]).includes(+group)),
       );
 
       return Promise.resolve(
@@ -266,6 +267,7 @@ function setup(
     now: () => new Date(clock.now),
     logger: { info: () => undefined, error: () => undefined },
     products: {
+      marketingGroupIds: [1],
       images: {
         save: (image) => {
           saved.push({
@@ -495,8 +497,9 @@ describe('importProducts', () => {
     hs.articles.set(
       3,
       article(3, {
+        defaultPrice: 0,
         priceCategories: [
-          5,
+          null,
           null,
           null,
           null,
@@ -984,8 +987,22 @@ describe('orders → WaWiAssist', () => {
     expect(hs.orders).toHaveLength(0);
   });
 
-  it('deletes the WaWiAssist order of a canceled order', async () => {
-    const { shop, hs, sync, placeOrder, failures } = await withCatalog();
+  it('keeps the WaWiAssist order of a canceled order by default', async () => {
+    const { shop, hs, placeOrder } = await withCatalog();
+    const order = await placeOrder([{ sku: 'A1', quantity: 1 }]);
+
+    await shop.cancelOrder({ orderId: order.id });
+
+    expect(hs.calls.some((call) => call.method === 'DELETE')).toBe(false);
+    expect(hsSoftOrderSync((await shop.getOrder(order.id))!)!.state).toBe(
+      'synced',
+    );
+  });
+
+  it('deletes the WaWiAssist order of a canceled order when asked to', async () => {
+    const { shop, hs, sync, placeOrder, failures } = await withCatalog({
+      orders: { deleteCanceled: true },
+    });
     const order = await placeOrder([{ sku: 'A1', quantity: 1 }]);
 
     await shop.cancelOrder({ orderId: order.id });
@@ -1057,6 +1074,218 @@ describe('orders → WaWiAssist', () => {
   });
 });
 
+describe('like the existing WooCommerce plugin', () => {
+  it('needs the marketing groups and leaves out dough articles', async () => {
+    const { shop, hs } = setup();
+    const sync = createHsSoftSync({ shop, client: hs.client() });
+
+    await expect(sync.importProducts()).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    });
+
+    const withGroups = createHsSoftSync({
+      shop,
+      client: hs.client(),
+      products: { marketingGroupIds: [1] },
+      logger: { info: () => undefined, error: () => undefined },
+    });
+
+    hs.articles.set(1, article(1, { description: 'Zopfteig', isDough: true }));
+
+    expect((await withGroups.importProducts()).skipped).toEqual([
+      { articleId: 1, articleNumber: 'A1', reason: 'dough' },
+    ]);
+  });
+
+  it('falls back to the default price and the other weight', async () => {
+    const { shop, sync, hs } = setup({
+      products: { priceCategory: 3, weight: 'recipe' },
+    });
+
+    // K3 empty → default price; no recipe weight → selling weight
+    hs.articles.set(1, article(1, { description: 'Brot', defaultPrice: 4.2 }));
+
+    await sync.importProducts();
+
+    expect((await shop.getProduct('brot'))!.variants[0]).toMatchObject({
+      price: 420,
+      weightGrams: 500,
+    });
+  });
+
+  it('creates new products as drafts that stay drafts', async () => {
+    const { shop, sync, hs } = setup({
+      products: { newProductStatus: 'draft', keep: ['status'] },
+    });
+
+    hs.articles.set(1, article(1, { description: 'Brot' }));
+    await sync.importProducts();
+    expect((await shop.getProduct('brot'))!.status).toBe('draft');
+
+    hs.articles.get(1)!.priceCategories = [
+      6,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ];
+    await sync.importProducts();
+
+    const brot = (await shop.getProduct('brot'))!;
+
+    expect(brot.status).toBe('draft');
+    expect(brot.variants[0]!.price).toBe(600);
+  });
+
+  it('maps every variant of a product to its own article', async () => {
+    const { shop, sync, hs, placeOrder } = setup();
+    const zopf = await shop.createProduct({
+      slug: 'zopf',
+      name: 'Butterzopf',
+      description: 'Unser Sonntagszopf',
+      variants: [
+        { sku: 'A1', name: '500 g', price: 100, trackStock: false },
+        { sku: 'A2', name: '1 kg', price: 100, trackStock: false },
+      ],
+    });
+
+    hs.articles.set(1, article(1, { description: 'Zopf 500g' }));
+    hs.articles.set(
+      2,
+      article(2, {
+        description: 'Zopf 1kg',
+        sellingWeight: 1000,
+        priceCategories: [
+          9.8,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+        ],
+      }),
+    );
+
+    expect(await sync.importProducts()).toMatchObject({
+      created: 0,
+      updated: 2,
+    });
+
+    let product = (await shop.getProduct('zopf'))!;
+
+    // name and texts stay the shop's, price and weight per variant
+    expect(product).toMatchObject({
+      name: 'Butterzopf',
+      description: 'Unser Sonntagszopf',
+    });
+    expect(
+      product.variants.map((variant) => [
+        variant.sku,
+        variant.price,
+        variant.weightGrams,
+      ]),
+    ).toEqual([
+      ['A1', 550, 500],
+      ['A2', 980, 1000],
+    ]);
+    expect(hsSoftProductData(product, 'A2')!.articleId).toBe(2);
+    expect(hsSoftProductData(product)).toBeNull();
+
+    // unchanged on the next run
+    expect(await sync.importProducts()).toMatchObject({ unchanged: 2 });
+
+    await placeOrder([
+      { sku: 'A1', quantity: 1 },
+      { sku: 'A2', quantity: 2 },
+    ]);
+    const positions = hs.orders[0]!.body.positions as { articleId: number }[];
+
+    expect(positions.map((position) => position.articleId)).toEqual([
+      1, 2, 999,
+    ]);
+    expect(hs.orders[0]!.body.positions[0].indTextDeliveryNote).toBeUndefined();
+
+    // the 1 kg article is gone: its variant is archived, not the product
+    hs.articles.delete(2);
+    expect(await sync.importProducts()).toMatchObject({ deactivated: 1 });
+    product = (await shop.getProduct(zopf.id, {
+      includeArchivedVariants: true,
+    }))!;
+    expect(product.status).toBe('active');
+    expect(product.variants.map((variant) => variant.status)).toEqual([
+      'active',
+      'archived',
+    ]);
+  });
+
+  it('writes the variant of a shared article on the delivery note', async () => {
+    const { shop, hs, placeOrder } = await withCatalog();
+    const zopf = (await shop.getProduct('butterzopf-500g'))!;
+
+    // a shop variant without an article of its own
+    await shop.createVariant(zopf.id, {
+      sku: 'A1-GESCHNITTEN',
+      name: 'geschnitten',
+      price: 600,
+      trackStock: false,
+    });
+    await placeOrder([{ sku: 'A1-GESCHNITTEN', quantity: 1 }]);
+
+    expect(hs.orders[0]!.body.positions[0]).toMatchObject({
+      articleId: 1,
+      price: 6,
+      indTextDeliveryNote: 'geschnitten',
+    });
+    expect(hs.orders[0]!.body.notePlainText).toContain(
+      '1 x Butterzopf 500g (A1-GESCHNITTEN): geschnitten',
+    );
+  });
+
+  it('sends the pickup location as an article at CHF 0 and moves the date', async () => {
+    const { hs, placeOrder } = await withCatalog({
+      orders: {
+        shippingArticleId: { post: 999, pickup: 777 },
+        dateOffsetDays: { pickup: -1 },
+      },
+    });
+
+    await placeOrder([{ sku: 'A1', quantity: 1 }], {
+      shippingRateId: 'pickup',
+    });
+
+    expect(hs.orders[0]!.body).toMatchObject({
+      // ordered 15.10., planned a day earlier
+      date: '2026-10-14T00:00:00.000Z',
+      positions: [
+        { articleId: 1, quantity: 1 },
+        { articleId: 777, quantity: 1, price: 0, discount: 0 },
+      ],
+    });
+  });
+
+  it('sends Latin-1 text only', async () => {
+    const { hs, placeOrder } = await withCatalog();
+
+    await placeOrder([{ sku: 'A1', quantity: 1 }], {
+      note: 'Bitte „Happy Birthday“ – für Jürg’s 50. … 🎂 €',
+    });
+
+    expect(hs.orders[0]!.body.notePlainText).toContain(
+      'Bemerkung: Bitte "Happy Birthday" - für Jürg\'s 50. ... EUR',
+    );
+    expect(hs.orders[0]!.body.customer.city).toBe('Zürich');
+  });
+});
+
 describe('back office and MCP', () => {
   it('imports, sends and resends through the admin API and the MCP tools', async () => {
     const { shop, sync, hs, placeOrder } = setup({
@@ -1116,7 +1345,11 @@ describe('back office and MCP', () => {
       shop,
       basePath: '/admin',
       authorize: () => true,
-      hssoft: createHsSoftSync({ shop, client: hs.client('wrong') }),
+      hssoft: createHsSoftSync({
+        shop,
+        client: hs.client('wrong'),
+        products: { marketingGroupIds: [1] },
+      }),
     });
 
     response = await refused(

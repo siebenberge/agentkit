@@ -226,7 +226,7 @@ export const shop = createShop({
   // …
   onEvent: async (event) => {
     await emails(event);
-    await hssoft.onEvent(event); // placed orders → WaWiAssist, canceled → deleted
+    await hssoft.onEvent(event); // placed orders → WaWiAssist
   },
 });
 
@@ -234,12 +234,12 @@ export const hssoft = createHsSoftSync({
   shop,
   apiKey: process.env.HSSOFT_API_KEY!,
   products: {
-    marketingGroupIds: [3, 7], // only these marketing groups (default: all active articles)
+    marketingGroupIds: [3, 7], // the marketing groups to import (required)
     priceCategory: 1, // K1 … K10
     images: { save: (image) => uploadToBucket(`products/${image.articleNumber}.jpg`, image.jpeg) },
   },
   orders: {
-    shippingArticleId: { post: 9001 }, // article of the shipping costs per rate
+    shippingArticleId: { post: 9001, laden: 9002 }, // article per rate (costs or pickup location)
     caOrderName: 'Onlineshop',
     onFailure: ({ order, sync }) => mailer.send(staffAlert(order, sync)),
   },
@@ -248,29 +248,43 @@ export const hssoft = createHsSoftSync({
 
 ```ts
 // cron: every few minutes / once a night
-await hssoft.syncOrders(); // retries while HS-Soft is unavailable, deletes canceled orders
+await hssoft.syncOrders(); // retries while HS-Soft is unavailable
 await hssoft.importProducts(); // e.g. daily at 03:00
 ```
 
-- **Products**: one product per article (SKU = article number, not counted
-  in stock – made to order). Name, description (consumer information),
-  price of the chosen price category, a current special price with the
-  normal price struck through, weight (`weight: 'recipe'` for K2), image
-  (JPEG, saved by your `images.save`). Declaration, allergens, nutrition,
+- **Products**: the active articles of the chosen marketing groups (dough
+  articles never), one product per article (SKU = article number, not
+  counted in stock – made to order). Name, description (consumer
+  information), price of the chosen price category (empty → the default
+  price), a current special price with the normal price struck through,
+  weight (`weight: 'recipe'` for K2; missing → the other one), image (JPEG,
+  saved by your `images.save`). Declaration, allergens, nutrition,
   attributes (vegan, gluten-free …), shelf life and delivery days are in
-  `hsSoftProductData(product)` for the product page. Unchanged articles are
-  not written again; products whose article is gone, inactive or skipped
-  become drafts (`missing`). Fields you maintain in the shop stay with
-  `keep: ['name', 'description', …]`. Articles sold per 100 g / kg or open
-  amounts are skipped; the API has no VAT rate per article – set
-  `taxRateBps(article)` if your rates differ.
+  `hsSoftProductData(product, sku)` for the product page. Unchanged articles
+  are not written again; products whose article is gone, inactive or
+  skipped become drafts (`missing`). Fields you maintain in the shop stay
+  with `keep: ['name', 'description', …]`; `newProductStatus: 'draft'` with
+  `keep: ['status']` lets you check new products before you publish them.
+  Articles sold per 100 g / kg or open amounts are skipped; the API has no
+  VAT rate per article – set `taxRateBps(article)` if your rates differ.
+- **Variants as articles**: give the variants of a product the article
+  numbers as SKU (Zopf 500 g = `A1`, 1 kg = `A2`) and the import keeps the
+  price, weight and status of each variant; name, texts and image stay
+  yours. A variant without an article of its own (Zopf «geschnitten») is
+  ordered as the product's article, its name on the delivery note.
 - **Orders**: sent once when placed (`when: 'paid'`: after the payment), as
   a one-time customer with the address, or to a WaWiAssist customer of
   `customerId(order)` (e.g. B2B). Positions carry the price paid, the
   discount in percent and the VAT code, the note the order number, payment,
-  shipping and the customer's note; emojis are removed (the API cannot store
-  them). The customer has paid: positions that break WaWiAssist's min/max,
-  lot size or days-to-produce rules are kept and reported as warnings.
+  shipping, the customer's note and the variants ordered. WaWiAssist stores
+  Latin-1 only: typographic quotes and dashes become plain ones, emojis are
+  removed. The shipping rate goes as its article (`shippingArticleId`), also
+  at CHF 0 – the pickup location; a rate with costs but without article
+  fails the order. `dateOffsetDays` moves the order date (per rate, e.g. `-1`
+  for the production day). Canceled orders stay in WaWiAssist
+  (`deleteCanceled: true` deletes them). The customer has paid: positions
+  that break WaWiAssist's min/max, lot size or days-to-produce rules are
+  kept and reported as warnings.
 - **State** in `order.metadata.hssoft` (`hsSoftOrderSync(order)`): `synced`
   with the WaWiAssist order number, `retry` (unavailable, `syncOrders()`
   tries again), `failed` (refused – fix and resend), `uncertain` (no
@@ -280,8 +294,10 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   `createShopAdminHandler` (`POST /orders/:id/hssoft`, `POST /hssoft/import`,
   `POST /hssoft/sync`) and `createShopMcpHandler` (tools `hssoft_sync_order`,
   `hssoft_import_products`).
-- Not built yet: checking the delivery date against the delivery days at
-  checkout, categories from the marketing groups, stock from WaWiAssist.
+- Not possible with the API: categories from the marketing groups (it has
+  no names for them), the availability periods of the articles, stock.
+  Not built yet: checking the delivery date against the delivery days at
+  checkout.
 
 
 Errors: every `ShopError` has a `code` and `docsUrl`, the link to its cause
