@@ -289,7 +289,7 @@ giftCards: { validityDays: 3 * 365 }, // about three years
 ### orders.generateNumber
 
 `({ now, orderId }) => string | Promise<string>`. Default `YYMMDD-XXXXX`:
-the date (UTC) and five random characters (`261015-7KQ2M`). Called once per
+the date in Zurich and five random characters (`261015-7KQ2M`). Called once per
 checkout, before the transaction. Numbers must be unique – a duplicate fails
 the checkout with `DUPLICATE`. For gapless numbers use a database sequence:
 

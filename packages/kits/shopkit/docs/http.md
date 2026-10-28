@@ -58,7 +58,7 @@ the App Router (`export const { GET, POST } = …`). Both handlers only use
 |---|---|---|---|
 | `shop` | `Shop` | – (required) | The engine |
 | `basePath` | `string` | – (required) | Mount path, e.g. `/api/shop` (trailing slash ignored) |
-| `orderUrl` | `(request, order: { id, accessToken, number }) => string \| Promise<string>` | – (required) | Absolute URL of the order page; the payment page returns to it with `?checkout=success` / `cancel` / `failed` |
+| `orderUrl` | `(request, order: { id, accessToken, number }) => string \| Promise<string>` | – (required) | URL of the order page (relative to the API request, or absolute); the payment page returns to it with `?checkout=success` / `cancel` / `failed` |
 | `identify` | `(request) => ShopCustomer \| null \| Promise<…>` | – (guests only) | The signed-in customer: `{ externalId, email? }` |
 | `receipts` | `{ seller, paymentSlip?, messages?, accentColor? }` | – | Enables `GET /orders/:id/receipt` – see [emails-receipts](emails-receipts.md) |
 | `rateLimit` | `(check: RateLimitCheck) => RateLimitDecision \| Promise<…>` | – | See [rate limits](#rate-limits) |
@@ -160,7 +160,8 @@ Errors (with status): `CART_NOT_FOUND` 404, `CART_CLOSED` 409,
 
 **`POST /checkout`**
 `{ paymentMethod: 'online' | 'invoice', giftCardCodes?: string[] }` with
-`x-cart-token` → `CheckoutResultDto`:
+`x-cart-token` → `CheckoutResultDto`. More than 5 gift card codes answer
+`400 INVALID_INPUT`.
 
 ```json
 { "type": "redirect", "url": "https://acme.zahls.ch/…", "orderId": "…", "accessToken": "…" }

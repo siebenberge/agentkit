@@ -703,5 +703,4 @@ Domain types (plain data): `Locale`, `Product`, `ProductKind`,
 `OrderShipping`, `TaxLine`, `AppliedGiftCard`, `OrderRefund`,
 `PaymentMethod`, `ModelMap`, `ModelName`, `ShopEvent`.
 
-The context type of `allowFulfillmentDate` is not exported by name; use
-`Parameters<NonNullable<ShopOptions['allowFulfillmentDate']>>[0]`.
+The context of `allowFulfillmentDate` is `FulfillmentDateContext`.

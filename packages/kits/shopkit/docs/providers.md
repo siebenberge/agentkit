@@ -106,9 +106,9 @@ of the same order starts. Throw while the provider cannot be asked.
 Optional. Pays (part of) a payment back: `RefundParams` – `transactionId`,
 `amount`, `currency`, `reason`. Returns `{ refundId }`, stored as
 `providerRefundId`. Without `refund()`, refunds are recorded as `manual`
-and made in the provider's dashboard. Throw a plain `Error` when the
-provider refuses: the engine takes the refund back and throws
-`PROVIDER_UNAVAILABLE`.
+and made in the provider's dashboard. Throw when the provider refuses: the
+engine takes the refund back and rethrows a `ShopError` as it is, any other
+error as `PROVIDER_UNAVAILABLE`.
 
 ## zahls.ch
 

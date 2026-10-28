@@ -31,7 +31,7 @@ await shop.refundOrder({ orderId, amount: 2_500, reason: 'Retour 1 Paar' }); // 
 
 ### Order numbers
 
-Default `YYMMDD-XXXXX`: the date (UTC) and five random characters (digits
+Default `YYMMDD-XXXXX`: the date in Zurich and five random characters (digits
 and letters without I, L, O: `261015-7KQ2M`). Not gapless – pass
 `orders.generateNumber` for a sequence
 ([configuration](configuration.md#ordersgeneratenumber)).
@@ -243,7 +243,7 @@ Each refund is stored in `order.refunds` with `amount`, `toPayment`,
 `toGiftCards`, `fromIssuedGiftCards`, `method`, `providerRefundId`,
 `reason` and `createdAt`; `order.refunded` fires with it. If the provider
 refuses, the refund and its effects are taken back and `refundOrder` throws
-`PROVIDER_UNAVAILABLE`.
+the provider's `ShopError`, or `PROVIDER_UNAVAILABLE`.
 
 zahls.ch refunds are made in its dashboard and recorded as `manual`;
 refunds through the zahls.ch API are planned, not built.

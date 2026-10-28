@@ -130,7 +130,7 @@ export type Discount = {
   endsAt: Date | null;
   /** Orders the code may be used for (`null` → unlimited). */
   usageLimit: number | null;
-  /** Orders using it now (expired / canceled unpaid orders give it back). */
+  /** Orders using it now (expired and canceled orders give it back). */
   usageCount: number;
   active: boolean;
   createdAt: Date;

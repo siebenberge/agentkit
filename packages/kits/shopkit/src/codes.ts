@@ -48,9 +48,19 @@ export function generateToken() {
   );
 }
 
-/** Default order number `YYMMDD-XXXXX` (use a sequence for gapless numbers). */
+const zurichDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Zurich',
+  year: '2-digit',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * Default order number `YYMMDD-XXXXX`, dated in Zurich (use a sequence for
+ * gapless numbers).
+ */
 export function defaultOrderNumber(now: Date) {
-  const date = now.toISOString().slice(2, 10).replace(/-/g, '');
+  const date = zurichDate.format(now).replace(/-/g, '');
 
   return `${date}-${randomChars(5, '0123456789ABCDEFGHJKMNPQRSTUVWXYZ')}`;
 }

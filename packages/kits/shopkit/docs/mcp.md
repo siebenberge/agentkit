@@ -191,7 +191,7 @@ Every tool acts only for the customer of the request.
 | `search_products` | `query` (words of the name or a SKU), `limit` (1–100, default 30) | `{ products, total }` – active products: `slug`, `name` and `description` (in `locale`), `kind`, `image`, variants with `id`, `sku`, `name`, `price`, `compareAtPrice`, `available` (`null` = unlimited) | yes |
 | `get_product` | `slug` | `{ product }` (active products only) | yes |
 | `quote_order` | the order fields below | Lines (`sku`, `name`, `quantity`, `unitPrice`, `total`, `available`, `issue`), `totals` (`itemsSubtotal`, `discountTotal`, `shippingTotal`, `taxTotal`, `taxInclusive`, `total`), `discount` (status of the code), `shippingOptions` (with `schedule`), `paymentMethods`, `savedPaymentMethod`, `missing` | yes |
-| `place_order` | the order fields (`items` and `shippingRateId` required), `paymentMethod` (`online` default, `invoice`), `payWith`, `expectedAmount`, `savePaymentMethod` | `{ order, payment }` | no (destructive, open world) |
+| `place_order` | the order fields (`items` required; `shippingRateId` when something is shipped or picked up), `paymentMethod` (`online` default, `invoice`), `payWith`, `expectedAmount`, `savePaymentMethod` | `{ order, payment }` | no (destructive, open world) |
 | `pay_order` | `orderId`, `payWith`, `expectedAmount`, `savePaymentMethod` | `{ order, payment }` – a new payment link, or a charge of the saved method | no (destructive, open world) |
 | `list_my_orders` | `limit` (1–50, default 10), `offset` | `{ orders }` newest first | yes |
 | `get_my_order` | `orderId` | `{ order }` | yes |

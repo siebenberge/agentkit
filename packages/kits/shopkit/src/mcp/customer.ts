@@ -189,7 +189,8 @@ const orderProperties = {
   items: itemsSchema,
   shippingRateId: {
     type: 'string',
-    description: 'Id of a shipping or pickup option from quote_order.',
+    description:
+      'Id of a shipping or pickup option from quote_order. Needed when the order has something to ship or pick up.',
   },
   fulfillmentDate: {
     type: 'string',
@@ -451,7 +452,7 @@ export function customerTools(context: ToolsContext): McpTool[] {
               'Save the card / TWINT used on the payment page for later orders. Only when the customer asked for it.',
           },
         },
-        required: ['items', 'shippingRateId'],
+        required: ['items'],
         additionalProperties: false,
       },
       // reserves stock and may charge the customer: clients ask first
