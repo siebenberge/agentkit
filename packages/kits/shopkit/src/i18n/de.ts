@@ -162,6 +162,7 @@ export const de = {
       pickup: 'Abholung',
     },
     merchant: {
+      labels: { customer: 'Kunde', note: 'Hinweis' },
       newOrder: {
         subject: 'Neue Bestellung {{orderNumber}} – {{amount}}',
         body: '{{customerName}} hat bestellt ({{method}}).',

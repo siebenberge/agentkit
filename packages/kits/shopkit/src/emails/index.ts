@@ -40,11 +40,39 @@ export type ShopEmailData = {
   values?: Record<string, string>;
 };
 
+/** Look of the emails, to match your shop. Every field is optional. */
+export type EmailTheme = {
+  /**
+   * Logo above the card: an absolute https URL of a PNG or JPG (many mail
+   * clients block SVG). `href` makes it a link, e.g. to the shop.
+   */
+  logo?: {
+    url: string;
+    alt: string;
+    width: number;
+    height: number;
+    href?: string;
+  };
+  /** Font stack. Web fonts load in a few mail clients only: end with fallbacks. */
+  fontFamily?: string;
+  /** Page behind the card and the details box. Default `#f4f4f5`. */
+  background?: string;
+  /** Headings. Default: the text color. */
+  headingColor?: string;
+  /** Corner radius of the card in px. Default 8. */
+  radius?: number;
+  /** Corner radius of the button in px. Default 6; `999` for a pill. */
+  buttonRadius?: number;
+  /** Lines under the card (address, phone, …). Default: the shop name. */
+  footer?: string[];
+};
+
 export type RenderEmailOptions = {
   locale?: string;
   messages?: MessageOverrides;
   /** Button color (CSS color). */
   accentColor?: string;
+  theme?: EmailTheme;
 };
 
 /** One email as HTML (inline styles, mail-client safe) and text. */
@@ -61,6 +89,18 @@ export function renderShopEmail(
   const t = (text: string) => interpolate(text, values);
   const e = escapeHtml;
   const accent = options.accentColor ?? '#111827';
+  const theme = options.theme ?? {};
+  const font =
+    theme.fontFamily ??
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+  const background = theme.background ?? '#f4f4f5';
+  const heading = theme.headingColor ?? '#111827';
+  const radius = theme.radius ?? 8;
+  const buttonRadius = theme.buttonRadius ?? 6;
+  const footer = theme.footer ?? [data.shopName];
+  const logo = theme.logo
+    ? `<img src="${e(theme.logo.url)}" alt="${e(theme.logo.alt)}" width="${theme.logo.width}" height="${theme.logo.height}" style="display:block;border:0;width:${theme.logo.width}px;max-width:100%;height:auto">`
+    : '';
   const details = data.details ?? [];
   const lines = data.lines ?? [];
   const subject = t(data.copy.subject);
@@ -68,11 +108,20 @@ export function renderShopEmail(
 
   const html = `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${e(subject)}</title></head>
-<body style="margin:0;padding:24px 0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#111827">
+<body style="margin:0;padding:24px 0;background:${e(background)};font-family:${e(font)};color:#111827">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:8px;padding:32px">
+${
+  logo
+    ? `<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%"><tr><td style="padding:0 16px 20px">${
+        theme.logo?.href
+          ? `<a href="${e(theme.logo.href)}" style="display:inline-block">${logo}</a>`
+          : logo
+      }</td></tr></table>`
+    : ''
+}
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:${radius}px;padding:32px">
 <tr><td>
-<h1 style="margin:0 0 24px;font-size:20px;line-height:28px">${e(t(data.copy.heading))}</h1>
+<h1 style="margin:0 0 24px;font-size:20px;line-height:28px;color:${e(heading)}">${e(t(data.copy.heading))}</h1>
 ${data.customerName !== null ? `<p style="margin:0 0 16px;font-size:14px;line-height:24px">${e(t(m.hello))}</p>` : ''}
 <p style="margin:0 0 24px;font-size:14px;line-height:24px">${e(t(data.copy.body))}</p>
 ${
@@ -87,7 +136,7 @@ ${
 }
 ${
   details.length > 0
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:6px;padding:8px 16px;margin-bottom:24px">${details
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${e(background)};border-radius:6px;padding:8px 16px;margin-bottom:24px">${details
         .map(
           ([label, value]) =>
             `<tr><td style="padding:4px 0;font-size:14px;color:#6b7280">${e(label)}</td><td align="right" style="padding:4px 0;font-size:14px">${e(value)}</td></tr>`,
@@ -98,7 +147,7 @@ ${
 ${
   cta && data.ctaUrl
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-<a href="${e(data.ctaUrl)}" style="display:inline-block;background:${e(accent)};color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:6px">${e(cta)}</a>
+<a href="${e(data.ctaUrl)}" style="display:inline-block;background:${e(accent)};color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:${buttonRadius}px">${e(cta)}</a>
 </td></tr></table>`
     : ''
 }
@@ -109,7 +158,7 @@ ${
     : ''
 }
 </td></tr></table>
-<p style="font-size:12px;color:#9ca3af">${e(data.shopName)}</p>
+<p style="margin:16px 0 0;font-size:12px;line-height:18px;color:#6b7280">${footer.map(e).join('<br>')}</p>
 </td></tr></table>
 </body></html>`;
 
@@ -122,6 +171,7 @@ ${
     ...details.map(([label, value]) => `${label}: ${value}`),
     ...(cta && data.ctaUrl ? ['', `${cta}: ${data.ctaUrl}`] : []),
     ...(data.customerName !== null ? ['', t(m.footer)] : []),
+    ...(theme.footer ? ['', ...theme.footer] : []),
   ].join('\n');
 
   return { subject, html, text };
@@ -171,6 +221,47 @@ function addressLine(address: Address | null) {
     .join(', ');
 }
 
+type EmailMessages = Messages['email'];
+
+function orderLines(order: Order, locale: string | undefined): EmailLine[] {
+  return order.lines.map((line) => ({
+    name: line.variantName
+      ? `${line.productName} – ${line.variantName}`
+      : line.productName,
+    quantity: line.quantity,
+    total: formatMoney(line.subtotal, order.currency, locale),
+  }));
+}
+
+/** Pickup point or delivery address, then the pickup / delivery day. */
+function fulfillmentRows(
+  order: Order,
+  m: EmailMessages,
+  locale: string | undefined,
+): [string, string][] {
+  const rows: [string, string][] = [];
+
+  if (order.shipping) {
+    rows.push(
+      order.shipping.pickup
+        ? [m.labels.pickup, order.shipping.name]
+        : [m.labels.shippingTo, addressLine(order.shippingAddress)],
+    );
+  }
+  if (order.fulfillmentDate) {
+    rows.push([
+      order.shipping?.pickup ? m.labels.pickupDate : m.labels.deliveryDate,
+      formatFulfillmentDate(
+        order.fulfillmentDate,
+        order.fulfillmentWindow,
+        locale,
+      ),
+    ]);
+  }
+
+  return rows;
+}
+
 /**
  * `onEvent` handler that emails customers about their orders: confirmation
  * (with the invoice for invoice orders), payment received, shipped / ready
@@ -199,28 +290,8 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
       formatMoney(amount, order.currency, locale);
     const date = (value: Date) => formatDate(value, locale);
     const orderRow: [string, string] = [m.labels.order, order.number];
-    const lines: EmailLine[] = order.lines.map((line) => ({
-      name: line.variantName
-        ? `${line.productName} – ${line.variantName}`
-        : line.productName,
-      quantity: line.quantity,
-      total: money(line.subtotal),
-    }));
-    const shippingRow: [string, string] | null = order.shipping
-      ? order.shipping.pickup
-        ? [m.labels.pickup, order.shipping.name]
-        : [m.labels.shippingTo, addressLine(order.shippingAddress)]
-      : null;
-    const dateRow: [string, string] | null = order.fulfillmentDate
-      ? [
-          order.shipping?.pickup ? m.labels.pickupDate : m.labels.deliveryDate,
-          formatFulfillmentDate(
-            order.fulfillmentDate,
-            order.fulfillmentWindow,
-            locale,
-          ),
-        ]
-      : null;
+    const fulfillment = fulfillmentRows(order, m, locale);
+    const dateRow = order.fulfillmentDate ? fulfillment.at(-1) : undefined;
 
     let kind: ShopEmailKind;
     let details: [string, string][] = [orderRow];
@@ -249,8 +320,7 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
           details = [orderRow, [m.labels.total, money(order.total)]];
         }
 
-        if (shippingRow) details.push(shippingRow);
-        if (dateRow) details.push(dateRow);
+        details.push(...fulfillment);
         break;
 
       case 'order.paid':
@@ -308,7 +378,7 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
         customerName: customerName(order),
         ctaUrl,
         details,
-        lines: withLines ? lines : undefined,
+        lines: withLines ? orderLines(order, locale) : undefined,
         values,
       },
       { ...options, locale },
@@ -362,16 +432,35 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
     let kind: 'newOrder' | 'latePayment' | 'lowStock';
     let order: Order | null = null;
     let values: Record<string, string>;
+    let details: [string, string][] | undefined;
+    let lines: EmailLine[] | undefined;
 
     if (event.type === 'order.placed') {
       kind = 'newOrder';
       order = event.order;
+      const amount = formatMoney(order.total, order.currency, locale);
+
       values = {
         orderNumber: order.number,
-        amount: formatMoney(order.total, order.currency, locale),
+        amount,
         customerName: customerName(order),
         method: m.receipt.methods[order.paymentMethod],
       };
+      // everything to prepare the order without opening the back office
+      const phone = order.billingAddress?.phone ?? order.shippingAddress?.phone;
+
+      lines = orderLines(order, locale);
+      details = [
+        [
+          copy.labels.customer,
+          [customerName(order), order.email, phone].filter(Boolean).join(', '),
+        ],
+        [m.email.labels.total, amount],
+        ...fulfillmentRows(order, m.email, locale),
+        ...(order.note
+          ? [[copy.labels.note, order.note] as [string, string]]
+          : []),
+      ];
     } else if (event.type === 'order.late_payment') {
       kind = 'latePayment';
       order = event.order;
@@ -408,6 +497,8 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
           order && options.links.admin
             ? await options.links.admin(order)
             : null,
+        details,
+        lines,
         values,
       },
       { ...options, locale },
