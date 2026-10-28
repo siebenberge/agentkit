@@ -1649,7 +1649,7 @@ describe('saved payment methods and orders in one call', () => {
 
     expect(payment).toMatchObject({ status: 'uncertain' });
     expect((await shop.listPaymentMethods('user_1'))[0]?.status).toBe('active');
-    // no second payment (page or charge) until the webhook or 5 minutes
+    // no second payment (page or charge) until the webhook or 30 minutes
     await expect(
       shop.payOrder({ orderId: order.id, urls }),
     ).rejects.toMatchObject({ code: 'INVALID_STATE' });

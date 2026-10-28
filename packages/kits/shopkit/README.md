@@ -450,7 +450,7 @@ returns; payment tokens and guest-link tokens never reach the model.
   charge returns a `paymentUrl` instead. When the provider does not answer
   (timeout, outage), the result is `uncertain`: the charge may have gone
   through, so no other payment of the order starts until the webhook
-  settles it or 5 minutes pass.
+  settles it or 30 minutes pass.
 - The same works without MCP: `shop.quoteOrder()`, `shop.placeOrder()`,
   `shop.payOrderWithSavedMethod()`, `shop.listPaymentMethods()`.
 
