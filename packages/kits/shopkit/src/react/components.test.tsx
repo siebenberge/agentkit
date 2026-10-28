@@ -386,15 +386,13 @@ describe('shop components', () => {
 
     await waitFor(() =>
       expect(
-        (screen.getAllByLabelText('Vor- und Nachname')[0] as HTMLInputElement)
+        screen.getAllByLabelText<HTMLInputElement>('Vor- und Nachname')[0]!
           .value,
       ).toBe('Anna Muster'),
     );
     expect(
-      (
-        screen.getByLabelText(
-          'Rechnungsadresse wie Lieferadresse',
-        ) as HTMLInputElement
+      screen.getByLabelText<HTMLInputElement>(
+        'Rechnungsadresse wie Lieferadresse',
       ).checked,
     ).toBe(true);
     expect(screen.getAllByLabelText('Vor- und Nachname')).toHaveLength(1);

@@ -508,11 +508,13 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
       customerExternalId: customer.externalId,
       limit: 1,
     });
+    // an empty name counts as none
     const name =
-      customer.name ||
-      last?.billingAddress?.name ||
-      last?.shippingAddress?.name ||
-      null;
+      [
+        customer.name,
+        last?.billingAddress?.name,
+        last?.shippingAddress?.name,
+      ].find(Boolean) ?? null;
     const details: Parameters<Shop['updateCartDetails']>[1] = {};
 
     if (!cart.email && customer.email) details.email = customer.email;
