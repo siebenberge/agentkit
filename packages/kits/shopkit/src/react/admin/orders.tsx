@@ -31,6 +31,20 @@ const FILTERS: Record<Filter, AdminOrderQuery> = {
   closed: { status: ['canceled', 'expired'] },
 };
 
+/** `2026-10-15` (a Zurich calendar day) as a `Date` that formats to it. */
+function calendarDay(day: string) {
+  return `${day}T12:00:00Z`;
+}
+
+/** `15.10.2026, 07:00–09:00` – the pickup / delivery day of the order. */
+function fulfillmentDay(order: AdminOrder, date: (value: string) => string) {
+  if (!order.fulfillmentDate) return null;
+
+  return [date(calendarDay(order.fulfillmentDate)), order.fulfillmentWindow]
+    .filter(Boolean)
+    .join(', ');
+}
+
 function customerName(order: AdminOrder) {
   return (
     order.billingAddress?.name ?? order.shippingAddress?.name ?? order.email
@@ -98,6 +112,7 @@ export function AdminOrders(props: AdminOrdersProps) {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const [day, setDay] = useState('');
   const [more, setMore] = useState<AdminOrder[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const t = m.orders;
@@ -108,6 +123,7 @@ export function AdminOrders(props: AdminOrdersProps) {
     return client.orders({
       ...FILTERS[filter],
       ...(term.includes('@') ? { email: term } : term ? { number: term } : {}),
+      ...(day ? { fulfillmentDate: day } : {}),
       limit: pageSize,
       offset,
     });
@@ -120,7 +136,7 @@ export function AdminOrders(props: AdminOrdersProps) {
     setHasMore(page.length === pageSize);
 
     return page;
-  }, [client, filter, query, pageSize]);
+  }, [client, filter, query, day, pageSize]);
 
   if (selected) {
     return (
@@ -177,6 +193,15 @@ export function AdminOrders(props: AdminOrdersProps) {
             {m.common.search}
           </button>
         </form>
+        <label className="sk-inline sk-day">
+          <span className="sk-muted">{t.day}</span>
+          <input
+            className="sk-input"
+            type="date"
+            value={day}
+            onChange={(event) => setDay(event.target.value)}
+          />
+        </label>
       </div>
 
       {!orders ? (
@@ -230,6 +255,11 @@ export function AdminOrders(props: AdminOrdersProps) {
                   </td>
                   <td>
                     <FulfillmentBadge order={order} />
+                    {order.fulfillmentDate ? (
+                      <div className="sk-muted">
+                        {fulfillmentDay(order, date)}
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -732,6 +762,11 @@ export function AdminOrderDetail(props: AdminOrderDetailProps) {
             <dl className="sk-dl">
               {order.shipping ? (
                 <Row label={t.shippingMethod}>{order.shipping.name}</Row>
+              ) : null}
+              {order.fulfillmentDate ? (
+                <Row label={t.fulfillmentDay}>
+                  {fulfillmentDay(order, date)}
+                </Row>
               ) : null}
               {order.carrier ? (
                 <Row label={t.carrier}>{order.carrier}</Row>

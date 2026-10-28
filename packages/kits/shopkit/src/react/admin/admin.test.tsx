@@ -39,10 +39,19 @@ const slip = swissQrBill({
 async function setup(options: { admin?: boolean } = {}) {
   const shop = createShop({
     database: memoryAdapter(),
+    // Thursday 10:00 in Zurich
+    now: () => new Date('2026-10-15T08:00:00Z'),
     shipping: {
       rates: [
         { id: 'post', name: 'PostPac Economy', amount: 900 },
         { id: 'pickup', name: 'Abholung', amount: 0, pickup: true },
+        {
+          id: 'laden',
+          name: 'Abholung im Laden',
+          amount: 0,
+          pickup: true,
+          schedule: { leadDays: 1, timeWindows: ['07:00–09:00'] },
+        },
       ],
     },
   });
@@ -85,7 +94,10 @@ async function setup(options: { admin?: boolean } = {}) {
   });
 
   /** An invoice order of Anna (shipped by post, or picked up). */
-  async function placeOrder(rate: 'post' | 'pickup' = 'post') {
+  async function placeOrder(
+    rate: 'post' | 'pickup' | 'laden' = 'post',
+    day?: { fulfillmentDate: string; fulfillmentWindow: string },
+  ) {
     const cart = await shop.createCart({ locale: 'de' });
 
     await shop.addToCart(cart.token, {
@@ -96,6 +108,7 @@ async function setup(options: { admin?: boolean } = {}) {
       email: 'anna@example.ch',
       shippingAddress: address,
       shippingRateId: rate,
+      ...day,
     });
 
     const result = await shop.checkout({
@@ -238,6 +251,37 @@ describe('back office components', () => {
       status: 'canceled',
       cancelReason: 'Doppelt bestellt',
     });
+  });
+
+  it('shows the pickup day and filters the orders of a day', async () => {
+    const { placeOrder, ui } = await setup();
+    const order = await placeOrder('laden', {
+      fulfillmentDate: '2026-10-20',
+      fulfillmentWindow: '07:00–09:00',
+    });
+
+    await placeOrder();
+    ui(<ShopAdmin />);
+
+    expect(await screen.findByText('20.10.2026, 07:00–09:00')).toBeTruthy();
+    expect(screen.getAllByRole('row')).toHaveLength(3);
+
+    fireEvent.change(screen.getByLabelText('Abhol-/Liefertag'), {
+      target: { value: '2026-10-21' },
+    });
+
+    expect(
+      await screen.findByText('Keine Bestellungen gefunden.'),
+    ).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Abhol-/Liefertag'), {
+      target: { value: '2026-10-20' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: order.number }));
+
+    expect(await screen.findByText('Abhol-/Liefertag')).toBeTruthy();
+    expect(screen.getByText('20.10.2026, 07:00–09:00')).toBeTruthy();
   });
 
   it('creates a product and edits price and stock of a variant', async () => {

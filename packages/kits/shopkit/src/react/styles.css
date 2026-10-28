@@ -636,3 +636,13 @@
   background: #fee2e2;
   color: var(--sk-danger);
 }
+
+.sk-day {
+  align-items: center;
+  white-space: nowrap;
+}
+
+.sk-toolbar .sk-day .sk-input {
+  width: auto;
+  min-width: 0;
+}

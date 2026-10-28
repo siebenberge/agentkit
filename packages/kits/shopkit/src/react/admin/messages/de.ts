@@ -72,6 +72,7 @@ export const de = {
   },
   orders: {
     search: 'Bestellnummer oder E-Mail',
+    day: 'Abhol-/Liefertag',
     filters: {
       all: 'Alle',
       unpaid: 'Zahlung offen',
@@ -116,6 +117,7 @@ export const de = {
     giftCard: 'Gutschein …{{last4}}',
     shipping: 'Versand',
     shippingMethod: 'Versandart',
+    fulfillmentDay: 'Abhol-/Liefertag',
     pickup: 'Abholung',
     carrier: 'Versanddienst',
     trackingNumber: 'Sendungsnummer',

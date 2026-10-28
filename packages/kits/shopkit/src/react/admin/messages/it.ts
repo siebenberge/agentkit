@@ -73,6 +73,7 @@ export const it: AdminMessages = {
   },
   orders: {
     search: 'Numero d’ordine o e-mail',
+    day: 'Giorno di ritiro / consegna',
     filters: {
       all: 'Tutti',
       unpaid: 'Pagamento aperto',
@@ -117,6 +118,7 @@ export const it: AdminMessages = {
     giftCard: 'Buono …{{last4}}',
     shipping: 'Spedizione',
     shippingMethod: 'Modalità di spedizione',
+    fulfillmentDay: 'Giorno di ritiro / consegna',
     pickup: 'Ritiro',
     carrier: 'Corriere',
     trackingNumber: 'Numero di invio',

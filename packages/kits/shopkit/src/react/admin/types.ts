@@ -42,6 +42,8 @@ export type AdminOrderQuery = {
   status?: OrderStatus[];
   paymentStatus?: PaymentStatus[];
   fulfillmentStatus?: FulfillmentStatus[];
+  /** Pickup / delivery day (`YYYY-MM-DD`): the orders of that day. */
+  fulfillmentDate?: string;
   number?: string;
   email?: string;
   /** Your id of the customer (`customerExternalId`). */

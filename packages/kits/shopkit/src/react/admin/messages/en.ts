@@ -72,6 +72,7 @@ export const en: AdminMessages = {
   },
   orders: {
     search: 'Order number or email',
+    day: 'Pickup / delivery day',
     filters: {
       all: 'All',
       unpaid: 'Unpaid',
@@ -116,6 +117,7 @@ export const en: AdminMessages = {
     giftCard: 'Gift card …{{last4}}',
     shipping: 'Shipping',
     shippingMethod: 'Shipping method',
+    fulfillmentDay: 'Pickup / delivery day',
     pickup: 'Pickup',
     carrier: 'Carrier',
     trackingNumber: 'Tracking number',
