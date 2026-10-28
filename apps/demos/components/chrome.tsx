@@ -116,7 +116,12 @@ export function DemoLayout(props: DemoLayoutProps) {
             agentkit
           </a>
           <span className="text-faint">/</span>
-          <span className="font-mono text-sm">{props.kit}</span>
+          <a
+            href={`https://www.npmjs.com/package/@agentkit.ch/${props.kit}`}
+            className="font-mono text-sm hover:underline"
+          >
+            {props.kit}
+          </a>
           <span className="hidden rounded-full border border-line px-2 py-0.5 text-[11px] font-medium text-muted sm:inline">
             {t.badge}
           </span>
