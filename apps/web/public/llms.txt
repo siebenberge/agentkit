@@ -21,6 +21,22 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   https://www.npmjs.com/package/@agentkit.ch/subkit,
   https://www.npmjs.com/package/@agentkit.ch/shopkit
 
+## Docs
+
+The reference of each kit – every option, method, HTTP route, event,
+database table and component – is in `docs/` of the package (also in
+`node_modules/@agentkit.ch/<kit>/docs`) and in the docs MCP below.
+
+- subkit: https://github.com/siebenberge/agentkit/tree/main/packages/kits/subkit/docs
+  – concepts, configuration, API, events, HTTP handler, React, emails /
+  invoices / QR-bill / camt, storage adapters, payment providers, MCP,
+  testing.
+- shopkit: https://github.com/siebenberge/agentkit/tree/main/packages/kits/shopkit/docs
+  – configuration, catalog and stock, cart and checkout, orders, discount
+  codes and gift cards, API, events, HTTP handlers, React, back office,
+  emails / receipts / QR-bill / camt, MCP, storage adapters, payment
+  providers, testing, HS-Soft, Swiss Post.
+
 ## Kits
 
 - subkit (`@agentkit.ch/subkit`, preview): subscriptions, plans, trials, proration,
@@ -155,7 +171,7 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
 ## MCP
 
 - Docs MCP for coding agents: `https://agentkit.ch/mcp` (Streamable HTTP, no
-  key, read-only) – `search_docs`, `read_doc`, `list_docs`,
+  key, read-only; llms.txt, READMEs, reference docs, error codes) – `search_docs`, `read_doc`, `list_docs`,
   `explain_error`. Claude Code:
   `claude mcp add --transport http agentkit https://agentkit.ch/mcp`.
 - MCP in your app, for your team: `createSubscriptionsMcpHandler` from

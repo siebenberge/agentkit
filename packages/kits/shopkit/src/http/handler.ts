@@ -69,7 +69,8 @@ export type ShopHandlerOptions<C extends ShopCustomer = ShopCustomer> = {
   identify?: (request: Request) => MaybePromise<C | null>;
   /**
    * Order page the payment provider redirects back to. `?checkout=success`
-   * (`cancel`, `failed`) is appended.
+   * (`cancel`, `failed`) is appended; a relative URL (`/bestellung/…`) is
+   * resolved against the API request's URL.
    */
   orderUrl: (
     request: Request,
@@ -391,8 +392,12 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
           'invoice',
         ]);
         const giftCardCodes = Array.isArray(body.giftCardCodes)
-          ? body.giftCardCodes.slice(0, 5).map((code) => text(code, 40))
+          ? body.giftCardCodes.map((code) => text(code, 40))
           : [];
+
+        // more would only guess codes; silently dropping one would charge
+        // the customer more than they expect
+        if (giftCardCodes.length > 5) throw new HttpError(400, 'INVALID_INPUT');
 
         await limit({ route: 'checkout', request });
         if (giftCardCodes.length > 0)
@@ -490,6 +495,7 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
         accessToken: order.accessToken,
         number: order.number,
       }),
+      request.url,
     );
   }
 
@@ -620,9 +626,10 @@ export function toNextJsHandler(handler: (request: Request) => ApiResponse) {
   return { GET: handler, POST: handler };
 }
 
-function withState(orderUrl: string) {
+/** A relative `orderUrl` is resolved against the API request's URL. */
+function withState(orderUrl: string, base: string) {
   const withParam = (state: string) => {
-    const url = new URL(orderUrl);
+    const url = new URL(orderUrl, base);
     url.searchParams.set('checkout', state);
     return url.toString();
   };

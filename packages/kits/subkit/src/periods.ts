@@ -151,6 +151,13 @@ export function nextPeriodEnd(
   return end;
 }
 
+/** Calendar day of `date` in Zurich as `YYYYMMDD`. */
+export function zurichDayKey(date: Date): string {
+  const { year, month, day } = zurichWallClock(date);
+
+  return `${year}${String(month + 1).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+}
+
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }

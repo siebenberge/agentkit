@@ -12,7 +12,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // the docs MCP reads these at runtime (lib/docs.ts)
   outputFileTracingIncludes: {
-    '/mcp': ['./public/llms.txt', '../../packages/kits/*/README.md'],
+    '/mcp': [
+      './public/llms.txt',
+      '../../packages/kits/*/README.md',
+      '../../packages/kits/*/docs/*.md',
+    ],
   },
   async redirects() {
     return [

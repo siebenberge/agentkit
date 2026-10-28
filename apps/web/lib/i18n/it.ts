@@ -253,7 +253,7 @@ export const it: Dict = {
       {
         title: 'core + CLI',
         when: 'in seguito',
-        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: tariffe in tempo reale della Posta e rimborsi tramite zahls.ch.',
+        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, la documentazione anche in tedesco. In shopkit: tariffe in tempo reale della Posta e rimborsi tramite zahls.ch.',
       },
       {
         title: 'Solleciti e adapter',
@@ -1088,6 +1088,7 @@ export const it: Dict = {
       kits: 'Kit',
       switzerland: 'Svizzera',
       developers: 'Sviluppatori',
+      docs: 'Doc',
       demos: 'Demo',
       theme: { light: 'Chiaro', dark: 'Scuro', system: 'Sistema' },
     },

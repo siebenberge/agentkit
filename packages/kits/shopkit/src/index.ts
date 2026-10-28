@@ -10,6 +10,7 @@ export {
   type CheckoutPaymentMethod,
   type CheckoutResult,
   type DiscountInput,
+  type FulfillmentDateContext,
   type InvoiceEligibility,
   type Logger,
   type OrderInput,

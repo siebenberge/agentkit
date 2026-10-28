@@ -250,7 +250,7 @@ export const en: Dict = {
       {
         title: 'core + CLI',
         when: 'next',
-        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: Swiss Post live tariffs and refunds through zahls.ch.',
+        text: 'A shared core with an adapter test suite, a CLI for schema and route, the docs in German too. In shopkit: Swiss Post live tariffs and refunds through zahls.ch.',
       },
       {
         title: 'Dunning & adapters',
@@ -1084,6 +1084,7 @@ export const en: Dict = {
       kits: 'Kits',
       switzerland: 'Switzerland',
       developers: 'Developers',
+      docs: 'Docs',
       demos: 'Demos',
       theme: { light: 'Light', dark: 'Dark', system: 'System' },
     },

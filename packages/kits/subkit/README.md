@@ -8,7 +8,7 @@ every period – or bill by invoice. Everything a customer needs for
 self-service ships with the package. Database- and framework-agnostic.
 
 npm: [@agentkit.ch/subkit](https://www.npmjs.com/package/@agentkit.ch/subkit) · Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
-Try it: [sub.agentkit.ch](https://sub.agentkit.ch) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
+Try it: [sub.agentkit.ch](https://sub.agentkit.ch) · Reference: [docs](https://github.com/siebenberge/agentkit/tree/main/packages/kits/subkit/docs) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
 
 ## Install
 

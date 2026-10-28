@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { memoryAdapter } from '../adapters/memory';
 import { createSubscriptions } from '../engine';
+import { SubscriptionError } from '../errors';
 import { swissQrBill } from '../invoice/swiss-qr-bill';
 import type { PaymentProvider, ProviderEvent } from '../provider';
 import { createBillingClient } from '../react/client';
@@ -304,6 +305,27 @@ describe('createSubscriptionsHandler', () => {
     });
   });
 
+  it('marks invoices overdue by the engine clock', async () => {
+    const { client, clock } = setup();
+
+    await client.subscribe({
+      planId: 'pro',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+    });
+    expect((await client.overview()).invoices[0]).toMatchObject({
+      overdue: false,
+    });
+
+    // past the payment term in the engine's time, not the system's
+    clock.now = new Date(clock.now.getTime() + 40 * 24 * 60 * 60 * 1000);
+
+    expect((await client.overview()).invoices[0]).toMatchObject({
+      overdue: true,
+      payable: true,
+    });
+  });
+
   it('maps engine errors to codes', async () => {
     const { client } = setup();
 
@@ -319,6 +341,35 @@ describe('createSubscriptionsHandler', () => {
         collectionMethod: 'send_invoice',
       }),
     ).rejects.toMatchObject({ code: 'PLAN_NOT_PURCHASABLE', status: 400 });
+  });
+
+  it('answers 503 when the payment provider is unavailable', async () => {
+    const { subscriptions } = setup();
+    const handler = createSubscriptionsHandler({
+      subscriptions: {
+        ...subscriptions,
+        changePlan: () =>
+          Promise.reject(
+            new SubscriptionError('PROVIDER_UNAVAILABLE', 'zahls.ch is down'),
+          ),
+      },
+      basePath: '/api/billing',
+      authorize: () => customer,
+      returnUrl: () => 'https://app.example/billing',
+    });
+
+    const response = await handler(
+      new Request('https://app.example/api/billing/change-plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ planId: 'pro', interval: 'month' }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: 'PROVIDER_UNAVAILABLE',
+    });
   });
 
   it('refuses to subscribe again while an invoice is overdue (402)', async () => {

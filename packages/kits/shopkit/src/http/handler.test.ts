@@ -21,6 +21,7 @@ async function setup(
   options: {
     customer?: { externalId: string; email?: string } | null;
     rateLimit?: (check: RateLimitCheck) => { allowed: boolean };
+    orderUrl?: (order: { id: string; accessToken: string }) => string;
   } = {},
 ) {
   const pages: string[] = [];
@@ -102,6 +103,7 @@ async function setup(
     basePath: '/api/shop',
     identify: () => state.customer,
     orderUrl: (_request, order) =>
+      options.orderUrl?.(order) ??
       `https://shop.example/bestellung/${order.id}?token=${order.accessToken}`,
     receipts,
     rateLimit: options.rateLimit,
@@ -372,6 +374,45 @@ describe('createShopHandler', () => {
     const again = await client.payOrder(result.orderId, result.accessToken);
 
     expect(again.url).toBe('https://pay.example/2');
+  });
+
+  it('resolves a relative order page against the API URL', async () => {
+    const { client, variantId, pages } = await setup({
+      orderUrl: (order) => `/bestellung/${order.id}`,
+    });
+    let cart = await client.createCart();
+
+    cart = await client.addItem(cart.token, variantId);
+    cart = await client.updateDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'pickup',
+    });
+
+    const result = await client.checkout(cart.token, {
+      paymentMethod: 'online',
+    });
+
+    expect(pages[0]).toBe(
+      `https://shop.example/bestellung/${result.orderId}?checkout=success`,
+    );
+  });
+
+  it('refuses more than five gift card codes instead of dropping some', async () => {
+    const { client, variantId } = await setup();
+    let cart = await client.createCart();
+
+    cart = await client.addItem(cart.token, variantId);
+    cart = await client.updateDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'pickup',
+    });
+
+    await expect(
+      client.checkout(cart.token, {
+        paymentMethod: 'online',
+        giftCardCodes: ['A1', 'B2', 'C3', 'D4', 'E5', 'F6'],
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT', status: 400 });
   });
 
   it('keeps a signed-in customer’s cart and orders to them', async () => {

@@ -34,8 +34,8 @@ export type FindManyOptions<M extends ModelName> = {
  *   for compare-and-set (e.g. "set stock to 4 where stock = 5"), so the
  *   update must be atomic per row;
  * - `create` must reject a duplicate `product.slug`, `variant.sku`,
- *   `cart.token`, `discount.code`, `giftCard.code`, `order.number` or
- *   `order.accessToken` (unique constraint);
+ *   `cart.token`, `discount.code`, `giftCard.code`, `order.number`,
+ *   `order.accessToken` or `paymentMethod.token` (unique constraint);
  * - `transaction` is optional but recommended: without it a crash between two
  *   writes can leave reserved stock without its order.
  */

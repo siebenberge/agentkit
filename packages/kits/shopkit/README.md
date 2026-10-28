@@ -11,7 +11,7 @@ emails and receipts ship with the package. Database- and framework-agnostic;
 the data lives in your own database.
 
 npm: [@agentkit.ch/shopkit](https://www.npmjs.com/package/@agentkit.ch/shopkit) · Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
-Try it: [shop.agentkit.ch](https://shop.agentkit.ch) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
+Try it: [shop.agentkit.ch](https://shop.agentkit.ch) · Reference: [docs](https://github.com/siebenberge/agentkit/tree/main/packages/kits/shopkit/docs) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
 
 ## Install
 
@@ -286,8 +286,8 @@ export default function ShopBackOffice() {
   backorders, archive.
 - **Discount codes**: percent, amount or free shipping, minimum order
   value, products, validity, usage limit; activate / deactivate.
-- **Gift cards**: issue by hand (code shown once to copy), balances,
-  disable.
+- **Gift cards**: issue by hand (the code to pass on to the customer),
+  codes and balances, disable.
 - **Bank import**: upload the camt.054 / camt.053 of your bank, see what was
   marked paid, overpaid, underpaid or not matched.
 
@@ -638,7 +638,9 @@ Tools: `search_products`, `get_product`, `quote_order` (lines, VAT, total,
 shipping / pickup options, the saved payment method), `place_order`,
 `pay_order`, `list_my_orders`, `get_my_order`, `list_payment_methods`,
 `remove_payment_method`. Every tool acts only for the customer `identify`
-returns; payment tokens and guest-link tokens never reach the model.
+returns; payment tokens never reach the model, and orders come without
+their access token – only with the `orderUrl` you build (the customer's own
+order link).
 
 - A pickup / delivery option with a `schedule` needs a day: the agent asks
   the customer and passes `fulfillmentDate` (and `fulfillmentWindow`) from the

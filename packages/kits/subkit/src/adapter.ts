@@ -31,7 +31,7 @@ export type FindManyOptions<M extends ModelName> = {
  *   first updated row, or `null` if nothing matched. The engine relies on this
  *   for compare-and-set (e.g. "mark paid where status = open"), so the update
  *   must be atomic per row;
- * - `create` must reject a duplicate `invoice.billingKey`,
+ * - `create` must reject a duplicate `invoice.billingKey`, `invoice.number`,
  *   `customer.externalId` or `paymentMethod.token` (unique constraint);
  * - `transaction` is optional but recommended: without it a crash between two
  *   writes can leave a renewed subscription without its invoice.

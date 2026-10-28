@@ -104,7 +104,7 @@ export type ShopOptions = {
     expiresInHours?: number;
   };
   cart?: {
-    /** Guest carts are abandoned after this many days (default 30). */
+    /** Carts unchanged for this many days are abandoned (default 30). */
     expiresInDays?: number;
     /** Most units of one variant in a cart (default 99). */
     maxQuantity?: number;
@@ -3928,21 +3928,16 @@ export function createShop(options: ShopOptions) {
 
     // 2. the money
     if (recorded.viaProvider && provider?.refund) {
+      let refundId: string;
+
       try {
-        const { refundId } = await provider.refund({
+        ({ refundId } = await provider.refund({
           transactionId: before.providerTransactionId!,
           amount: refund.toPayment,
           currency: before.currency,
           reason: refund.reason,
-        });
-
-        refund.providerRefundId = refundId;
-        result = await rewriteRefunds(before.id, (refunds) =>
-          refunds.map((entry) => (entry.id === refund.id ? refund : entry)),
-        );
+        }));
       } catch (error) {
-        if (error instanceof ShopError) throw error;
-
         logger.error(
           { error, orderId: before.id },
           'shop: provider refund failed',
@@ -3986,11 +3981,19 @@ export function createShop(options: ShopOptions) {
           throw new ShopError('BUSY', 'Order is changing, try again');
         });
 
-        throw new ShopError(
-          'PROVIDER_UNAVAILABLE',
-          'The provider refused the refund',
-        );
+        throw error instanceof ShopError
+          ? error
+          : new ShopError(
+              'PROVIDER_UNAVAILABLE',
+              'The provider refused the refund',
+            );
       }
+
+      // the money moved: only the record of its id may fail from here on
+      refund.providerRefundId = refundId;
+      result = await rewriteRefunds(before.id, (refunds) =>
+        refunds.map((entry) => (entry.id === refund.id ? refund : entry)),
+      );
     }
 
     await emit([{ type: 'order.refunded', order: result, refund }]);

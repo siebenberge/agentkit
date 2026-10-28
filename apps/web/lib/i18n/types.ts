@@ -393,6 +393,8 @@ export type Dict = {
       kits: string;
       switzerland: string;
       developers: string;
+      /** Footer link to the reference docs of a kit: «Docs · subkit». */
+      docs: string;
       demos: string;
       theme: { light: string; dark: string; system: string };
     };

@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { memoryAdapter } from './adapters/memory';
 import { createSubscriptions } from './engine';
-import { addIntervals, endOfZurichDay, nextPeriodEnd } from './periods';
+import {
+  addIntervals,
+  endOfZurichDay,
+  nextPeriodEnd,
+  zurichDayKey,
+} from './periods';
 import type {
   ChargeResult,
   CreateHostedPaymentParams,
@@ -178,6 +183,29 @@ async function subscribeWithCard(
 }
 
 describe('periods', () => {
+  it('dates invoice numbers in Zurich, not in UTC', async () => {
+    // 00:30 on 15 October in Zurich
+    expect(zurichDayKey(new Date('2026-10-14T22:30:00Z'))).toBe('20261015');
+
+    const { subs, clock } = setup();
+    clock.now = new Date('2026-10-14T22:30:00Z');
+    await subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'kasse@verein.ch',
+      name: 'FC Test',
+    });
+    await subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'basic',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+      urls,
+    });
+
+    const [invoice] = (await subs.getOverview('acc_1')).invoices;
+    expect(invoice?.number).toMatch(/^INV-20261015-/);
+  });
+
   it('clamps month ends without drifting', () => {
     // 11:00 in Zurich; summer time from 29.03.2026 keeps 11:00 (09:00 UTC)
     const anchor = new Date('2026-01-31T10:00:00.000Z');
@@ -249,6 +277,39 @@ describe('periods', () => {
     expect(grossAmount(20000, { rateBps: 810, inclusive: false })).toBe(21620);
     expect(grossAmount(20000, { rateBps: 810 })).toBe(20000);
     expect(grossAmount(20000, null)).toBe(20000);
+  });
+});
+
+describe('customers', () => {
+  it('keeps the address when none is passed and removes it with null', async () => {
+    const { subs } = setup();
+    const address = {
+      line1: 'Bahnhofstrasse 1',
+      postalCode: '8001',
+      city: 'Zürich',
+      country: 'CH',
+    };
+
+    await subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'kasse@verein.ch',
+      name: 'FC Test',
+      address,
+    });
+    const kept = await subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'kasse@verein.ch',
+      name: 'FC Test',
+    });
+    const removed = await subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'kasse@verein.ch',
+      name: 'FC Test',
+      address: null,
+    });
+
+    expect(kept.address).toEqual(address);
+    expect(removed.address).toBeNull();
   });
 });
 
@@ -485,6 +546,41 @@ describe('card subscriptions', () => {
 
     overview = await ctx.subs.getOverview('acc_1');
     expect(ctx.charges).toHaveLength(1);
+    expect(
+      overview.invoices.every((invoice) => invoice.status === 'paid'),
+    ).toBe(true);
+  });
+
+  it('never charges again while a pending charge cannot be checked', async () => {
+    // a provider without status check: only the webhook settles a charge
+    delete (ctx.provider as Partial<PaymentProvider>).getTransactionStatus;
+    await subscribeWithCard(ctx);
+    ctx.results.push({ status: 'pending', transactionId: 'tx_pending' });
+
+    ctx.advance(31);
+    await ctx.subs.runDue();
+    expect(ctx.charges).toHaveLength(1);
+
+    // the lease runs out twice without an answer
+    ctx.advance(0.3);
+    await ctx.subs.runDue();
+    ctx.advance(0.3);
+    await ctx.subs.runDue();
+
+    expect(ctx.charges).toHaveLength(1);
+
+    const charge = ctx.charges[0]!;
+    await ctx.webhook([
+      {
+        type: 'payment.succeeded',
+        referenceId: charge.referenceId,
+        transactionId: 'tx_pending',
+        amount: charge.amount,
+        currency: 'CHF',
+      },
+    ]);
+
+    const overview = await ctx.subs.getOverview('acc_1');
     expect(
       overview.invoices.every((invoice) => invoice.status === 'paid'),
     ).toBe(true);

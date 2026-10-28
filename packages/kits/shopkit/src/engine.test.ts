@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { memoryAdapter } from './adapters/memory';
 import { type ShopOptions, createShop } from './engine';
+import { ShopError } from './errors';
 import type {
   ChargeResult,
   ChargeTokenParams,
@@ -1131,6 +1132,33 @@ describe('fulfillment and refunds', () => {
       paymentStatus: 'paid',
       refundedTotal: 0,
       refunds: [],
+    });
+  });
+
+  it('takes the refund back when the provider refuses it with a ShopError', async () => {
+    const { shop, products, variant, readyCart, payOnline, fake } =
+      await setup();
+    const cart = await readyCart([
+      { variantId: variant(products.shoe), quantity: 1 },
+    ]);
+    const { order } = await shop.checkout({
+      token: cart.token,
+      paymentMethod: 'online',
+      urls,
+    });
+
+    await payOnline(order.id, order.amountDue);
+    fake.provider.refund = () =>
+      Promise.reject(new ShopError('PROVIDER_UNAVAILABLE', 'zahls.ch is down'));
+
+    await expect(
+      shop.refundOrder({ orderId: order.id, restock: true }),
+    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+    expect(await shop.getOrder(order.id)).toMatchObject({
+      paymentStatus: 'paid',
+      refundedTotal: 0,
+      refunds: [],
+      reserved: true,
     });
   });
 

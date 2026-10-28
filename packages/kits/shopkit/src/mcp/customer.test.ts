@@ -190,6 +190,26 @@ describe('createShopCustomerMcpHandler', () => {
     expect((await call('anna', 'search_products')).status).toBe(200);
   });
 
+  it('places an order with nothing to ship without a shipping option', async () => {
+    const { shop, result } = await setup();
+
+    await shop.createProduct({
+      slug: 'gutschein',
+      name: 'Gutschein',
+      kind: 'gift_card',
+      variants: [{ sku: 'GS-50', price: 5_000 }],
+    });
+
+    const placed = await result('anna', 'place_order', {
+      items: [{ sku: 'GS-50', quantity: 1 }],
+    });
+
+    expect(placed.structuredContent).toMatchObject({
+      order: { fulfillmentStatus: 'not_required' },
+      payment: { status: 'payment_link' },
+    });
+  });
+
   it('finds products and quotes a pickup order', async () => {
     const { result, order } = await setup();
 

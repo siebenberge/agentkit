@@ -23,11 +23,16 @@ Guide for contributors and coding agents. Human-oriented setup is in
   contract, i18n helpers, zahls.ch provider, QR-bill and camt code of subkit – fix a bug
   in one, fix it in the other. The MCP protocol code (`src/mcp/server.ts`) is in both
   kits and in `apps/web/lib/mcp-server.ts` – change all three.
+- Docs: the README of a kit is the quickstart, `packages/kits/<kit>/docs/*.md` the
+  reference (every option, method, route, event, table, component; index in
+  `docs/README.md`). They ship in the npm package and the docs MCP serves them. A
+  change to an option, method, route, event, table or component updates its page
+  in the same pull request.
 - Error codes: every kit error links to `agentkit.ch/errors#<kit>-<CODE>`. A new code
   needs an entry in `ERROR_CODES` (`apps/web/lib/content.ts`) and its cause and fix in
   all four dictionaries. The docs MCP (`apps/web/app/mcp/route.ts`) serves llms.txt,
-  the usage sections of the kit READMEs and this reference – keep READMEs free of
-  secrets.
+  the usage sections of the kit READMEs, the kit docs and this reference – keep
+  READMEs and docs free of secrets.
 - Scope: TypeScript/JavaScript only, two kits (subkit, shopkit).
 - Kit schema changes stay additive in minor versions – products run them as their
   own migrations while the previous deployment is still live.

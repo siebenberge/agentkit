@@ -181,18 +181,22 @@ export const KITS: {
   status: Status;
   demo?: string;
   npm: string;
+  /** Reference docs (every option, method, route, event and table). */
+  docs: string;
 }[] = [
   {
     id: 'subkit',
     status: 'preview',
     demo: 'https://sub.agentkit.ch',
     npm: 'https://www.npmjs.com/package/@agentkit.ch/subkit',
+    docs: `${REPO_URL}/tree/main/packages/kits/subkit/docs`,
   },
   {
     id: 'shopkit',
     status: 'preview',
     demo: 'https://shop.agentkit.ch',
     npm: 'https://www.npmjs.com/package/@agentkit.ch/shopkit',
+    docs: `${REPO_URL}/tree/main/packages/kits/shopkit/docs`,
   },
 ];
 
@@ -351,7 +355,7 @@ export const ERROR_CODES: Record<
     e('INVALID_STATE', 400, 'subkit.INVALID_STATE'),
     e('PAYMENT_METHOD_REQUIRED', 400, 'subkit.PAYMENT_METHOD_REQUIRED'),
     e('PAYMENT_FAILED', 400, 'subkit.PAYMENT_FAILED'),
-    e('PROVIDER_UNAVAILABLE', 400, 'PROVIDER_UNAVAILABLE'),
+    e('PROVIDER_UNAVAILABLE', 503, 'PROVIDER_UNAVAILABLE'),
     e('INVOICE_NOT_FOUND', 404, 'subkit.INVOICE_NOT_FOUND'),
     e('OVERDUE_INVOICE', 402, 'subkit.OVERDUE_INVOICE'),
     e(
