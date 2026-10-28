@@ -15,6 +15,7 @@ export { AdminProducts, type AdminProductsProps } from './products';
 export { AdminDiscounts, type AdminDiscountsProps } from './discounts';
 export { AdminGiftCards, type AdminGiftCardsProps } from './gift-cards';
 export { AdminBankImport, type AdminBankImportProps } from './bank-import';
+export { AdminHsSoft, type AdminHsSoftProps } from './hssoft';
 export {
   ShopAdminProvider,
   useShopAdmin,

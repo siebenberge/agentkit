@@ -279,6 +279,14 @@ de / fr / it / en (`messages` overrides them), `onNotify` for your toasts,
 `createShopAdminClient({ baseUrl })` is the typed client for your own
 screens.
 
+With the [HS-Soft plugin](#hs-soft-wawiassist) pass `hssoft` to
+`createShopAdminHandler` and set `<ShopAdminProvider hssoft>`: a
+WaWiAssist section (import products, send due orders), the WaWiAssist state
+of each order (order number, notes, errors; send or send again – a refused or
+unanswered order only on purpose) and, per product, the article data and
+the own availability period (e.g. Grittibänz 1.11.–6.12. every year).
+Without `hssoft` nothing of it is shown.
+
 Invoice orders paid by QR-bill: import the camt.054 / camt.053 of your bank
 with `shop.reconcileBankPayments({ payments: parseCamt(xml), reference:
 (order) => paymentSlip.reference(order) })` or `POST {admin}/bank-payments`
@@ -440,7 +448,8 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   `hssoft.syncOrder(orderId, { force: true })`, or pass `hssoft` to
   `createShopAdminHandler` (`POST /orders/:id/hssoft`, `POST /hssoft/import`,
   `POST /hssoft/sync`) and `createShopMcpHandler` (tools `hssoft_sync_order`,
-  `hssoft_import_products`).
+  `hssoft_import_products`); the back office components show all of it
+  with `<ShopAdminProvider hssoft>`.
 - Not possible with the API: categories from the marketing groups (it has
   no names for them), the availability periods of the articles, stock.
 

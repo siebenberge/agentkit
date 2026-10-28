@@ -28,6 +28,8 @@ export type ShopAdminContextValue = {
   notify: (type: 'success' | 'error', message: string) => void;
   /** Opens HTML (a receipt) in a new tab. */
   openHtml: (load: () => Promise<string>) => void;
+  /** The HS-Soft (WaWiAssist) plugin is on: its section, order and product parts show. */
+  hssoft: boolean;
 };
 
 const ShopAdminContext = createContext<ShopAdminContextValue | null>(null);
@@ -41,6 +43,11 @@ export type ShopAdminProviderProps = {
   messages?: AdminMessageOverrides;
   /** Currency of the shop (default `CHF`). */
   currency?: string;
+  /**
+   * HS-Soft (WaWiAssist) plugin – set it when you pass `hssoft` to
+   * `createShopAdminHandler`. Without it nothing of HS-Soft is shown.
+   */
+  hssoft?: boolean;
   /** Hook into your app's toasts (the components also show messages inline). */
   onNotify?: (type: 'success' | 'error', message: string) => void;
   children: React.ReactNode;
@@ -71,6 +78,7 @@ export function ShopAdminProvider(props: ShopAdminProviderProps) {
   );
 
   const currency = props.currency ?? 'CHF';
+  const hssoft = props.hssoft === true;
   const onNotify = props.onNotify;
 
   const value = useMemo<ShopAdminContextValue>(() => {
@@ -121,8 +129,9 @@ export function ShopAdminProvider(props: ShopAdminProviderProps) {
           },
         );
       },
+      hssoft,
     };
-  }, [client, currency, locale, m, onNotify]);
+  }, [client, currency, hssoft, locale, m, onNotify]);
 
   return (
     <ShopAdminContext.Provider value={value}>

@@ -55,7 +55,9 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   periods, optionally WaWiAssist's orderable articles per day).
   Next: back office components – `<ShopAdmin />` from
   `@agentkit.ch/shopkit/react/admin` (orders, products and stock, discount
-  codes, gift cards, bank import; your auth decides access through
+  codes, gift cards, bank import; with `<ShopAdminProvider hssoft>` also
+  the HS-Soft parts – import, order state in WaWiAssist, availability
+  periods; your auth decides access through
   `createShopAdminHandler({ authorize })`) are in the repo and reach npm
   with the next release; Swiss Post labels and live tariffs, digital
   downloads.

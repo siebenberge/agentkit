@@ -12,7 +12,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { memoryAdapter } from '../../adapters/memory';
 import { createCamt054 } from '../../camt';
 import { formatGiftCardCode } from '../../codes';
-import { createShop } from '../../engine';
+import { type Shop, createShop } from '../../engine';
+import type { HsSoftSync } from '../../hssoft';
 import { createShopAdminHandler } from '../../http/admin';
 import { swissQrBill } from '../../receipt/swiss-qr-bill';
 import { createShopAdminClient } from './client';
@@ -36,9 +37,19 @@ const slip = swissQrBill({
   iban: 'CH44 3199 9123 0008 8901 2',
 });
 
-async function setup(options: { admin?: boolean } = {}) {
+async function setup(
+  options: {
+    admin?: boolean;
+    /** The HS-Soft plugin (a stand-in for `createHsSoftSync()`). */
+    hssoft?: (
+      shop: Shop,
+      database: ReturnType<typeof memoryAdapter>,
+    ) => HsSoftSync;
+  } = {},
+) {
+  const database = memoryAdapter();
   const shop = createShop({
-    database: memoryAdapter(),
+    database,
     // Thursday 10:00 in Zurich
     now: () => new Date('2026-10-15T08:00:00Z'),
     shipping: {
@@ -73,6 +84,7 @@ async function setup(options: { admin?: boolean } = {}) {
     basePath: '/api/shop-admin',
     authorize: () => options.admin !== false,
     receipts: { seller: { name: 'Rösterei AG' }, paymentSlip: slip },
+    hssoft: options.hssoft?.(shop, database),
   });
 
   const client = createShopAdminClient({
@@ -121,12 +133,16 @@ async function setup(options: { admin?: boolean } = {}) {
 
   const ui = (children: React.ReactNode) =>
     render(
-      <ShopAdminProvider client={client} locale="de">
+      <ShopAdminProvider
+        client={client}
+        locale="de"
+        hssoft={options.hssoft !== undefined}
+      >
         {children}
       </ShopAdminProvider>,
     );
 
-  return { shop, client, coffee, placeOrder, ui };
+  return { shop, database, client, coffee, placeOrder, ui };
 }
 
 afterEach(() => {
@@ -478,5 +494,200 @@ describe('back office components', () => {
         'Kein Zugriff – bitte melde dich mit einem Admin-Konto an.',
       ),
     ).toBeTruthy();
+  });
+});
+
+describe('HS-Soft plugin in the back office', () => {
+  /** Records the calls; orders "go" to WaWiAssist as number 4711. */
+  function fakeHsSoft(calls: string[]) {
+    return (shop: Shop, database: ReturnType<typeof memoryAdapter>) =>
+      ({
+        importProducts: (params: { force?: boolean }) => {
+          calls.push(`import force=${params.force === true}`);
+
+          return Promise.resolve({
+            loaded: 3,
+            created: 1,
+            updated: 1,
+            unchanged: 1,
+            deactivated: 0,
+            skipped: [{ articleId: 9, articleNumber: 'A9', reason: 'dough' }],
+            failed: [],
+          });
+        },
+        syncOrders: () => {
+          calls.push('sync');
+
+          return Promise.resolve({
+            synced: 2,
+            retry: 0,
+            failed: 0,
+            uncertain: 0,
+            skipped: 0,
+            deleted: 0,
+            saturated: false,
+          });
+        },
+        syncOrder: async (orderId: string, params: { force?: boolean }) => {
+          calls.push(`order force=${params.force === true}`);
+
+          const order = (await shop.getOrder(orderId))!;
+          const sync = {
+            state: 'synced',
+            orderId: 1,
+            orderNumber: 4711,
+            attempts: 2,
+            warnings: [],
+            error: null,
+            nextAttemptAt: null,
+            syncedAt: '2026-10-15T08:00:00.000Z',
+            updatedAt: '2026-10-15T08:00:00.000Z',
+          };
+
+          await database.update('order', [{ field: 'id', value: orderId }], {
+            metadata: { ...order.metadata, hssoft: sync },
+          });
+
+          return sync;
+        },
+        setAvailabilityPeriod: async (
+          productId: string,
+          period: { from: string; to: string; recurring?: boolean } | null,
+        ) => {
+          const product = (await shop.getProduct(productId))!;
+          const { hssoftAvailability: _old, ...metadata } = product.metadata;
+
+          return shop.updateProduct(productId, {
+            metadata: period
+              ? { ...metadata, hssoftAvailability: period }
+              : metadata,
+          });
+        },
+      }) as unknown as HsSoftSync;
+  }
+
+  it('shows nothing of HS-Soft without the plugin', async () => {
+    const { placeOrder, ui } = await setup();
+    const order = await placeOrder();
+
+    ui(<ShopAdmin initialOrderId={order.id} />);
+
+    expect(await screen.findByText(`Bestellung ${order.number}`)).toBeTruthy();
+    expect(screen.queryByText('WaWiAssist')).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'WaWiAssist' })).toBeNull();
+  });
+
+  it('imports products and sends due orders by hand', async () => {
+    const calls: string[] = [];
+    const { ui } = await setup({ hssoft: fakeHsSoft(calls) });
+
+    ui(<ShopAdmin initialSection="hssoft" />);
+
+    fireEvent.click(
+      screen.getByLabelText('Auch unveränderte Artikel neu schreiben'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt importieren' }));
+
+    expect(
+      await screen.findByText(
+        '3 Artikel geladen: 1 neu, 1 geändert, 1 unverändert, 0 deaktiviert.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Übersprungen (1)')).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Fällige Bestellungen senden' }),
+    );
+
+    expect(await screen.findByText(/^2 gesendet/)).toBeTruthy();
+    expect(calls).toEqual(['import force=true', 'sync']);
+  });
+
+  it('sends an order that is not in WaWiAssist yet', async () => {
+    const calls: string[] = [];
+    const { placeOrder, ui } = await setup({ hssoft: fakeHsSoft(calls) });
+    const order = await placeOrder();
+
+    ui(<ShopAdmin />);
+
+    // the list points at it
+    expect(await screen.findByText('Noch nicht gesendet')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: order.number }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'An WaWiAssist senden' }),
+    );
+
+    expect(await screen.findByText('An WaWiAssist gesendet.')).toBeTruthy();
+    expect(screen.getByText('4711')).toBeTruthy();
+    expect(screen.getByText('Übertragen')).toBeTruthy();
+    expect(calls).toEqual(['order force=false']);
+  });
+
+  it('sends a refused order again with force and keeps a period on a product', async () => {
+    const calls: string[] = [];
+    const { shop, database, coffee, placeOrder, ui } = await setup({
+      hssoft: fakeHsSoft(calls),
+    });
+    const order = await placeOrder();
+
+    await database.update('order', [{ field: 'id', value: order.id }], {
+      metadata: {
+        hssoft: {
+          state: 'failed',
+          orderId: null,
+          orderNumber: null,
+          attempts: 1,
+          warnings: [],
+          error: {
+            code: 'HSSOFT_REJECTED',
+            message: 'Das Lieferdatum ist gesperrt',
+            status: 400,
+            type: 'VALIDATION_ERROR',
+          },
+          nextAttemptAt: null,
+          syncedAt: null,
+          updatedAt: '2026-10-15T08:00:00.000Z',
+        },
+      },
+    });
+
+    ui(<ShopAdmin initialOrderId={order.id} />);
+
+    expect(
+      await screen.findByText('Das Lieferdatum ist gesperrt'),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Erneut senden' }));
+
+    expect(await screen.findByText('An WaWiAssist gesendet.')).toBeTruthy();
+    expect(calls).toEqual(['order force=true']);
+
+    // availability period of a product
+    fireEvent.click(screen.getByRole('tab', { name: 'Produkte' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Kaffee' }));
+    fireEvent.change(await screen.findByLabelText('Von'), {
+      target: { value: '2026-11-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Bis'), {
+      target: { value: '2026-12-06' },
+    });
+    fireEvent.click(screen.getByLabelText('Jedes Jahr'));
+    fireEvent.click(screen.getByRole('button', { name: 'Zeitraum speichern' }));
+
+    expect(await screen.findByText('Zeitraum gespeichert.')).toBeTruthy();
+    expect((await shop.getProduct(coffee.id))!.metadata).toMatchObject({
+      hssoftAvailability: {
+        from: '2026-11-01',
+        to: '2026-12-06',
+        recurring: true,
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zeitraum entfernen' }));
+
+    expect(await screen.findByText('Zeitraum entfernt.')).toBeTruthy();
+    expect(
+      (await shop.getProduct(coffee.id))!.metadata.hssoftAvailability,
+    ).toBeUndefined();
   });
 });
