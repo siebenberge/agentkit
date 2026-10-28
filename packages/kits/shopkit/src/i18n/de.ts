@@ -84,6 +84,11 @@ export const de = {
       city: 'Ort',
       country: 'Land',
       phone: 'Telefon (optional)',
+      addressSuggestion: 'Meintest du diese Adresse?',
+      addressNotFound:
+        'Diese Adresse kennt die Post nicht. Bitte prüfe Strasse, Nummer, PLZ und Ort.',
+      useSuggestion: 'Vorschlag übernehmen',
+      keepAddress: 'Meine Eingabe behalten',
       shippingMethod: 'Versandart',
       noShippingMethod: 'Für diese Adresse gibt es keine Versandart.',
       pickup: 'Abholung',

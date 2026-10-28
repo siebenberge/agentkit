@@ -39,7 +39,11 @@ export type ShopErrorCode =
   /** HS-Soft could not be reached or failed transiently. */
   | 'HSSOFT_UNAVAILABLE'
   /** An order line or the shipping has no HS-Soft article. */
-  | 'HSSOFT_UNMAPPED';
+  | 'HSSOFT_UNMAPPED'
+  /** Swiss Post refused the label (licence, services, address, credentials). */
+  | 'SWISSPOST_REJECTED'
+  /** Swiss Post could not be reached or failed transiently. */
+  | 'SWISSPOST_UNAVAILABLE';
 
 /** Every error code with its cause and fix, in de / fr / it / en. */
 export const ERRORS_URL = 'https://agentkit.ch/errors';

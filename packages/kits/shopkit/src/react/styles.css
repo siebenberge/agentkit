@@ -367,3 +367,13 @@
   background: var(--sk-neutral-bg);
   color: var(--sk-muted);
 }
+
+/* address check */
+.sk-address-check {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sk-address-suggestion {
+  font-weight: 600;
+}

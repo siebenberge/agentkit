@@ -30,6 +30,14 @@ export type {
   WhereOperator,
 } from './adapter';
 export { matchesWhere } from './adapter';
+export {
+  isDomesticAddress,
+  splitStreet,
+  type AddressCheck,
+  type AddressCheckStatus,
+  type AddressLookup,
+  type PostalLocality,
+} from './address';
 export type {
   CreateHostedPaymentParams,
   PaymentProvider,

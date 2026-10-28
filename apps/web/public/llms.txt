@@ -49,7 +49,17 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   pickup day becomes the WaWiAssist order date; `hssoft.allowFulfillmentDate`
   offers only days every article can be had (delivery days, the shop's own
   periods, optionally WaWiAssist's orderable articles per day).
-  Next: Swiss Post labels and live tariffs, digital downloads.
+  Swiss Post from `/swisspost` (Digital Commerce API, franking licence):
+  `createSwissPost({ shop, clientId, clientSecret, frankingLicense, sender,
+  rates })` – `createLabel(orderId)` makes the address label with barcode
+  (A5 / A6 / A7 / FE, PDF or ZPL2; service per rate: `ECO`, `PRI`,
+  `PRI_BULKY`, `PRI_GAS`, `SEM`, `VL`, `APLUS` …, additional services `SI`,
+  `FRA`, `SA` …, delivery instructions `ZAW3211` …) for orders within
+  Switzerland and Liechtenstein, keeps it in `order.metadata.swisspost` and
+  marks the order shipped with the Track & Trace link; `addressLookup` for
+  `createShopHandler` adds postcode / locality / street / number suggestions
+  and the address check to `<Checkout>`.
+  Next: Swiss Post live tariffs and international labels, digital downloads.
 
 ## Test sites
 
@@ -92,8 +102,9 @@ agentkit is built for the Swiss market first.
   by QR / creditor reference (or the invoice number in the message) and marks
   invoices / invoice orders paid; the rest is reported (underpaid, paid
   already, unmatched). `/camt` entry of both kits.
-- Planned: reminder levels with fees, Swiss Post labels and live tariffs in
-  shopkit.
+- Swiss Post (shopkit `/swisspost`): address labels with barcode and Track &
+  Trace for domestic items, address autocomplete and check at checkout.
+- Planned: reminder levels with fees, Swiss Post live tariffs in shopkit.
 - Data protection: the kits run in your app and store data in your
   database; no extra processor for customer data.
 
@@ -139,7 +150,8 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   mark invoices paid, …) and `createShopMcpHandler` from
   `@agentkit.ch/shopkit/mcp` (orders, stock, discount codes, gift cards;
   with `hssoft` also `hssoft_sync_order`, `hssoft_set_availability_period`,
-  `hssoft_import_products`).
+  `hssoft_import_products`; with `swisspost` also `swisspost_create_label`,
+  `swisspost_check_address`).
   Mounted as a POST route, your `authorize` on every request (`'read-only'`
   hides the tools that change data). Payment and guest-link tokens never
   reach the model.

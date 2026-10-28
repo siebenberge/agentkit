@@ -86,6 +86,7 @@ export const it: Dict = {
           'Codici sconto',
           'Buoni regalo',
           'Collegamento a HS-Soft (WaWiAssist)',
+          'Etichette di spedizione della Posta & verifica dell’indirizzo',
           'Giorno di ritiro e consegna con fascia oraria',
         ],
       },
@@ -250,7 +251,7 @@ export const it: Dict = {
       {
         title: 'core + CLI',
         when: 'in seguito',
-        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
+        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: tariffe in tempo reale della Posta e rimborsi tramite zahls.ch.',
       },
       {
         title: 'Solleciti e adapter',
@@ -521,6 +522,16 @@ export const it: Dict = {
         cause:
           'Una posizione o le spese di spedizione dell’ordine non hanno un articolo HS-Soft – il prodotto non proviene dall’importazione.',
         fix: 'Importa il prodotto da HS-Soft, imposta `orders.articleId` o `orders.shippingArticleId`, oppure escludi l’ordine con `orders.filter`.',
+      },
+      'shopkit.SWISSPOST_REJECTED': {
+        cause:
+          'La Posta ha rifiutato la richiesta: client o scope della Digital Commerce API, licenza d’affrancatura, combinazione di prestazioni non possibile per l’invio, indirizzo a cui la Posta non può recapitare – o invio all’estero (le etichette sono per la Svizzera e il Liechtenstein). `error.details.errors` indica i codici della Posta (`E2001` …).',
+        fix: 'Correggi la causa (verifica client e scope presso la Posta, la licenza, le prestazioni della modalità di spedizione o l’indirizzo) e crea di nuovo l’etichetta. Ripetere senza modifiche non serve.',
+      },
+      'shopkit.SWISSPOST_UNAVAILABLE': {
+        cause:
+          'La Posta non era raggiungibile o aveva un disturbo temporaneo (timeout, 5xx, E9999).',
+        fix: 'Crea l’etichetta più tardi. Le proposte e la verifica dell’indirizzo nel checkout non falliscono per questo – l’ordine prosegue senza.',
       },
     },
   },

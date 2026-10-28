@@ -28,6 +28,7 @@ The package ships ES modules with type declarations; peer dependencies
 | `@agentkit.ch/shopkit/drizzle`, `/memory` | Storage adapters (or implement `StorageAdapter`: five methods, with `transaction`) |
 | `@agentkit.ch/shopkit/zahls` | zahls.ch provider (TWINT, cards, PostFinance) – or pass subkit's `zahlsProvider`, it fits both kits |
 | `@agentkit.ch/shopkit/hssoft` | HS-Soft (WaWiAssist): `createHsSoftSync()` – product import and orders to WaWiAssist, `hsSoftClient()` for the API |
+| `@agentkit.ch/shopkit/swisspost` | Swiss Post: `createSwissPost()` – address labels with barcode and Track & Trace, address autocomplete and check for the checkout, `swissPostClient()` for the API |
 | `@agentkit.ch/shopkit/http` | Storefront API + webhook (`createShopHandler`) and back office API (`createShopAdminHandler`) as fetch handlers |
 | `@agentkit.ch/shopkit/react` | `<ShopProvider>`, `<AddToCartButton>`, `<Cart>`, `<Checkout>`, `<OrderStatus>`, `<OrderHistory>`, hooks `useCart()`, `useOrder()`, `useOrders()` |
 | `@agentkit.ch/shopkit/react/styles.css` | Styles of the components, themed with `--sk-*` CSS variables |
@@ -75,9 +76,15 @@ The package ships ES modules with type declarations; peer dependencies
 - **HS-Soft (WaWiAssist)**: products imported from the articles (price
   category, special prices, image, declaration, allergens, nutrition,
   delivery days), orders sent to WaWiAssist once they are placed.
+- **Swiss Post**: address labels with barcode (A5 / A6 / A7, PDF or ZPL2)
+  in one call per order, tracking number and Track & Trace link in the
+  shipping e-mail, service per shipping rate (PostPac Economy / Priority,
+  bulky goods, GAS, Swiss-Express «Moon», VinoLog, A Mail Plus) with
+  additional services and delivery instructions; address autocomplete
+  (postcode, locality, street, number) and address check in `<Checkout>`.
 
-Next / planned (not built yet): Swiss Post labels and live tariffs,
-refunds through the zahls.ch API,
+Next / planned (not built yet): Swiss Post live tariffs and international
+labels, refunds through the zahls.ch API,
 digital downloads, subscription products (through subkit), several
 currencies.
 
@@ -368,6 +375,93 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   no names for them), the availability periods of the articles, stock.
 
 
+### Swiss Post
+
+Labels with barcode for the orders, and addresses that Swiss Post knows at
+checkout. Needs a franking licence and a client of the [Digital Commerce
+API](https://developer.post.ch/en/digital-commerce-api) of Swiss Post with
+the scopes `DCAPI_BARCODE_READ` (labels), `DCAPI_ADDRESS_VALIDATE` (check)
+and `DCAPI_ADDRESS_AUTOCOMPLETE` (suggestions). The items are billed to the
+franking licence – nothing to pay at the counter.
+
+```ts
+// lib/shop.ts
+import { createSwissPost } from '@agentkit.ch/shopkit/swisspost';
+
+export const swisspost = createSwissPost({
+  shop,
+  clientId: process.env.SWISSPOST_CLIENT_ID!,
+  clientSecret: process.env.SWISSPOST_CLIENT_SECRET!,
+  frankingLicense: '60012345',
+  sender: {
+    name: 'Acme GmbH',
+    street: 'Bahnhofstrasse 1',
+    postalCode: '8001',
+    city: 'Zürich',
+    domicilePostOffice: '8001 Zürich',
+  },
+  // service per shipping rate (others: defaultShipment, default ECO)
+  rates: {
+    post: 'ECO',
+    priority: { service: 'PRI', additionalServices: ['SI'] },
+    samstag: { service: 'PRI', additionalServices: ['SA'] },
+    sperrgut: { service: 'PRI_BULKY', deliveryInstructions: ['ZAW3211'] },
+  },
+  label: {
+    layout: 'A6', // A5, A6, A7, FE (window envelope, letters)
+    format: 'PDF', // sPDF, PNG, GIF, JPG, EPS, ZPL2 (label printers)
+    packagingGrams: 300,
+    freeText: (order) => `Bestellung ${order.number}`,
+  },
+  notifications: ['posting'], // Swiss Post e-mails the customer too
+  saveLabel: ({ fileName, file }) => uploadToBucket(`labels/${fileName}`, file), // optional
+});
+```
+
+```ts
+// storefront: suggestions and check in <Checkout>
+createShopHandler({ shop, basePath: '/api/shop', addressLookup: swisspost.addressLookup, … });
+// back office and agent: labels
+createShopAdminHandler({ shop, basePath: '/api/shop-admin', authorize, swisspost });
+createShopMcpHandler({ shop, authorize, swisspost });
+```
+
+- **Label**: `swisspost.createLabel(orderId)` or `POST
+  {admin}/orders/:id/swisspost-label` (answers the PDF / ZPL2 file) for a
+  confirmed order shipped to Switzerland or Liechtenstein. Recipient from
+  the shipping address (street and number split, P.O. box, company, address
+  suffix), weight of the goods plus `packagingGrams`, the order number as
+  item id. The order is marked shipped with carrier `Swiss Post`, the
+  tracking number (`99.60.012345.00000001`) and the Track & Trace link – the
+  shipping e-mail carries it (`markShipped: false` to do it yourself).
+- **Per order**: `createLabel(orderId, { service, additionalServices,
+  deliveryInstructions, deliveryPlace, weightGrams })` overrides the rate's
+  shipment. One label per order; `force: true` makes another one (lost or
+  wrong label), the order gets its tracking number.
+- **Services** (`SWISS_POST_SERVICES`): `ECO`, `PRI`, `SMP`, `SMPPRI`,
+  `ECO_BULKY`, `PRI_BULKY`, `ECO_GAS`, `PRI_GAS`, `SEM`, `SEM_BULKY`, `VL`,
+  `VLPRI`, `APLUS`. Additional services: `FRA` fragile, `MAN` manual
+  processing, `SI` signature, `AS` signature (insurance), `RMP` personal
+  delivery, `SA` Saturday delivery. Delivery instructions: `ZAW3211` upper
+  floor, `ZAW3213` notify by telephone (prints the phone number), `ZAW3214`
+  letterbox or front door, `ZAW3215` take back box, `ZAW3216` return as
+  priority, `ZAW3219` deposit at `deliveryPlace`, `ZAW3220` document pouch,
+  `ZAW3232` collect empty containers (contract), `ZAW3234` do not leave
+  anywhere. Swiss Post checks the combination (`SWISSPOST_REJECTED` with
+  its `E…` code in `error.details.errors`).
+- **State** in `order.metadata.swisspost` (`swissPostLabels(order)`): every
+  label with barcode, service codes, weight, warnings and the URL of
+  `saveLabel`.
+- **Checkout**: with `addressLookup` the handler serves `GET
+  /address/localities?q=`, `/address/streets?q=&postalCode=`,
+  `/address/house-numbers?postalCode=&street=&q=` and `POST /address/check`
+  (rate limit route `address`), and `<Checkout>` suggests postcode and
+  locality, street and house number (Switzerland and Liechtenstein). Before
+  the order it checks the shipping address: a corrected spelling or an
+  unknown address is shown with the suggestion – the customer takes it or
+  keeps their own. If Swiss Post cannot be reached, the checkout goes on.
+- Not possible yet: labels for international items, live tariffs.
+
 Errors: every `ShopError` has a `code` and `docsUrl`, the link to its cause
 and fix (e.g. https://agentkit.ch/errors#shopkit-OUT_OF_STOCK); the message
 stays free of it. HTTP errors answer
@@ -401,7 +495,8 @@ Tools: `list_orders`, `get_order`, `mark_order_paid`, `ship_order`,
 `mark_order_delivered`, `cancel_order`, `refund_order`, `list_products`,
 `set_stock`, `list_discounts`, `set_discount_active`, `list_gift_cards`,
 `issue_gift_card`, `disable_gift_card` (with `hssoft`: `hssoft_sync_order`,
-`hssoft_set_availability_period`, `hssoft_import_products`). Guest-link tokens are removed from
+`hssoft_set_availability_period`, `hssoft_import_products`; with
+`swisspost`: `swisspost_create_label`, `swisspost_check_address`). Guest-link tokens are removed from
 orders; listed gift card codes show only their last 4 characters.
 
 ## Development

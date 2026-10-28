@@ -83,6 +83,7 @@ export const en: Dict = {
           'Discount codes',
           'Gift vouchers',
           'Connection to HS-Soft (WaWiAssist)',
+          'Swiss Post labels & address check',
           'Pickup and delivery day with time window',
         ],
       },
@@ -247,7 +248,7 @@ export const en: Dict = {
       {
         title: 'core + CLI',
         when: 'next',
-        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: Swiss Post shipping labels and refunds through zahls.ch.',
+        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: Swiss Post live tariffs and refunds through zahls.ch.',
       },
       {
         title: 'Dunning & adapters',
@@ -517,6 +518,16 @@ export const en: Dict = {
         cause:
           'An order line or the shipping costs have no HS-Soft article – the product does not come from the import.',
         fix: 'Import the product from HS-Soft, set `orders.articleId` or `orders.shippingArticleId`, or leave the order out with `orders.filter`.',
+      },
+      'shopkit.SWISSPOST_REJECTED': {
+        cause:
+          'Swiss Post refused the request: client or scopes of the Digital Commerce API, the franking licence, a combination of services the item cannot have, an address Swiss Post cannot deliver to – or an item abroad (labels are for Switzerland and Liechtenstein). `error.details.errors` lists the Swiss Post codes (`E2001` …).',
+        fix: 'Fix the cause (check client and scopes with Swiss Post, the licence, the services of the shipping rate or the address) and create the label again. Retrying unchanged will not help.',
+      },
+      'shopkit.SWISSPOST_UNAVAILABLE': {
+        cause:
+          'Swiss Post could not be reached or failed temporarily (timeout, 5xx, E9999).',
+        fix: 'Create the label again later. Address suggestions and the address check at checkout do not fail because of it – the order goes on without them.',
       },
     },
   },

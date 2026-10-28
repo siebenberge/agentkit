@@ -1,6 +1,15 @@
 import type { Shop } from '../engine';
 import { isShopError } from '../errors';
 import type { HsSoftSync } from '../hssoft';
+import {
+  SWISS_POST_ADDITIONAL_SERVICES,
+  SWISS_POST_DELIVERY_INSTRUCTIONS,
+  SWISS_POST_SERVICES,
+  type SwissPost,
+  type SwissPostAdditionalService,
+  type SwissPostDeliveryInstruction,
+  type SwissPostServiceId,
+} from '../swisspost';
 import type {
   FulfillmentStatus,
   OrderStatus,
@@ -45,6 +54,8 @@ export type ShopMcpOptions = {
   instructions?: string;
   /** Adds the HS-Soft (WaWiAssist) tools: `createHsSoftSync()` of `/hssoft`. */
   hssoft?: HsSoftSync;
+  /** Adds the Swiss Post tools: `createSwissPost()` of `/swisspost`. */
+  swisspost?: SwissPost;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -85,7 +96,8 @@ const INSTRUCTIONS = `Back office of this shop (shopkit): orders, products and s
  * set_stock, list_discounts, set_discount_active, list_gift_cards,
  * issue_gift_card, disable_gift_card; with `hssoft` also
  * hssoft_sync_order, hssoft_set_availability_period and
- * hssoft_import_products.
+ * hssoft_import_products; with `swisspost` also swisspost_create_label and
+ * swisspost_check_address.
  */
 export function createShopMcpHandler(options: ShopMcpOptions) {
   return createMcpHandler({
@@ -97,6 +109,7 @@ export function createShopMcpHandler(options: ShopMcpOptions) {
     tools: [
       ...shopTools(options.shop),
       ...(options.hssoft ? hsSoftTools(options.hssoft) : []),
+      ...(options.swisspost ? swissPostTools(options.swisspost) : []),
     ],
     authorize: options.authorize,
     allowedOrigins: options.allowedOrigins,
@@ -612,6 +625,135 @@ export function hsSoftTools(hssoft: HsSoftSync): McpTool[] {
       run: async (args) => ({
         summary: await hssoft.importProducts({
           force: optionalBoolean(args, 'force') ?? false,
+        }),
+      }),
+    },
+  ];
+}
+
+/** Tools of the Swiss Post labels and address check. */
+export function swissPostTools(swisspost: SwissPost): McpTool[] {
+  const services = Object.keys(SWISS_POST_SERVICES) as SwissPostServiceId[];
+  const additional = Object.keys(
+    SWISS_POST_ADDITIONAL_SERVICES,
+  ) as SwissPostAdditionalService[];
+  const instructions = Object.keys(
+    SWISS_POST_DELIVERY_INSTRUCTIONS,
+  ) as SwissPostDeliveryInstruction[];
+  const describe = (names: Record<string, string | { name: string }>) =>
+    Object.entries(names)
+      .map(
+        ([code, name]) =>
+          `${code} = ${typeof name === 'string' ? name : name.name}`,
+      )
+      .join(', ');
+
+  return [
+    {
+      name: 'swisspost_create_label',
+      title: 'Create a Swiss Post label',
+      description: `Create the Swiss Post address label (barcode) of a confirmed order shipped within Switzerland or Liechtenstein and mark the order shipped with the tracking number – the customer gets the shipping e-mail with the Track & Trace link. Without service and options the shipment of the order's shipping rate is used. The label is kept in the order's metadata.swisspost (url only when the shop stores label files); the file itself is printed from the back office. One label per order: force creates another one (lost or wrong label) – ask the user first. Services: ${describe(SWISS_POST_SERVICES)}. Additional services: ${describe(SWISS_POST_ADDITIONAL_SERVICES)}. Delivery instructions: ${describe(SWISS_POST_DELIVERY_INSTRUCTIONS)}.`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          orderId,
+          service: { type: 'string', enum: services },
+          additionalServices: list(additional),
+          deliveryInstructions: list(instructions),
+          deliveryPlace: {
+            type: 'string',
+            description: 'Where to deposit the item (ZAW3219).',
+          },
+          weightGrams: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 99999,
+            description: 'Default: weight of the goods plus packaging.',
+          },
+          markShipped: {
+            type: 'boolean',
+            description: 'Mark the order shipped (default per shop).',
+          },
+          force: { type: 'boolean', default: false },
+        },
+        required: ['orderId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, idempotentHint: false },
+      run: async (args) => {
+        const service = optionalString(args, 'service', 20);
+
+        if (service !== null && !services.includes(service as never)) {
+          throw new ToolInputError(
+            `"service" must be one of ${services.join(', ')}`,
+          );
+        }
+
+        const { order, label } = await swisspost.createLabel(
+          requiredString(args, 'orderId'),
+          {
+            service: (service ?? undefined) as SwissPostServiceId | undefined,
+            additionalServices: optionalList(
+              args,
+              'additionalServices',
+              additional,
+            ),
+            deliveryInstructions: optionalList(
+              args,
+              'deliveryInstructions',
+              instructions,
+            ),
+            deliveryPlace:
+              optionalString(args, 'deliveryPlace', 35) ?? undefined,
+            weightGrams:
+              optionalInteger(args, 'weightGrams', { min: 1, max: 99_999 }) ??
+              undefined,
+            markShipped: optionalBoolean(args, 'markShipped') ?? undefined,
+            force: optionalBoolean(args, 'force') ?? false,
+          },
+        );
+
+        return {
+          label: {
+            identCode: label.identCode,
+            trackingNumber: label.trackingNumber,
+            trackingUrl: label.trackingUrl,
+            url: label.url,
+            warnings: label.warnings,
+          },
+          order: {
+            id: order.id,
+            number: order.number,
+            fulfillmentStatus: order.fulfillmentStatus,
+          },
+        };
+      },
+    },
+    {
+      name: 'swisspost_check_address',
+      title: 'Check an address with Swiss Post',
+      description:
+        'Check a Swiss or Liechtenstein address against the addresses of Swiss Post: valid, corrected (with the official spelling), invalid (not found, sometimes with the closest match) or unavailable (not checked).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          line1: { type: 'string', description: 'Street and number.' },
+          postalCode: { type: 'string' },
+          city: { type: 'string' },
+          country: { type: 'string', enum: ['CH', 'LI'], default: 'CH' },
+        },
+        required: ['line1', 'postalCode', 'city'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true },
+      run: async (args) => ({
+        check: await swisspost.check({
+          name: optionalString(args, 'name', 70) ?? '',
+          line1: requiredString(args, 'line1', 70),
+          postalCode: requiredString(args, 'postalCode', 16),
+          city: requiredString(args, 'city', 35),
+          country: optionalString(args, 'country', 2) ?? 'CH',
         }),
       }),
     },

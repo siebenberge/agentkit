@@ -89,6 +89,7 @@ export const de: Dict = {
           'Rabattcodes',
           'Geschenkgutscheine',
           'Anbindung an HS-Soft (WaWiAssist)',
+          'Versandetiketten der Post & Adressprüfung',
           'Abhol- und Liefertag mit Zeitfenster',
         ],
       },
@@ -253,7 +254,7 @@ export const de: Dict = {
       {
         title: 'core + CLI',
         when: 'als Nächstes',
-        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: Versandetiketten der Post und Rückerstattungen über zahls.ch.',
+        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: Live-Tarife der Post und Rückerstattungen über zahls.ch.',
       },
       {
         title: 'Mahnwesen & Adapter',
@@ -526,6 +527,16 @@ export const de: Dict = {
         cause:
           'Eine Position oder die Versandkosten der Bestellung haben keinen HS-Soft-Artikel – das Produkt stammt nicht aus dem Import.',
         fix: 'Das Produkt aus HS-Soft importieren, `orders.articleId` bzw. `orders.shippingArticleId` setzen oder die Bestellung mit `orders.filter` ausnehmen.',
+      },
+      'shopkit.SWISSPOST_REJECTED': {
+        cause:
+          'Die Post hat die Anfrage abgelehnt: Client oder Scopes der Digital Commerce API, die Frankierlizenz, eine Kombination von Leistungen, die die Sendung nicht haben kann, eine Adresse, an die die Post nicht zustellen kann – oder eine Sendung ins Ausland (Etiketten gibt es für die Schweiz und Liechtenstein). `error.details.errors` nennt die Codes der Post (`E2001` …).',
+        fix: 'Den Grund beheben (Client und Scopes bei der Post prüfen, Lizenz, Leistungen der Versandart oder Adresse korrigieren) und das Etikett erneut erstellen. Unverändert wiederholen hilft nicht.',
+      },
+      'shopkit.SWISSPOST_UNAVAILABLE': {
+        cause:
+          'Die Post war nicht erreichbar oder vorübergehend gestört (Zeitüberschreitung, 5xx, E9999).',
+        fix: 'Das Etikett später erneut erstellen. Adressvorschläge und Adressprüfung im Checkout scheitern nicht daran – die Bestellung geht ohne sie weiter.',
       },
     },
   },

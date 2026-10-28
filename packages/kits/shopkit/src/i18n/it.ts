@@ -84,6 +84,11 @@ export const it: Messages = {
       city: 'Località',
       country: 'Paese',
       phone: 'Telefono (facoltativo)',
+      addressSuggestion: 'Intendevi questo indirizzo?',
+      addressNotFound:
+        'La Posta non conosce questo indirizzo. Verifica via, numero, NPA e località.',
+      useSuggestion: 'Usa la proposta',
+      keepAddress: 'Mantieni il mio indirizzo',
       shippingMethod: 'Metodo di spedizione',
       noShippingMethod: 'Nessun metodo di spedizione per questo indirizzo.',
       pickup: 'Ritiro',

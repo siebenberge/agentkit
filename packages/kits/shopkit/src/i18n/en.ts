@@ -82,6 +82,11 @@ export const en: Messages = {
       city: 'City',
       country: 'Country',
       phone: 'Phone (optional)',
+      addressSuggestion: 'Did you mean this address?',
+      addressNotFound:
+        'Swiss Post does not know this address. Please check street, number, postcode and city.',
+      useSuggestion: 'Use suggestion',
+      keepAddress: 'Keep my address',
       shippingMethod: 'Shipping method',
       noShippingMethod: 'There is no shipping method for this address.',
       pickup: 'Pickup',

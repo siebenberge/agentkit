@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from 'react';
 
+import { isDomesticAddress, splitStreet } from '../address';
 import type { ShippingOption } from '../engine';
-import type { CartDto, OrderDto, TotalsDto } from '../http/types';
+import type {
+  AddressCheckDto,
+  CartDto,
+  OrderDto,
+  TotalsDto,
+} from '../http/types';
 import { formatDate, formatFulfillmentDate, interpolate } from '../i18n';
 import type { Address } from '../types';
 import { useShop } from './shop-provider';
@@ -370,6 +376,40 @@ export type CheckoutProps = {
   className?: string;
 };
 
+/**
+ * Suggestions of the handler's `addressLookup`, 300 ms after the last
+ * keystroke; answers of earlier keystrokes are dropped.
+ */
+function useSuggestions(key: string | null, load: () => Promise<string[]>) {
+  const [items, setItems] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (key === null) {
+      setItems([]);
+      return;
+    }
+
+    let live = true;
+    const timer = setTimeout(() => {
+      load().then(
+        (next) => {
+          if (live) setItems(next);
+        },
+        () => {
+          if (live) setItems([]);
+        },
+      );
+    }, 300);
+
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return items;
+}
+
 function AddressFields(props: {
   value: Address;
   onChange: (address: Address) => void;
@@ -378,10 +418,68 @@ function AddressFields(props: {
   prefix: string;
   /** `name`: only the name is mandatory (pickup paid online). */
   required?: 'all' | 'name';
+  /** Suggest postcodes, localities, streets and numbers (CH, LI). */
+  lookup?: boolean;
 }) {
-  const { m, locale } = useShop();
+  const { m, locale, client } = useShop();
   const t = m.ui.checkout;
   const all = props.required !== 'name';
+  const [focus, setFocus] = useState<keyof Address | null>(null);
+  const lookup = props.lookup === true && isDomesticAddress(props.value);
+  const postalCode = props.value.postalCode.trim();
+  const { street, houseNumber } = splitStreet(props.value.line1);
+  const localityQuery =
+    focus === 'postalCode' || focus === 'city'
+      ? (props.value[focus] ?? '').trim()
+      : '';
+  const localities = useSuggestions(
+    lookup && localityQuery.length >= 2 ? `l:${localityQuery}` : null,
+    async () =>
+      (await client.localities(localityQuery)).localities.map(
+        (locality) => `${locality.postalCode} ${locality.city}`,
+      ),
+  );
+  // a number typed after the street → its house numbers (needs the postcode)
+  const numbers = lookup && focus === 'line1' && houseNumber !== null;
+  const streets = useSuggestions(
+    lookup && focus === 'line1' && street.length >= 2
+      ? numbers && /^\d{4}$/.test(postalCode)
+        ? `h:${postalCode}:${street}:${houseNumber}`
+        : numbers
+          ? null
+          : `s:${postalCode}:${street}`
+      : null,
+    async () =>
+      numbers
+        ? (
+            await client.houseNumbers(postalCode, street, houseNumber)
+          ).houseNumbers.map((number) => `${street} ${number}`)
+        : (
+            await client.streets(
+              street,
+              /^\d{4}$/.test(postalCode) ? postalCode : null,
+            )
+          ).streets,
+  );
+  const listId = (name: string) => `${props.prefix}-${name}-suggestions`;
+  const change = (key: keyof Address, value: string) => {
+    // a chosen locality fills postcode and city
+    if (
+      (key === 'postalCode' || key === 'city') &&
+      localities.includes(value)
+    ) {
+      const [code, ...city] = value.split(' ');
+
+      props.onChange({
+        ...props.value,
+        postalCode: code!,
+        city: city.join(' '),
+      });
+      return;
+    }
+
+    props.onChange({ ...props.value, [key]: value });
+  };
   const names = (() => {
     try {
       return new Intl.DisplayNames([locale ?? 'de'], { type: 'region' });
@@ -396,6 +494,8 @@ function AddressFields(props: {
       required?: boolean;
       autoComplete?: string;
       className?: string;
+      /** Datalist with suggestions. */
+      list?: string;
     } = {},
   ) => (
     <label className={cx('sk-field', options.className)}>
@@ -405,16 +505,31 @@ function AddressFields(props: {
         name={`${props.prefix}-${key}`}
         required={options.required}
         autoComplete={options.autoComplete}
+        list={options.list}
         value={props.value[key] ?? ''}
-        onChange={(event) =>
-          props.onChange({ ...props.value, [key]: event.target.value })
-        }
+        onFocus={() => setFocus(key)}
+        onBlur={() => setFocus((current) => (current === key ? null : current))}
+        onChange={(event) => change(key, event.target.value)}
       />
     </label>
   );
 
   return (
     <div className="sk-address">
+      {lookup ? (
+        <>
+          <datalist id={listId('localities')}>
+            {localities.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+          <datalist id={listId('streets')}>
+            {streets.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+        </>
+      ) : null}
       {field('name', t.name, {
         required: true,
         autoComplete: 'name',
@@ -428,6 +543,7 @@ function AddressFields(props: {
         required: all,
         autoComplete: 'address-line1',
         className: 'sk-span-2',
+        list: lookup ? listId('streets') : undefined,
       })}
       {field('line2', t.line2, {
         autoComplete: 'address-line2',
@@ -436,10 +552,12 @@ function AddressFields(props: {
       {field('postalCode', t.postalCode, {
         required: all,
         autoComplete: 'postal-code',
+        list: lookup ? listId('localities') : undefined,
       })}
       {field('city', t.city, {
         required: all,
         autoComplete: 'address-level2',
+        list: lookup ? listId('localities') : undefined,
       })}
       <label className="sk-field">
         <span>{t.country}</span>
@@ -488,6 +606,11 @@ export function Checkout(props: CheckoutProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // address check: the answer shown, the address the customer kept
+  const [addressCheck, setAddressCheck] = useState<AddressCheckDto | null>(
+    null,
+  );
+  const [keptAddress, setKeptAddress] = useState<string | null>(null);
 
   // fill the form once from the cart (details saved earlier)
   useEffect(() => {
@@ -572,11 +695,41 @@ export function Checkout(props: CheckoutProps) {
     }
   };
 
+  const changeShipping = (address: Address) => {
+    setShipping(address);
+    setAddressCheck(null);
+  };
+
+  /** `false`: the customer should look at the address first. */
+  const addressConfirmed = async () => {
+    if (!needsAddress || !cart.addressLookup || !isDomesticAddress(shipping)) {
+      return true;
+    }
+
+    const key = JSON.stringify(shipping);
+
+    if (key === keptAddress) return true;
+
+    const check = await client.checkAddress(shipping).catch(() => null);
+
+    if (check?.status === 'corrected' || check?.status === 'invalid') {
+      setAddressCheck(check);
+      return false;
+    }
+
+    return true;
+  };
+
   const submit = async () => {
     setError(null);
     setBusy(true);
 
     try {
+      if (!(await addressConfirmed())) {
+        setBusy(false);
+        return;
+      }
+
       await state.updateDetails({
         email,
         shippingAddress: needsAddress ? shipping : null,
@@ -679,8 +832,9 @@ export function Checkout(props: CheckoutProps) {
           <AddressFields
             prefix="shipping"
             value={shipping}
-            onChange={setShipping}
+            onChange={changeShipping}
             countries={countries}
+            lookup={cart.addressLookup}
             // shipping options depend on the country
             onCountryChange={(country) =>
               void state
@@ -688,6 +842,56 @@ export function Checkout(props: CheckoutProps) {
                 .catch(fail)
             }
           />
+          {addressCheck ? (
+            <div className="sk-notice sk-address-check" role="alert">
+              <p>
+                {addressCheck.address
+                  ? addressCheck.status === 'invalid'
+                    ? `${t.addressNotFound} ${t.addressSuggestion}`
+                    : t.addressSuggestion
+                  : t.addressNotFound}
+              </p>
+              {addressCheck.address ? (
+                <p className="sk-address-suggestion">
+                  {addressCheck.address.line1}
+                  <br />
+                  {addressCheck.address.postalCode} {addressCheck.address.city}
+                </p>
+              ) : null}
+              <div className="sk-inline">
+                {addressCheck.address ? (
+                  <button
+                    type="button"
+                    className="sk-button sk-button-primary"
+                    onClick={() => {
+                      const suggestion = {
+                        ...shipping,
+                        line1: addressCheck.address!.line1,
+                        postalCode: addressCheck.address!.postalCode,
+                        city: addressCheck.address!.city,
+                      };
+
+                      setShipping(suggestion);
+                      setKeptAddress(JSON.stringify(suggestion));
+                      setAddressCheck(null);
+                    }}
+                  >
+                    {t.useSuggestion}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="sk-button"
+                  onClick={() => {
+                    setKeptAddress(JSON.stringify(shipping));
+                    setAddressCheck(null);
+                  }}
+                >
+                  {t.keepAddress}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
