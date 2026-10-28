@@ -175,11 +175,7 @@ function ToolCall({
   );
 }
 
-export function AgentOrderMock({
-  t,
-}: {
-  t: Dict['home']['news']['agent'];
-}) {
+export function AgentOrderMock({ t }: { t: Dict['home']['news']['agent'] }) {
   const [ref, step] = useSequence([1400, 1100, 1900, 1500, 1200, 3400], 5);
   const { shop, prices, shipping, total, expectedAmount, order } =
     MOCK.agentOrder;
@@ -342,9 +338,7 @@ export function HsSoftMock({ t }: { t: Dict['home']['news']['hssoft'] }) {
                 <span className="w-8 shrink-0 rounded bg-soft px-1 py-0.5 text-center font-mono text-[10px] text-muted">
                   {a.number}
                 </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {t.articles[i]}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{t.articles[i]}</span>
                 <span className="tabular-nums text-muted">{a.price}</span>
               </li>
             ))}
@@ -360,9 +354,7 @@ export function HsSoftMock({ t }: { t: Dict['home']['news']['hssoft'] }) {
                 <span className="grid size-4 shrink-0 place-items-center rounded-full bg-ok text-white">
                   <Check className="size-2.5" />
                 </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {t.articles[i]}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{t.articles[i]}</span>
                 <span className="truncate text-[11px] text-faint">
                   {i === articles.length - 1 ? t.from : t.imported}
                 </span>
@@ -412,6 +404,152 @@ export function HsSoftMock({ t }: { t: Dict['home']['news']['hssoft'] }) {
           </div>
         }
       />
+    </div>
+  );
+}
+
+/* ---------- shopkit + Swiss Post: address at checkout, label from the order ---------- */
+
+/** Bars of a barcode drawn from the digits of the tracking number. */
+function Barcode({ code }: { code: string }) {
+  const digits = code.replace(/\D/g, '');
+  let x = 0;
+  const bars = [...digits, ...digits.split('').reverse()].map((d, i) => {
+    const width = 1 + (Number(d) % 3);
+    const bar = { x, width };
+    x += width + 1 + ((i + Number(d)) % 2);
+    return bar;
+  });
+  return (
+    <svg
+      viewBox={`0 0 ${x} 40`}
+      preserveAspectRatio="none"
+      className="h-10 w-full"
+      aria-hidden
+    >
+      {bars.map((bar) => (
+        <rect
+          key={bar.x}
+          x={bar.x}
+          width={bar.width}
+          height="40"
+          fill="currentColor"
+        />
+      ))}
+    </svg>
+  );
+}
+
+export function SwissPostMock({ t }: { t: Dict['home']['news']['swisspost'] }) {
+  const [ref, step] = useSequence([1300, 1300, 1500, 1200, 1700, 3400], 5);
+  const m = MOCK.swisspost;
+  const street = `${m.streets[0]} ${m.house}`;
+  const show = (from: number) =>
+    `transition-all duration-500 ${step >= from ? '' : 'translate-y-1 opacity-0'}`;
+  return (
+    <div ref={ref} className="w-full max-w-[560px] space-y-3 text-[13px]">
+      {/* <Checkout> with the handler's addressLookup */}
+      <div className="float-card rounded-2xl p-3.5">
+        <p className="mb-2 font-mono text-[10px] text-faint">
+          {'<Checkout />'}
+        </p>
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <div className="relative min-w-0">
+            <p className="mb-1 text-[11px] text-muted">{t.street}</p>
+            <div className="flex h-8 items-center rounded-lg border border-line bg-bg px-2.5">
+              <span className="truncate">{step >= 2 ? street : m.typed}</span>
+              {step < 2 && (
+                <span className="ml-px h-4 w-px animate-pulse bg-fg" />
+              )}
+            </div>
+            {step === 1 && (
+              <ul className="animate-swap-in absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-line bg-bg shadow-lg">
+                {m.streets.map((name, i) => (
+                  <li
+                    key={name}
+                    className={`truncate px-2.5 py-1.5 ${i === 0 ? 'bg-soft' : ''}`}
+                  >
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="w-[118px]">
+            <p className="mb-1 text-[11px] text-muted">{t.postalCode}</p>
+            <div className="flex h-8 items-center rounded-lg border border-line bg-bg px-2.5">
+              <span className="truncate">
+                {m.postalCode} {m.city}
+              </span>
+            </div>
+          </div>
+        </div>
+        <p
+          className={`mt-2.5 flex h-5 items-center gap-1.5 text-[12px] text-ok ${show(2)}`}
+        >
+          <Check className="size-3" /> {t.checked}
+        </p>
+      </div>
+
+      {/* back office: label part of the order */}
+      <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+        <div className="float-card flex flex-col justify-between gap-3 rounded-2xl p-3.5">
+          <p className="font-mono text-[10px] text-faint">{m.order}</p>
+          <div className="font-mono text-[11px] text-muted">
+            <p>
+              {m.layout} · {m.service}
+            </p>
+            <p>{m.weight}</p>
+          </div>
+          <span
+            className={`flex h-8 items-center justify-center rounded-lg text-[12px] font-medium transition-colors duration-500 ${step === 3 ? 'bg-fg/80 text-bg' : 'bg-fg text-bg'}`}
+          >
+            {step === 3 ? '…' : t.create}
+          </span>
+        </div>
+        <div
+          className={`rounded-xl border border-neutral-300 bg-white p-3 text-[11px] text-neutral-900 shadow-xl ${show(4)}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="leading-tight text-neutral-500">
+              {m.sender.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+            <span className="rounded bg-neutral-900 px-2 py-1 font-mono text-[15px] font-bold leading-none text-white">
+              {m.service}
+            </span>
+          </div>
+          <div className="mt-3 leading-snug">
+            <p className="font-semibold">{t.recipient}</p>
+            <p>{street}</p>
+            <p>
+              {m.postalCode} {m.city}
+            </p>
+          </div>
+          <div className="mt-3 text-neutral-900">
+            <Barcode code={m.tracking} />
+          </div>
+          <p className="mt-1 text-center font-mono text-[10px] tracking-wider">
+            {m.tracking}
+          </p>
+        </div>
+      </div>
+
+      <div
+        className={`float-card flex h-9 items-center gap-2 rounded-xl px-3 text-[12px] font-medium transition-colors duration-500 ${step === 5 ? 'text-ok' : 'text-faint'}`}
+      >
+        {step === 5 ? (
+          <span className="animate-swap-in flex min-w-0 items-center gap-2">
+            <Check className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {t.shipped} · {t.tracking} {m.tracking}
+            </span>
+          </span>
+        ) : (
+          <span className="truncate">{t.tracking} —</span>
+        )}
+      </div>
     </div>
   );
 }

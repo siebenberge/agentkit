@@ -16,7 +16,7 @@ your own database through adapters; there is no hosted service in between.
 [llms.txt](https://agentkit.ch/llms.txt)
 
 > **Status: early.** Both kits are previews (subkit 0.2, extracted from
-> production code; shopkit 0.2). APIs can still change between minor
+> production code; shopkit 0.4). APIs can still change between minor
 > versions; database schema changes stay additive.
 
 ## Kits
@@ -24,7 +24,7 @@ your own database through adapters; there is no hosted service in between.
 | Kit | What it does | Docs |
 |---|---|---|
 | [`@agentkit.ch/subkit`](https://www.npmjs.com/package/@agentkit.ch/subkit) | Plans, subscriptions, trials, proration, card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`), lifecycle emails, printable invoices, Swiss QR-bill, bank reconciliation (camt.053 / camt.054), React `<BillingPortal />` | [README](packages/kits/subkit/README.md) · [npm](https://www.npmjs.com/package/@agentkit.ch/subkit) |
-| [`@agentkit.ch/shopkit`](https://www.npmjs.com/package/@agentkit.ch/shopkit) | Products and variants with stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping rates, orders, fulfillment and refunds, React `<Cart />` and `<Checkout />`, back office `<ShopAdmin />`, ordering through the customer's AI agent (MCP), HS-Soft (WaWiAssist) | [README](packages/kits/shopkit/README.md) · [npm](https://www.npmjs.com/package/@agentkit.ch/shopkit) |
+| [`@agentkit.ch/shopkit`](https://www.npmjs.com/package/@agentkit.ch/shopkit) | Products and variants with stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping rates, orders, fulfillment and refunds, React `<Cart />` and `<Checkout />`, back office `<ShopAdmin />`, ordering through the customer's AI agent (MCP), HS-Soft (WaWiAssist), Swiss Post labels and address check | [README](packages/kits/shopkit/README.md) · [npm](https://www.npmjs.com/package/@agentkit.ch/shopkit) |
 
 ```bash
 npm i @agentkit.ch/subkit    # subscriptions and invoices

@@ -189,6 +189,21 @@ export const MOCK = {
     total: '18.80',
     orderNumber: '58213',
   },
+  /** Swiss Post: what the customer types, the suggestions, the label. */
+  swisspost: {
+    typed: 'Bahnhofst',
+    streets: ['Bahnhofstrasse', 'Bahnhofplatz', 'Bahnhofquai'],
+    house: '12',
+    postalCode: '8001',
+    city: 'Zürich',
+    sender: ['Rösterei Aare', 'Aarstrasse 12', '3011 Bern'],
+    // label options: layout, service code (PRZL), weight
+    layout: 'A6',
+    service: 'PRI',
+    weight: '1.2 kg',
+    tracking: '99.60.123456.00000001',
+    order: '#1044',
+  },
   mails: [
     { lang: 'de', subject: 'Deine Quittung für Pro', from: 'Acme AG' },
     {
