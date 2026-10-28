@@ -26,6 +26,7 @@ The package ships ES modules with type declarations; peer dependencies
 | `@agentkit.ch/shopkit/zahls` | zahls.ch provider (TWINT, cards, PostFinance) – or pass subkit's `zahlsProvider`, it fits both kits |
 | `@agentkit.ch/shopkit/http` | Storefront API + webhook (`createShopHandler`) and back office API (`createShopAdminHandler`) as fetch handlers |
 | `@agentkit.ch/shopkit/react` | `<ShopProvider>`, `<AddToCartButton>`, `<Cart>`, `<Checkout>`, `<OrderStatus>`, `<OrderHistory>`, hooks `useCart()`, `useOrder()`, `useOrders()` |
+| `@agentkit.ch/shopkit/react/admin` | Back office: `<ShopAdmin>` (orders, products and stock, discount codes, gift cards, bank import) or each part alone, `createShopAdminClient()` |
 | `@agentkit.ch/shopkit/react/styles.css` | Styles of the components, themed with `--sk-*` CSS variables |
 | `@agentkit.ch/shopkit/emails` | `createEmailNotifier()` – order emails (HTML + text) for any mailer, optional copies for the shop |
 | `@agentkit.ch/shopkit/receipt` | `renderReceiptHtml()` – invoice / receipt with VAT per rate |
@@ -189,8 +190,80 @@ old carts) and point the zahls.ch webhook ("JSON") to
 instance, add both webhook URLs – each kit ignores the other's references.
 
 Products, stock, discount codes, gift cards and orders are managed through
-the engine (`shop.createProduct()`, `shop.markShipped()`, …) or the back
-office API `createShopAdminHandler({ shop, basePath, authorize })`.
+the engine (`shop.createProduct()`, `shop.markShipped()`, …), the back
+office API `createShopAdminHandler({ shop, basePath, authorize })` or the
+back office components below.
+
+### Back office for your staff
+
+Orders, products, stock, discount codes, gift cards and the bank import in
+one component. shopkit builds no login: `authorize` is the staff check of
+your auth (better-auth, Auth.js, Clerk, …) and runs on every request – the
+components only call the API.
+
+```ts
+// app/api/shop-admin/[...path]/route.ts
+import { createShopAdminHandler, toNextJsHandler } from '@agentkit.ch/shopkit/http';
+import { swissQrBill } from '@agentkit.ch/shopkit/swiss-qr-bill';
+import { auth } from '@/lib/auth'; // better-auth
+import { shop } from '@/lib/shop';
+
+export const { GET, POST } = toNextJsHandler(
+  createShopAdminHandler({
+    shop,
+    basePath: '/api/shop-admin',
+    authorize: async (request) => {
+      const session = await auth.api.getSession({ headers: request.headers });
+      return session?.user.role === 'admin';
+    },
+    // receipts in the back office, bank import (QR reference)
+    receipts: {
+      seller: { name: 'Rösterei AG', vatNumber: 'CHE-123.456.789 MWST' },
+      paymentSlip: swissQrBill({ name: 'Rösterei AG' /* address, IBAN */ }),
+    },
+  }),
+);
+```
+
+```tsx
+// app/admin/shop/page.tsx – a page only staff can open (check the session here too)
+'use client';
+import { ShopAdmin, ShopAdminProvider } from '@agentkit.ch/shopkit/react/admin';
+import '@agentkit.ch/shopkit/react/styles.css';
+
+export default function ShopBackOffice() {
+  return (
+    <ShopAdminProvider baseUrl="/api/shop-admin" locale="de">
+      <ShopAdmin />
+    </ShopAdminProvider>
+  );
+}
+```
+
+- **Orders**: filters (payment open, to ship, on the way, canceled), search
+  by order number or email; detail with customer, addresses, items, VAT
+  per rate, payment, shipping, refunds; receipt, record payment, ship with
+  tracking number / ready for pickup, delivered / picked up, cancel,
+  refund in parts with restock.
+- **Products**: create and edit name, slug, type, status, VAT rate,
+  description, images and translations; variants with SKU, price,
+  struck-through price, weight, options, stock (set the counted number),
+  backorders, archive.
+- **Discount codes**: percent, amount or free shipping, minimum order
+  value, products, validity, usage limit; activate / deactivate.
+- **Gift cards**: issue by hand (code shown once to copy), balances,
+  disable.
+- **Bank import**: upload the camt.054 / camt.053 of your bank, see what was
+  marked paid, overpaid, underpaid or not matched.
+
+Each part works alone: `<AdminOrders>`, `<AdminOrderDetail orderId>`,
+`<AdminProducts>`, `<AdminDiscounts>`, `<AdminGiftCards>`,
+`<AdminBankImport>`; `<ShopAdmin sections={['orders', 'products']}
+initialOrderId={…} />` (e.g. from the link in the merchant email). Texts in
+de / fr / it / en (`messages` overrides them), `onNotify` for your toasts,
+`headers` on the provider for a bearer token instead of a cookie session.
+`createShopAdminClient({ baseUrl })` is the typed client for your own
+screens.
 
 Invoice orders paid by QR-bill: import the camt.054 / camt.053 of your bank
 with `shop.reconcileBankPayments({ payments: parseCamt(xml), reference:

@@ -251,7 +251,7 @@ export const de: Dict = {
       {
         title: 'core + CLI',
         when: 'als Nächstes',
-        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: Versandetiketten der Post und Rückerstattungen über zahls.ch.',
+        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: das Backoffice zum Einbauen (Bestellungen, Produkte, Lager, Rabattcodes, Gutscheine, Bankimport – im Repo, auf npm mit dem nächsten Release), Versandetiketten der Post und Rückerstattungen über zahls.ch.',
       },
       {
         title: 'Mahnwesen & Adapter',

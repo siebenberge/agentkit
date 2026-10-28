@@ -10,7 +10,6 @@ import {
   createShopHandler,
 } from '@agentkit.ch/shopkit/http';
 import { memoryAdapter } from '@agentkit.ch/shopkit/memory';
-import { renderReceiptHtml } from '@agentkit.ch/shopkit/receipt';
 import { swissQrBill } from '@agentkit.ch/shopkit/swiss-qr-bill';
 
 import { productArt } from './art';
@@ -43,6 +42,7 @@ const slip = swissQrBill({
 });
 
 export const SHOP_API = '/api/shop';
+export const SHOP_ADMIN_API = '/api/shop-admin';
 export const DEMO_GIFT_CARD_NOTE = 'demo';
 
 export type PayParams = {
@@ -342,8 +342,9 @@ async function create(page: string) {
       receipt: (order) =>
         `${origin}${page}?receipt=${encodeURIComponent(order.id)}&token=${encodeURIComponent(order.accessToken)}`,
       shop: () => `${origin}${page}`,
+      // the merchant email opens the order in the back office
       admin: (order) =>
-        `${origin}${page}?order=${encodeURIComponent(order.id)}&token=${encodeURIComponent(order.accessToken)}`,
+        `${origin}${page}?admin=${encodeURIComponent(order.id)}`,
     },
     merchant: { email: SELLER.email },
   });
@@ -397,7 +398,8 @@ async function create(page: string) {
 
   const admin = createShopAdminHandler({
     shop,
-    basePath: '/api/shop-admin',
+    basePath: SHOP_ADMIN_API,
+    // in your app: the staff check of your auth (better-auth, Clerk, …)
     authorize: () => true,
     receipts: { seller: SELLER, paymentSlip: slip },
   });
@@ -411,6 +413,22 @@ async function create(page: string) {
           ? input.href
           : input.url;
     const response = await handler(new Request(new URL(url, origin), init));
+
+    save();
+    sandbox.touch();
+
+    return response;
+  };
+
+  /** fetch for the back office components (`createShopAdminClient`). */
+  const adminFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const response = await admin(new Request(new URL(url, origin), init));
 
     save();
     sandbox.touch();
@@ -432,10 +450,8 @@ async function create(page: string) {
     shop,
     sandbox,
     fetchApi,
-    admin,
+    adminFetch,
     act,
-    receiptHtml: (order: Parameters<typeof renderReceiptHtml>[0]['order']) =>
-      renderReceiptHtml({ order, seller: SELLER, paymentSlip: slip }),
     /** Webhook from the simulated payment page. */
     async completePayment(params: PayParams, outcome: 'paid' | 'declined') {
       const event: ProviderEvent =

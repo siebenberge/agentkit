@@ -248,7 +248,7 @@ export const it: Dict = {
       {
         title: 'core + CLI',
         when: 'in seguito',
-        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
+        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: un back office da integrare (ordini, prodotti, scorte, codici sconto, buoni regalo, import bancario – nel repository, su npm con la prossima release), etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
       },
       {
         title: 'Solleciti e adapter',

@@ -245,7 +245,7 @@ export const en: Dict = {
       {
         title: 'core + CLI',
         when: 'next',
-        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: Swiss Post shipping labels and refunds through zahls.ch.',
+        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: a back office to embed (orders, products, stock, discount codes, gift cards, bank import – in the repo, on npm with the next release), Swiss Post shipping labels and refunds through zahls.ch.',
       },
       {
         title: 'Dunning & adapters',

@@ -252,7 +252,7 @@ export const fr: Dict = {
       {
         title: 'core + CLI',
         when: 'ensuite',
-        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
+        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : un back-office à intégrer (commandes, produits, stock, codes de réduction, bons cadeaux, import bancaire – dans le dépôt, sur npm avec la prochaine version), étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
       },
       {
         title: 'Relances et adaptateurs',

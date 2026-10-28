@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { type Order, formatGiftCardCode } from '@agentkit.ch/shopkit';
+import { formatGiftCardCode } from '@agentkit.ch/shopkit';
 import {
   AddToCartButton,
   Cart,
@@ -13,11 +13,17 @@ import {
   createShopClient,
   useShop,
 } from '@agentkit.ch/shopkit/react';
+import {
+  ShopAdmin,
+  ShopAdminProvider,
+  createShopAdminClient,
+} from '@agentkit.ch/shopkit/react/admin';
 import '@agentkit.ch/shopkit/react/styles.css';
 import { SHOP_SECTIONS, shopCode, themeCss } from '~/lib/config';
 import { COPY, type Lang, detectLang, storeLang } from '~/lib/copy';
-import { interceptApiLinks, openHtml } from '~/lib/sandbox';
+import { interceptApiLinks } from '~/lib/sandbox';
 import {
+  SHOP_ADMIN_API,
   SHOP_API,
   type ShopRuntime,
   getShopRuntime,
@@ -28,7 +34,7 @@ import { BankImport } from './bank-import';
 import { Button, DemoLayout, useSandbox } from './chrome';
 import { ConfigPanel, useDemoConfig } from './config-panel';
 
-type View = 'catalog' | 'cart' | 'checkout' | 'order';
+type View = 'catalog' | 'cart' | 'checkout' | 'order' | 'admin';
 
 export function ShopDemo() {
   const [runtime, setRuntime] = useState<ShopRuntime | null>(null);
@@ -117,6 +123,8 @@ function ShopPage(props: {
     token: string | null;
   } | null>(null);
   const [giftCode, setGiftCode] = useState<string | null>(null);
+  // `?admin=<order>`: the link in the merchant email
+  const [adminOrder, setAdminOrder] = useState<string | null>(null);
   // bumped by back office actions and time travel: views load again
   const [epoch, setEpoch] = useState(0);
   const bump = () => {
@@ -144,12 +152,20 @@ function ShopPage(props: {
       setView('order');
     }
 
+    const adminOrderId = params.get('admin');
+
+    if (adminOrderId) {
+      setAdminOrder(adminOrderId);
+      setView('admin');
+    }
+
     void runtime.demoGiftCardCode().then(setGiftCode);
   }, [runtime]);
 
   const go = (next: View) => {
-    if (next !== 'order' && order) {
+    if ((next !== 'order' && order) || (next !== 'admin' && adminOrder)) {
       setOrder(null);
+      setAdminOrder(null);
       window.history.replaceState(null, '', window.location.pathname);
     }
     setView(next);
@@ -179,6 +195,12 @@ function ShopPage(props: {
         <>
           <Button tone="ghost" onClick={() => go('catalog')}>
             {t.shop.products}
+          </Button>
+          <Button
+            tone={view === 'admin' ? 'primary' : 'ghost'}
+            onClick={() => go('admin')}
+          >
+            {t.shop.backoffice.open}
           </Button>
           <Button
             tone={view === 'cart' ? 'primary' : undefined}
@@ -233,6 +255,15 @@ function ShopPage(props: {
                 }
               />
             </div>
+          ) : view === 'admin' ? (
+            <ShopBackoffice
+              // a new config builds a new runtime: load from it
+              key={config.generation}
+              runtime={runtime}
+              lang={lang}
+              orderId={adminOrder}
+              onChange={bump}
+            />
           ) : order ? (
             <div className="mx-auto max-w-2xl">
               <OrderStatus
@@ -252,7 +283,12 @@ function ShopPage(props: {
         </>
       }
       backoffice={
-        <ShopBackoffice runtime={runtime} lang={lang} onChange={bump} />
+        <BackofficeTab
+          runtime={runtime}
+          lang={lang}
+          onOpen={() => go('admin')}
+          onChange={bump}
+        />
       }
       tables={runtime.tables as unknown as () => Record<string, unknown[]>}
       advance={(ms) => runtime.advance(ms).finally(bump)}
@@ -355,146 +391,47 @@ function ProductCard(props: {
   );
 }
 
+/** The kit's back office, as a shop owner sees it. */
 function ShopBackoffice(props: {
   runtime: ShopRuntime;
   lang: Lang;
+  orderId: string | null;
+  onChange: () => void;
+}) {
+  const client = useMemo(
+    () =>
+      createShopAdminClient({
+        baseUrl: SHOP_ADMIN_API,
+        fetch: props.runtime.adminFetch,
+      }),
+    [props.runtime],
+  );
+
+  return (
+    <ShopAdminProvider key={props.lang} client={client} locale={props.lang}>
+      <ShopAdmin initialOrderId={props.orderId} onChange={props.onChange} />
+    </ShopAdminProvider>
+  );
+}
+
+/** "Behind the scenes": open the back office, simulate the bank. */
+function BackofficeTab(props: {
+  runtime: ShopRuntime;
+  lang: Lang;
+  onOpen: () => void;
   onChange: () => void;
 }) {
   const { runtime, lang } = props;
   const t = COPY[lang].shop.backoffice;
   const { money } = useShop();
-  const version = runtime.sandbox.getVersion();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  useSandbox(runtime.sandbox);
-
-  useEffect(() => {
-    void runtime.shop.listOrders({ limit: 20 }).then(setOrders);
-  }, [runtime, version]);
-
-  const run = async (action: () => Promise<unknown>) => {
-    setNotice(null);
-
-    try {
-      await runtime.act(action);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error));
-    }
-
-    props.onChange();
-  };
-
-  const variants = runtime.tables().variant;
 
   return (
     <div className="flex flex-col gap-4 text-[13px]">
-      <section>
-        <h3 className="mb-1 font-semibold">{t.orders}</h3>
-        {orders.length === 0 ? <p className="text-muted">{t.none}</p> : null}
-        <ul className="flex flex-col gap-2">
-          {orders.map((order) => (
-            <li key={order.id} className="rounded-md border border-line p-2">
-              <div className="flex justify-between gap-2">
-                <span className="font-mono">{order.number}</span>
-                <span className="font-medium">{money(order.total)}</span>
-              </div>
-              <div className="text-[12px] text-muted">
-                {order.email} · {order.status} · {order.paymentStatus} ·{' '}
-                {order.fulfillmentStatus}
-                {order.paymentMethod !== 'none'
-                  ? ` · ${order.paymentMethod}`
-                  : ''}
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                <Button
-                  onClick={() =>
-                    openHtml(
-                      window.open('', '_blank'),
-                      runtime.receiptHtml(order),
-                    )
-                  }
-                >
-                  {t.receipt}
-                </Button>
-                {order.paymentStatus === 'unpaid' &&
-                order.status !== 'expired' ? (
-                  <Button
-                    onClick={() =>
-                      void run(() =>
-                        runtime.shop.markPaid({
-                          orderId: order.id,
-                          reference: 'Bank (Demo)',
-                        }),
-                      )
-                    }
-                  >
-                    {t.markPaid}
-                  </Button>
-                ) : null}
-                {order.status === 'confirmed' &&
-                order.fulfillmentStatus === 'unfulfilled' ? (
-                  <Button
-                    onClick={() =>
-                      void run(() =>
-                        runtime.shop.markShipped(
-                          order.shipping?.pickup
-                            ? { orderId: order.id }
-                            : {
-                                orderId: order.id,
-                                carrier: 'Die Post',
-                                trackingNumber: `99.00.${order.number.replace(/\D/g, '').slice(-6)}.00000001`,
-                              },
-                        ),
-                      )
-                    }
-                  >
-                    {t.ship}
-                  </Button>
-                ) : null}
-                {order.fulfillmentStatus === 'shipped' ? (
-                  <Button
-                    onClick={() =>
-                      void run(() =>
-                        runtime.shop.markDelivered({ orderId: order.id }),
-                      )
-                    }
-                  >
-                    {t.deliver}
-                  </Button>
-                ) : null}
-                {(order.status === 'pending' || order.status === 'confirmed') &&
-                (order.fulfillmentStatus === 'unfulfilled' ||
-                  order.fulfillmentStatus === 'not_required') ? (
-                  <Button
-                    onClick={() =>
-                      void run(() =>
-                        runtime.shop.cancelOrder({ orderId: order.id }),
-                      )
-                    }
-                  >
-                    {t.cancel}
-                  </Button>
-                ) : null}
-                {order.paymentStatus === 'paid' ||
-                order.paymentStatus === 'partially_refunded' ? (
-                  <Button
-                    onClick={() =>
-                      void run(() =>
-                        runtime.shop.refundOrder({
-                          orderId: order.id,
-                          restock: true,
-                        }),
-                      )
-                    }
-                  >
-                    {t.refund}
-                  </Button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
+      <section className="flex flex-col gap-2">
+        <p className="text-muted">{t.lead}</p>
+        <Button tone="primary" className="self-start" onClick={props.onOpen}>
+          {t.openButton}
+        </Button>
       </section>
 
       <BankImport
@@ -504,55 +441,6 @@ function ShopBackoffice(props: {
         importCamt={(xml) => runtime.importCamt(xml)}
         onChange={props.onChange}
       />
-
-      <section>
-        <h3 className="mb-1 font-semibold">{t.stock}</h3>
-        <ul className="flex flex-col">
-          {variants
-            .filter((variant) => variant.trackStock)
-            .map((variant) => (
-              <li
-                key={variant.id}
-                className="flex items-center justify-between gap-2 py-0.5"
-              >
-                <span className="font-mono text-[12px]">{variant.sku}</span>
-                <span className="ml-auto">{variant.stock}</span>
-                <Button
-                  className="h-6 px-2"
-                  onClick={() =>
-                    void run(() =>
-                      runtime.shop.adjustStock({
-                        variantId: variant.id,
-                        delta: 5,
-                      }),
-                    )
-                  }
-                >
-                  +5
-                </Button>
-              </li>
-            ))}
-        </ul>
-      </section>
-
-      <section className="flex flex-col gap-1">
-        <Button
-          className="self-start"
-          onClick={() =>
-            void run(async () => {
-              await runtime.shop.issueGiftCard({
-                amount: 5_000,
-                recipientEmail: 'anna@example.ch',
-              });
-              setNotice(t.issued);
-            })
-          }
-        >
-          {t.giftCard}
-        </Button>
-      </section>
-
-      {notice ? <p className="text-muted">{notice}</p> : null}
     </div>
   );
 }
