@@ -260,7 +260,7 @@ export const en: Dict = {
     button: 'See the roadmap',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -566,7 +566,7 @@ export const en: Dict = {
         'Then we noticed that every Swiss product rebuilds exactly that. Generic billing tools think in Stripe, cents and English – Switzerland comes, if at all, as a plugin.',
         'So we are extracting the code from production and turning it into kits any TypeScript app can use. Free, and open source under MIT.',
       ],
-      sign: 'The Siebenberge team',
+      sign: 'The siebenberge team',
     },
     mock: {
       code: 'Your code',

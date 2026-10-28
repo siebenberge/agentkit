@@ -266,7 +266,7 @@ export const de: Dict = {
     button: 'Roadmap ansehen',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -575,7 +575,7 @@ export const de: Dict = {
         'Dann haben wir gemerkt, dass jedes Schweizer Produkt genau das wieder selbst baut. Generische Billing-Tools denken in Stripe, Cents und Englisch – die Schweiz kommt, wenn überhaupt, als Plugin.',
         'Darum lösen wir den Code aus der Produktion heraus und machen daraus Kits, die jede TypeScript-App nutzen kann. Kostenlos und Open Source unter MIT.',
       ],
-      sign: 'Das Team von Siebenberge',
+      sign: 'Das Team von siebenberge',
     },
     mock: {
       code: 'Dein Code',
