@@ -11,8 +11,8 @@ import {
 import { SITE_URL } from '~/lib/site';
 
 /**
- * Docs MCP of agentkit (public, read-only): search llms.txt, the kit READMEs
- * and the error reference from a coding agent.
+ * Docs MCP of agentkit (public, read-only): search llms.txt, the kit READMEs,
+ * their reference docs and the error reference from a coding agent.
  * `claude mcp add --transport http agentkit https://agentkit.ch/mcp`
  */
 
@@ -20,6 +20,7 @@ const KITS: KitId[] = ['subkit', 'shopkit'];
 
 const INSTRUCTIONS = `Documentation of agentkit: subkit (subscriptions, invoices, QR-bill, TWINT, Swiss VAT) and shopkit (catalog, cart, checkout, orders) – TypeScript libraries that run inside the app, with the data in its own database.
 - search_docs finds sections by words; read_doc returns one in full; list_docs lists them all.
+- Sources: llms.txt (overview), the kit READMEs (setup) and the reference docs of each kit (every option, method, route, event, table and component).
 - explain_error gives cause and fix of an error code (errors of the kits link to ${SITE_URL}/errors#<kit>-<CODE>).
 - Features marked next or planned are not built yet.`;
 
@@ -34,7 +35,7 @@ const tools: McpTool[] = [
     name: 'search_docs',
     title: 'Search the docs',
     description:
-      'Find documentation sections (setup, configuration, API, Swiss specifics, error codes) by words. Returns ids, titles and snippets; read a section with read_doc.',
+      'Find documentation sections (setup, configuration options, engine methods, HTTP routes, events, tables, React components, Swiss specifics, error codes) by words. Returns ids, titles and snippets; read a section with read_doc.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -60,7 +61,8 @@ const tools: McpTool[] = [
       properties: {
         id: {
           type: 'string',
-          description: 'e.g. "subkit/mcp-server-for-your-team".',
+          description:
+            'e.g. "subkit/mcp-server-for-your-team" (README) or "shopkit/docs/configuration" (a reference page).',
         },
       },
       required: ['id'],

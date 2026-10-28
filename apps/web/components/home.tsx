@@ -912,6 +912,10 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
             links={[
               { href: REPO_URL, label: 'GitHub' },
               ...KITS.map((k) => ({ href: k.npm, label: `npm · ${k.id}` })),
+              ...KITS.map((k) => ({
+                href: k.docs,
+                label: `${h.footer.docs} · ${k.id}`,
+              })),
               { href: '/llms.txt', label: 'llms.txt' },
               { href: '/mcp', label: 'MCP' },
               { href: `/${locale}/errors`, label: t.errors.title },

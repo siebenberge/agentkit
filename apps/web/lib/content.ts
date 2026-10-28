@@ -86,18 +86,22 @@ export const KITS: {
   status: Status;
   demo?: string;
   npm: string;
+  /** Reference docs (every option, method, route, event and table). */
+  docs: string;
 }[] = [
   {
     id: 'subkit',
     status: 'preview',
     demo: 'https://sub.agentkit.ch',
     npm: 'https://www.npmjs.com/package/@agentkit.ch/subkit',
+    docs: `${REPO_URL}/tree/main/packages/kits/subkit/docs`,
   },
   {
     id: 'shopkit',
     status: 'preview',
     demo: 'https://shop.agentkit.ch',
     npm: 'https://www.npmjs.com/package/@agentkit.ch/shopkit',
+    docs: `${REPO_URL}/tree/main/packages/kits/shopkit/docs`,
   },
 ];
 

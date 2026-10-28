@@ -257,7 +257,7 @@ export const fr: Dict = {
       {
         title: 'core + CLI',
         when: 'ensuite',
-        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : tarifs en direct de La Poste et remboursements via zahls.ch.',
+        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, la documentation aussi en allemand. Dans shopkit : tarifs en direct de La Poste et remboursements via zahls.ch.',
       },
       {
         title: 'Relances et adaptateurs',
@@ -870,6 +870,7 @@ export const fr: Dict = {
       kits: 'Kits',
       switzerland: 'Suisse',
       developers: 'Développeurs',
+      docs: 'Doc',
       demos: 'Démos',
       theme: { light: 'Clair', dark: 'Sombre', system: 'Système' },
     },

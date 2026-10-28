@@ -1,16 +1,19 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { ERROR_CODES } from '~/lib/content';
+import { ERROR_CODES, REPO_URL } from '~/lib/content';
 import { getDict } from '~/lib/i18n';
 import type { KitId } from '~/lib/i18n/types';
 import { SITE_URL } from '~/lib/site';
 
 /** One searchable piece of the documentation (a heading and its text). */
 export type DocSection = {
-  /** `llms/<slug>`, `subkit/<slug>`, `shopkit/<slug>` or `errors/<kit>/<CODE>`. */
+  /**
+   * `llms/<slug>`, `<kit>/<slug>` (README), `<kit>/docs/<page>[/<slug>]`
+   * (reference docs) or `errors/<kit>/<CODE>`.
+   */
   id: string;
   title: string;
-  /** Where it comes from, for the model: `llms.txt`, `subkit README` … */
+  /** Where it comes from, for the model: `llms.txt`, `subkit docs` … */
   source: string;
   text: string;
   url: string | null;
@@ -24,9 +27,10 @@ const INTERNAL_README_SECTIONS = /^development\b/i;
 let cached: DocSection[] | null = null;
 
 /**
- * llms.txt, the usage sections of the kit READMEs and the error reference,
- * read once per server instance (`outputFileTracingIncludes` ships the files
- * with the `/mcp` function).
+ * llms.txt, the usage sections of the kit READMEs, the reference docs
+ * (`packages/kits/<kit>/docs/*.md`) and the error reference, read once per
+ * server instance (`outputFileTracingIncludes` ships the files with the
+ * `/mcp` function).
  */
 export function docSections(): DocSection[] {
   if (cached) return cached;
@@ -62,6 +66,35 @@ export function docSections(): DocSection[] {
         text: section.text,
         url: null,
       });
+    }
+  }
+
+  for (const kit of KITS) {
+    for (const file of docFiles(kit)) {
+      const markdown = read(`../../packages/kits/${kit}/docs/${file}`);
+
+      if (!markdown) continue;
+
+      const page = file.replace(/\.md$/, '');
+      const pageUrl = `${REPO_URL}/blob/main/packages/kits/${kit}/docs/${file}`;
+      const pageTitle = /^# (.+)$/m.exec(markdown)?.[1]?.trim() ?? page;
+
+      for (const section of split(markdown, 3)) {
+        // the intro under the page title
+        const top = section.level === 1;
+
+        sections.push({
+          id: top
+            ? `${kit}/docs/${page}`
+            : `${kit}/docs/${page}/${slug(section.title)}`,
+          title: top
+            ? `${kit}: ${pageTitle}`
+            : `${kit}: ${pageTitle} – ${section.title}`,
+          source: `${kit} docs`,
+          text: section.text,
+          url: top ? pageUrl : `${pageUrl}#${githubAnchor(section.title)}`,
+        });
+      }
     }
   }
 
@@ -136,6 +169,23 @@ function read(relative: string) {
   }
 }
 
+/** The reference pages of a kit (`docs/README.md` is only their index). */
+function docFiles(kit: KitId) {
+  try {
+    return readdirSync(
+      path.join(
+        /*turbopackIgnore: true*/ process.cwd(),
+        `../../packages/kits/${kit}/docs`,
+      ),
+    )
+      .filter((file) => file.endsWith('.md') && file !== 'README.md')
+      .sort();
+  } catch (error) {
+    console.warn(`docs: cannot list the docs of ${kit}`, error);
+    return [];
+  }
+}
+
 /** Markdown → sections at headings up to `maxLevel` (code blocks are kept). */
 function split(markdown: string, maxLevel: number) {
   const sections: { level: number; title: string; text: string }[] = [];
@@ -176,6 +226,14 @@ function slug(title: string) {
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-|-$/g, '');
+}
+
+/** The anchor GitHub gives a heading (`A / b` → `a--b`). */
+function githubAnchor(title: string) {
+  return title
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .replace(/ /g, '-');
 }
 
 function count(text: string, term: string) {

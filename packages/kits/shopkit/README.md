@@ -11,7 +11,7 @@ emails and receipts ship with the package. Database- and framework-agnostic;
 the data lives in your own database.
 
 npm: [@agentkit.ch/shopkit](https://www.npmjs.com/package/@agentkit.ch/shopkit) · Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
-Try it: [shop.agentkit.ch](https://shop.agentkit.ch) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
+Try it: [shop.agentkit.ch](https://shop.agentkit.ch) · Reference: [docs](https://github.com/siebenberge/agentkit/tree/main/packages/kits/shopkit/docs) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
 
 ## Install
 
