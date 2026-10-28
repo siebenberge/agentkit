@@ -127,6 +127,7 @@ outside 1–10.
 | `deliveryTime` | `(order) => string \| null \| undefined` | start of the time window | `HH:mm` (`07:00–09:00` → `07:00`). |
 | `tourplanId` | `(order) => number \| null \| undefined` | – | Tour plan of the order. |
 | `comment` | `(order) => string \| null` | see below | Order note in WaWiAssist. |
+| `commentHtml` | `(order) => string \| null` | – | The order note as HTML (`note`, e.g. `<b>` for the pickup location), sent next to `comment`. Escape the order's own text with `escapeHtml` (`/i18n`). |
 | `creationOptions` | `HsSoftCreationOptions` | all `true` | `ignoreDaysToProduce`, `ignoreMinMaxProblems`, `ignoreQuantityPerLotProblems`, `ignoreSplittingProblems`. The customer has paid: positions that break the rules are kept and reported as warnings. |
 | `deleteCanceled` | `boolean` | `false` | Delete the WaWiAssist order when the order is canceled in the shop. |
 | `maxAttempts` | `number` | `5` | Attempts while HS-Soft is unavailable. |
@@ -277,6 +278,7 @@ Each confirmed order is sent once – on `onEvent`, else by the next
 | `referenceOrderNo` | Order number |
 | `caOrderName`, `orderType`, `tourplanId` | From the options |
 | `notePlainText` | `orders.comment`, else: order number, payment (`online bezahlt`, `Rechnung (QR-Rechnung des Shops)`), gift card, discount code, pickup / shipping, pickup / delivery day, total, email, phone, the customer's note and the variants ordered |
+| `note` | `orders.commentHtml` (HTML), only when set |
 | Customer | `customerId(order)` with the shipping address as special address; else a one-time customer |
 
 The one-time customer: company (with contact person) or first name and

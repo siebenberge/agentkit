@@ -244,6 +244,12 @@ export type HsSoftOrderOptions = {
   /** Order note in WaWiAssist (default: number, payment, shipping, contact, customer note). */
   comment?: (order: Order) => string | null;
   /**
+   * The order note as HTML (`note`, e.g. `<b>` for the pickup location),
+   * sent next to the plain-text `comment`. Escape the order's own text
+   * (`escapeHtml` of `/i18n`). Default: none.
+   */
+  commentHtml?: (order: Order) => string | null;
+  /**
    * The customer has paid: by default HS-Soft keeps positions that break the
    * min/max, lot size, splitting or days-to-produce rules (all `true`) and
    * reports them as warnings.
@@ -1255,6 +1261,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     const comment = orders.comment
       ? orders.comment(order)
       : defaultComment(order);
+    const commentHtml = orders.commentHtml?.(order) ?? null;
     const deliveryTime = orders.deliveryTime
       ? orders.deliveryTime(order)
       : windowStart(order.fulfillmentWindow);
@@ -1274,6 +1281,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
         ? { caOrderName: toWawi(orders.caOrderName).slice(0, 40) }
         : {}),
       ...(comment ? { notePlainText: toWawi(comment, true) } : {}),
+      ...(commentHtml ? { note: toWawi(commentHtml, true) } : {}),
       ...(deliveryTime ? { deliveryTime } : {}),
       ...(tourplanId ? { tourplanId } : {}),
       creationOptions: {
