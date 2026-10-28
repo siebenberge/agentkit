@@ -5,7 +5,7 @@ import type {
   Shop,
 } from '../engine';
 import { ShopError, isShopError } from '../errors';
-import { formatFulfillmentDate } from '../i18n';
+import { formatFulfillmentDate, formatMoney } from '../i18n';
 import type {
   Address,
   Locale,
@@ -513,7 +513,10 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
         ? null
         : (article.specialPrices ?? [])
             .filter((entry) => entry.isActual)
-            .map((entry) => rappen(entry.priceCategories?.[priceCategory - 1]))
+            .map((entry) =>
+              // an empty (0) special price is no special price
+              positive(rappen(entry.priceCategories?.[priceCategory - 1])),
+            )
             .find(
               (price) => price !== null && regular !== null && price < regular,
             );
@@ -735,9 +738,13 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
           const variant = product.variants.find(
             (entry) => entry.sku === article.articleNumber,
           );
-          // a variant is the article when the product has several variants
+          // a variant is the article when the product has several variants,
+          // unless the product itself came from this article (shop variants
+          // added to it share the article)
           const variantLevel =
-            variant !== undefined && product.variants.length > 1;
+            variant !== undefined &&
+            product.variants.length > 1 &&
+            hsSoftProductData(product)?.articleId !== article.id;
           const outcome = variantLevel
             ? await updateVariantArticle(
                 product,
@@ -952,13 +959,9 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
       return 'unchanged';
     }
 
-    const own = hsSoftProductData(product);
-
     await shop.updateProduct(product.id, {
       metadata: {
         ...product.metadata,
-        // the product-level entry described this variant before
-        ...(own?.articleId === article.id ? { [KEY]: undefined } : {}),
         [VARIANTS_KEY]: {
           ...variants,
           [article.articleNumber]: dataOf(mapped, null),
@@ -1232,7 +1235,10 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
           price: chf(order.shipping.amount),
           discount: percent(order.shipping.discount, order.shipping.amount),
         });
-      } else if (order.shipping.amount > 0 && positions.length > 0) {
+      } else if (
+        order.shipping.amount > order.shipping.discount &&
+        positions.length > 0
+      ) {
         throw new ShopError(
           'HSSOFT_UNMAPPED',
           `hssoft: shipping "${order.shipping.rateId}" has no HS-Soft article (orders.shippingArticleId)`,
@@ -1411,6 +1417,7 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
    * Sends one order to WaWiAssist. Without `force` only orders that were not
    * sent yet (or wait for a retry); with `force` also again (a second order
    * in WaWiAssist if the first one arrived – check `uncertain` ones first).
+   * Sent by hand, so `when` and `orders.filter` do not hold it back.
    */
   async function syncOrder(
     orderId: string,
@@ -1456,13 +1463,26 @@ export function createHsSoftSync(options: HsSoftSyncOptions) {
     try {
       payload = await orderPayload(order);
     } catch (error) {
+      // a ShopError (unmapped line, invalid option) stays; anything else
+      // (database, a callback's network call) is tried again
+      const attempts = (previous?.attempts ?? 0) + 1;
+      const retry = !isShopError(error) && attempts < maxAttempts;
       const sync = nextSync(previous, {
-        state: 'failed',
+        state: retry ? 'retry' : 'failed',
+        attempts,
         error: { ...describe(error), status: null, type: null },
-        nextAttemptAt: null,
+        nextAttemptAt: retry
+          ? new Date(now().getTime() + retryMs).toISOString()
+          : null,
       });
+      const written = await write(order.id, sync);
 
-      await failed(await write(order.id, sync), sync);
+      if (retry) {
+        logger.error(
+          { error, orderId: order.id },
+          'hssoft: order will be sent again',
+        );
+      } else await failed(written, sync);
       return sync;
     }
 
@@ -1849,8 +1869,9 @@ const PAYMENT_LABEL = {
   none: 'nichts zu bezahlen',
 } as const;
 
+/** `CHF 1'900.00` (the comment goes through `toWawi`). */
 function money(amount: number, currency: string) {
-  return `${currency} ${(amount / 100).toFixed(2)}`;
+  return formatMoney(amount, currency, 'de');
 }
 
 function defaultComment(order: Order) {

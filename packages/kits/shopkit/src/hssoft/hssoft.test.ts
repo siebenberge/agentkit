@@ -447,6 +447,26 @@ describe('hsSoftClient', () => {
       message: expect.stringContaining('ORDER_DATE_LOCKED'),
       details: { status: 409, type: 'ORDER_DATE_LOCKED', uncertain: false },
     });
+
+    // created, but the answer has no order: may exist in WaWiAssist
+    hs.next.push({
+      match: 'POST /v1/orders',
+      answer: { status: 200, body: { data: null } },
+    });
+    await expect(
+      hs.client().createOrder({ ...order, customerId: 1 }),
+    ).rejects.toMatchObject({
+      code: 'HSSOFT_UNAVAILABLE',
+      details: { uncertain: true },
+    });
+  });
+
+  it('accepts a DELETE without a body', async () => {
+    const hs = fakeHsSoft();
+
+    hs.next.push({ match: 'DELETE /v1/order/7', answer: { status: 204 } });
+
+    await expect(hs.client().deleteOrder(7)).resolves.toBeUndefined();
   });
 });
 
@@ -1098,6 +1118,46 @@ describe('orders → WaWiAssist', () => {
       code: 'ORDER_NOT_FOUND',
     });
   });
+
+  it('tries again when building the order fails for a moment', async () => {
+    let down = true;
+    const { hs, sync, clock, failures, placeOrder } = await withCatalog({
+      orders: {
+        comment: () => {
+          if (down) throw new Error('CRM unreachable');
+          return 'ok';
+        },
+      },
+    });
+    const order = await placeOrder([{ sku: 'A1', quantity: 1 }]);
+
+    expect(hsSoftOrderSync(order)).toMatchObject({
+      state: 'retry',
+      attempts: 1,
+    });
+    expect(failures).toHaveLength(0);
+
+    down = false;
+    clock.now = new Date(clock.now.getTime() + 10 * 60_000);
+    await sync.syncOrders();
+
+    expect(hs.orders).toHaveLength(1);
+  });
+
+  it('sends free shipping without a shipping article', async () => {
+    const { shop, hs, placeOrder } = await withCatalog({
+      orders: { shippingArticleId: {} },
+    });
+
+    await shop.createDiscount({ code: 'GRATIS', type: 'free_shipping' });
+
+    const order = await placeOrder([{ sku: 'A1', quantity: 1 }], {
+      code: 'GRATIS',
+    });
+
+    expect(hsSoftOrderSync(order)!.state).toBe('synced');
+    expect(hs.orders[0]!.body.positions).toHaveLength(1);
+  });
 });
 
 describe('like the existing WooCommerce plugin', () => {
@@ -1136,6 +1196,41 @@ describe('like the existing WooCommerce plugin', () => {
     expect((await shop.getProduct('brot'))!.variants[0]).toMatchObject({
       price: 420,
       weightGrams: 500,
+    });
+  });
+
+  it('ignores an empty special price', async () => {
+    const { shop, sync, hs } = setup();
+
+    hs.articles.set(
+      1,
+      article(1, {
+        description: 'Brot',
+        specialPrices: [
+          {
+            isActual: true,
+            priceCategories: [
+              0,
+              0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+            ],
+          },
+        ] as HsSoftArticle['specialPrices'],
+      }),
+    );
+
+    await sync.importProducts();
+
+    expect((await shop.getProduct('brot'))!.variants[0]).toMatchObject({
+      price: 550,
+      compareAtPrice: null,
     });
   });
 
@@ -1254,7 +1349,7 @@ describe('like the existing WooCommerce plugin', () => {
   });
 
   it('writes the variant of a shared article on the delivery note', async () => {
-    const { shop, hs, placeOrder } = await withCatalog();
+    const { shop, sync, hs, placeOrder } = await withCatalog();
     const zopf = (await shop.getProduct('butterzopf-500g'))!;
 
     // a shop variant without an article of its own
@@ -1264,6 +1359,12 @@ describe('like the existing WooCommerce plugin', () => {
       price: 600,
       trackStock: false,
     });
+    // the next import keeps the product on its article
+    expect(await sync.importProducts()).toMatchObject({ unchanged: 2 });
+    expect(
+      hsSoftProductData((await shop.getProduct(zopf.id))!)!.articleId,
+    ).toBe(1);
+
     await placeOrder([{ sku: 'A1-GESCHNITTEN', quantity: 1 }]);
 
     expect(hs.orders[0]!.body.positions[0]).toMatchObject({

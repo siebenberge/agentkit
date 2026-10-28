@@ -348,9 +348,12 @@ export function hsSoftClient(options: HsSoftClientOptions) {
       }
 
       if (response.ok && envelope) return envelope;
+      // a DELETE may answer 204 No Content
+      if (response.ok && method === 'DELETE') return {};
 
       const item = envelope?.errors?.[0];
-      const retryAfter = Number(response.headers.get('retry-after'));
+      const header = response.headers.get('retry-after');
+      const retryAfter = header === null ? Number.NaN : Number(header);
       const retryAfterSeconds =
         Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : 1;
 
@@ -401,12 +404,13 @@ export function hsSoftClient(options: HsSoftClientOptions) {
     }
   }
 
-  function data<T>(envelope: Envelope<T>, what: string): T {
+  /** `uncertain`: the request may have changed something (a POST). */
+  function data<T>(envelope: Envelope<T>, what: string, uncertain = false): T {
     if (envelope.data === undefined || envelope.data === null) {
       throw new HsSoftError(
         'HSSOFT_UNAVAILABLE',
         `hssoft: ${what} – answer without data`,
-        { status: 200, type: null, ref: null, uncertain: false },
+        { status: 200, type: null, ref: null, uncertain },
       );
     }
 
@@ -427,7 +431,7 @@ export function hsSoftClient(options: HsSoftClientOptions) {
       warnings?: HsSoftWarning[] | null;
     }>,
   ): HsSoftCreatedOrder {
-    const order = data(envelope, 'order');
+    const order = data(envelope, 'order', true);
 
     return {
       id: order.id,
