@@ -59,14 +59,20 @@ the App Router (`export const { GET, POST } = …`). Both handlers only use
 | `shop` | `Shop` | – (required) | The engine |
 | `basePath` | `string` | – (required) | Mount path, e.g. `/api/shop` (trailing slash ignored) |
 | `orderUrl` | `(request, order: { id, accessToken, number }) => string \| Promise<string>` | – (required) | URL of the order page (relative to the API request, or absolute); the payment page returns to it with `?checkout=success` / `cancel` / `failed` |
-| `identify` | `(request) => ShopCustomer \| null \| Promise<…>` | – (guests only) | The signed-in customer: `{ externalId, email? }` |
+| `identify` | `(request) => ShopCustomer \| null \| Promise<…>` | – (guests only) | The signed-in customer: `{ externalId, email?, name? }` |
 | `receipts` | `{ seller, paymentSlip?, messages?, accentColor? }` | – | Enables `GET /orders/:id/receipt` – see [emails-receipts](emails-receipts.md) |
 | `rateLimit` | `(check: RateLimitCheck) => RateLimitDecision \| Promise<…>` | – | See [rate limits](#rate-limits) |
 | `addressLookup` | `AddressLookup \| null` | – | Enables the `/address/*` routes – e.g. `swisspost.addressLookup` ([swisspost](swisspost.md)) |
 | `onError` | `(error, request) => void` | – | Unexpected errors (answered `500 INTERNAL_ERROR`) |
 
-`identify` runs on every cart, checkout and order request. `email` of the
-customer is filled into a new cart and into a claimed cart without email.
+`identify` runs on every cart, checkout and order request. A new cart of a
+signed-in customer, and a guest cart they claim, start with what they gave
+last time – only empty fields are filled:
+
+- `email` and `name` of the customer (the name as a billing address without
+  street – the checkout shows it as the name, «same as shipping» stays on)
+- the shipping rate / pickup point of their last order, if it still exists
+- the shipping address and a full billing address of their last order
 
 ### The cart token
 

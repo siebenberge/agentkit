@@ -19,7 +19,7 @@ const address = {
 
 async function setup(
   options: {
-    customer?: { externalId: string; email?: string } | null;
+    customer?: { externalId: string; email?: string; name?: string } | null;
     rateLimit?: (check: RateLimitCheck) => { allowed: boolean };
     orderUrl?: (order: { id: string; accessToken: string }) => string;
   } = {},
@@ -469,6 +469,58 @@ describe('createShopHandler', () => {
 
     expect(claimed).toMatchObject({ itemCount: 1, email: 'neu@example.ch' });
     expect((await client.createCart()).token).toBe(guest.token);
+  });
+
+  it("fills a signed-in customer's cart with their name and last pickup", async () => {
+    const { client, variantId, state } = await setup();
+
+    state.customer = {
+      externalId: 'user_7',
+      email: 'anna@example.ch',
+      name: 'Anna Muster',
+    };
+
+    // first cart: email and name, no order yet
+    let cart = await client.createCart();
+
+    expect(cart).toMatchObject({
+      email: 'anna@example.ch',
+      shippingRateId: null,
+      shippingAddress: null,
+      billingAddress: { name: 'Anna Muster', line1: '' },
+    });
+
+    cart = await client.addItem(cart.token, variantId);
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'pickup' });
+    await client.checkout(cart.token, { paymentMethod: 'online' });
+
+    // the next cart starts at the same pickup point
+    expect(await client.createCart()).toMatchObject({
+      email: 'anna@example.ch',
+      shippingRateId: 'pickup',
+      billingAddress: { name: 'Anna Muster' },
+    });
+
+    // a claimed guest cart keeps what the guest typed, the rest is filled
+    state.customer = null;
+    let guest = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+    guest = await client.updateDetails(guest.token, {
+      email: 'privat@example.ch',
+    });
+    state.customer = {
+      externalId: 'user_7',
+      email: 'anna@example.ch',
+      name: 'Anna Muster',
+    };
+
+    expect(await client.claimCart(guest.token)).toMatchObject({
+      email: 'privat@example.ch',
+      shippingRateId: 'pickup',
+      billingAddress: { name: 'Anna Muster' },
+    });
   });
 
   it('maps engine errors to status codes', async () => {

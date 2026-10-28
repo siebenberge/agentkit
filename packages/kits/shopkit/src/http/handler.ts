@@ -11,7 +11,7 @@ import { resolveLocale } from '../i18n';
 import type { MessageOverrides } from '../i18n';
 import type { PaymentSlip } from '../receipt/payment-slip';
 import { type ReceiptSeller, renderReceiptHtml } from '../receipt/render';
-import type { Address, Locale, Order } from '../types';
+import type { Address, Cart, Locale, Order } from '../types';
 import type {
   AddressCheckDto,
   CartDto,
@@ -42,6 +42,8 @@ type MaybePromise<T> = T | Promise<T>;
 export type ShopCustomer = {
   externalId: string;
   email?: string | null;
+  /** Filled into the checkout of a new or claimed cart. */
+  name?: string | null;
 };
 
 /**
@@ -296,9 +298,7 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
             locale: cartLocale,
           }));
 
-        if (!existing && customer?.email) {
-          await shop.updateCartDetails(cart.token, { email: customer.email });
-        }
+        if (!existing && customer) await prefillCart(cart, customer);
 
         return json<CartDto>(cartDto(await shop.getCartSummary(cart.token)));
       }
@@ -347,11 +347,10 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
           case '/cart/claim': {
             if (!customer) throw new HttpError(401, 'UNAUTHORIZED');
 
-            const claimed = await shop.claimCart(token, customer.externalId);
-
-            if (!claimed.email && customer.email) {
-              await shop.updateCartDetails(token, { email: customer.email });
-            }
+            await prefillCart(
+              await shop.claimCart(token, customer.externalId),
+              customer,
+            );
             break;
           }
           case '/cart/details':
@@ -497,6 +496,47 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
       }),
       request.url,
     );
+  }
+
+  /**
+   * A signed-in customer's new or claimed cart starts with what they gave
+   * last time: email and name, the pickup point / shipping rate and the
+   * addresses of their last order. Only empty fields are filled.
+   */
+  async function prefillCart(cart: Cart, customer: ShopCustomer) {
+    const [last] = await shop.listOrders({
+      customerExternalId: customer.externalId,
+      limit: 1,
+    });
+    // an empty name counts as none
+    const name =
+      [
+        customer.name,
+        last?.billingAddress?.name,
+        last?.shippingAddress?.name,
+      ].find(Boolean) ?? null;
+    const details: Parameters<Shop['updateCartDetails']>[1] = {};
+
+    if (!cart.email && customer.email) details.email = customer.email;
+    if (!cart.billingAddress) {
+      if (last?.billingAddress?.line1) {
+        details.billingAddress = last.billingAddress;
+      } else if (name) {
+        details.billingAddress = { name, line1: '', postalCode: '', city: '' };
+      }
+    }
+    if (!cart.shippingAddress && last?.shippingAddress) {
+      details.shippingAddress = last.shippingAddress;
+    }
+    if (Object.keys(details).length > 0) {
+      await shop.updateCartDetails(cart.token, details);
+    }
+    if (!cart.shippingRateId && last?.shipping) {
+      // the rate of the last order may be gone
+      await shop
+        .updateCartDetails(cart.token, { shippingRateId: last.shipping.rateId })
+        .catch(() => undefined);
+    }
   }
 
   async function accessibleOrder(
