@@ -168,6 +168,27 @@ export const MOCK = {
     total: '127.00',
     order: '#1042',
   },
+  /** Order through the customer MCP (line names in the dictionaries). */
+  agentOrder: {
+    shop: 'Rösterei Aare',
+    prices: ['37.00', '12.90'],
+    shipping: '9.00',
+    total: '58.90',
+    /** `expectedAmount` of `place_order`: the confirmed total in Rappen. */
+    expectedAmount: 5890,
+    order: '#1043',
+  },
+  /** HS-Soft (WaWiAssist): article numbers and prices, the synced order. */
+  hssoft: {
+    articles: [
+      { number: 'A1', price: '6.80' },
+      { number: 'A7', price: '5.20' },
+      { number: 'A12', price: '4.50' },
+    ],
+    order: '#2187',
+    total: '18.80',
+    orderNumber: '58213',
+  },
   mails: [
     { lang: 'de', subject: 'Deine Quittung für Pro', from: 'Acme AG' },
     {

@@ -86,6 +86,8 @@ export const it: Dict = {
           'Codici sconto',
           'Buoni regalo',
           'Collegamento a HS-Soft (WaWiAssist)',
+          'Ordini tramite agente IA (MCP)',
+          'Back office da integrare',
           'Giorno di ritiro e consegna con fascia oraria',
         ],
       },
@@ -199,7 +201,7 @@ export const it: Dict = {
       {
         label: 'Pensato per gli agenti',
         title: 'Il tuo agente di programmazione può integrarlo.',
-        text: 'llms.txt per gli agenti di coding, opzioni tipizzate ovunque ed errori con codici fissi. Un solo prompt da zero a un checkout funzionante. Un server MCP per ogni kit seguirà.',
+        text: 'llms.txt per gli agenti di coding, opzioni tipizzate ovunque ed errori con codici fissi. Un solo prompt da zero a un checkout funzionante. In più server MCP per il tuo team e, in shopkit, per la tua clientela.',
       },
       {
         label: 'Corretto per concezione',
@@ -245,12 +247,12 @@ export const it: Dict = {
       {
         title: 'subkit + shopkit',
         when: 'su npm',
-        text: 'subkit 0.2 e shopkit 0.1 come @agentkit.ch/subkit e @agentkit.ch/shopkit, il codice con licenza MIT su GitHub: fattura QR, riconciliazione bancaria (camt.053 / camt.054), IVA, zahls.ch con TWINT, adapter Drizzle per Postgres.',
+        text: 'subkit 0.2 e shopkit 0.2 come @agentkit.ch/subkit e @agentkit.ch/shopkit, il codice con licenza MIT su GitHub: fattura QR, riconciliazione bancaria (camt.053 / camt.054), IVA, zahls.ch con TWINT, adapter Drizzle per Postgres. Novità in shopkit 0.2: ordini tramite agente IA (MCP), collegamento a HS-Soft (WaWiAssist) e il back office da integrare.',
       },
       {
         title: 'core + CLI',
         when: 'in seguito',
-        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: un back office da integrare (ordini, prodotti, scorte, codici sconto, buoni regalo, import bancario – nel repository, su npm con la prossima release), etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
+        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
       },
       {
         title: 'Solleciti e adapter',
@@ -548,6 +550,7 @@ export const it: Dict = {
   home: {
     nav: {
       menu: 'Menu',
+      news: 'Novità',
       faq: 'Domande',
       openSource: 'Open source',
       cta: 'Prova la demo',
@@ -555,6 +558,55 @@ export const it: Dict = {
     hero: {
       lead: 'Due librerie TypeScript: **subkit** per abbonamenti e fatture, **shopkit** per lo shop online. Girano nella tua app, con fattura QR, IVA e quattro lingue. I pagamenti passano da **zahls.ch** con TWINT e carta, i dati restano nel tuo database.',
       note: 'Nessuna commissione per transazione · dati nel tuo database',
+    },
+    news: {
+      pill: 'Ordinare tramite agente IA',
+      docs: 'Guida nel README',
+      agent: {
+        eyebrow: 'Novità in shopkit 0.2 · Ordinare tramite agente IA',
+        title: 'La tua clientela ordina in chat.',
+        lead: 'Il tuo shop diventa un server MCP. L’agente delle tue clienti e dei tuoi clienti – Claude, ChatGPT o Cursor – cerca i prodotti, calcola l’ordine con IVA e spedizione e ordina. Si paga con un link zahls.ch o direttamente con il TWINT salvato. Per ogni shop shopkit, senza servizi aggiuntivi.',
+        points: [
+          'Accesso via OAuth – Claude e ChatGPT si collegano senza token',
+          'Viene addebitato solo l’importo confermato dalla cliente',
+          'Spedizione, ritiro o giorno di consegna con fascia oraria – l’agente chiede',
+          'I token di pagamento non raggiungono mai il modello',
+        ],
+        ask: 'Due volte la miscela della casa e un decalcificante, per posta.',
+        query: 'miscela della casa, decalcificante',
+        items: [
+          '2 × Miscela della casa 500 g',
+          'Decalcificante',
+        ],
+        shipping: 'PostPac Priority',
+        total: 'Totale',
+        confirm: 'Pagare CHF 58.90 con il tuo TWINT salvato?',
+        yes: 'Sì, grazie.',
+        paid: 'Ordinato e pagato',
+      },
+      hssoft: {
+        eyebrow: 'Novità in shopkit 0.2 · Per panetterie',
+        title: 'HS-Soft (WaWiAssist) collegato.',
+        lead: 'Per panetterie e pasticcerie con WaWiAssist: i prodotti arrivano da WaWiAssist, ogni ordine vi entra – con il giorno di ritiro come data dell’ordine. Che sia ordinato nello shop online o tramite agente.',
+        points: [
+          'Importazione con categoria di prezzo, prezzo promozionale, immagine, dichiarazione, allergeni e valori nutrizionali',
+          'Solo giorni di ritiro in cui ogni articolo del carrello è disponibile',
+          'Se HS-Soft non è raggiungibile, shopkit invia di nuovo l’ordine più tardi',
+          'Stato e nuovo invio nel back office e via MCP',
+        ],
+        articles: [
+          'Treccia 500 g',
+          'Pane contadino',
+          'Grittibänz',
+        ],
+        from: 'dal 1.11.',
+        import: 'Articoli → prodotti',
+        imported: 'importato',
+        orders: 'Ordine → WaWiAssist',
+        pickup: 'Ritiro il 31.10.2026',
+        sending: 'invio …',
+        synced: 'Ordine',
+      },
     },
     diy: {
       eyebrow: 'Niente vibe coding',
@@ -735,6 +787,14 @@ export const it: Dict = {
         {
           q: 'Mi servono entrambi i kit?',
           a: 'No. Ogni kit funziona da solo. Un’associazione con quote sociali e fan shop li prende entrambi, un SaaS di solito solo subkit.',
+        },
+        {
+          q: 'La mia clientela può ordinare tramite un agente IA?',
+          a: 'Sì, da shopkit 0.2. createShopCustomerMcpHandler trasforma il tuo shop in un server MCP: l’agente della cliente – Claude, ChatGPT o Cursor – cerca i prodotti, calcola l’ordine con IVA e spedizione e ordina. Si paga con un link zahls.ch o con il metodo di pagamento salvato, e viene addebitato solo l’importo confermato. Chi ordina lo decide il tuo login (OAuth o chiave API).',
+        },
+        {
+          q: 'shopkit funziona con HS-Soft (WaWiAssist)?',
+          a: 'Sì. @agentkit.ch/shopkit/hssoft importa gli articoli di WaWiAssist come prodotti e vi invia ogni ordine, con il giorno di ritiro come data dell’ordine. Ti serve solo la chiave API del tuo WaWiAssist, fornita da HS-Soft.',
         },
         {
           q: 'agentkit è davvero open source?',
