@@ -178,8 +178,9 @@ pnpm --filter @agentkit.ch/subkit test       # now with the Postgres race tests
 ```
 
 Release: bump `version` in `package.json` and `src/version.ts` (a test
-checks both), merge, then push the tag
-`subkit@<version>` or run *Actions → Publish subkit* on `main` –
+checks both), merge, then run *Actions → Release* with `subkit` on `main`
+(creates the release `subkit@<version>` with notes; a release made by hand
+with that tag works too) –
 `.github/workflows/publish-subkit.yml` builds `dist/` (tsdown), checks the
 tarball with `scripts/check-pack.mjs` and publishes it to npm. Locally:
 `pnpm build` (dist/), `pnpm check:pack` in the repo root. The workspace
