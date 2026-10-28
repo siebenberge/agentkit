@@ -76,6 +76,7 @@ export const it: Messages = {
       shippingAddress: 'Indirizzo di consegna',
       billingAddress: 'Indirizzo di fatturazione',
       sameAsShipping: 'Indirizzo di fatturazione uguale',
+      invoiceAddress: 'Mi serve una fattura con indirizzo',
       name: 'Nome e cognome',
       company: 'Ditta (facoltativo)',
       line1: 'Via e numero',

@@ -210,6 +210,49 @@ describe('shop components', () => {
     expect(window.localStorage.getItem('shopkit-cart')).toBeNull();
   });
 
+  it('asks only for the name on a pickup paid online', async () => {
+    const { ui, client, variantId, visits } = await setup();
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'pickup' });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(<Checkout orderHref={() => '/unused'} />);
+
+    fireEvent.change(await screen.findByLabelText('E-Mail'), {
+      target: { value: 'anna@example.ch' },
+    });
+    fireEvent.change(screen.getByLabelText('Vor- und Nachname'), {
+      target: { value: 'Anna Muster' },
+    });
+
+    // the receipt is in the bag: no address unless an invoice is needed
+    expect(screen.queryByLabelText('Strasse und Nr.')).toBeNull();
+    fireEvent.click(
+      screen.getByLabelText('Ich brauche eine Rechnung mit Adresse'),
+    );
+    expect(screen.getByLabelText('Strasse und Nr.')).toBeTruthy();
+    expect(
+      screen.getByLabelText<HTMLInputElement>('Vor- und Nachname').value,
+    ).toBe('Anna Muster');
+    fireEvent.click(
+      screen.getByLabelText('Ich brauche eine Rechnung mit Adresse'),
+    );
+    expect(screen.queryByLabelText('Strasse und Nr.')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt bezahlen' }));
+
+    await waitFor(() => expect(visits).toEqual(['https://pay.example/1']), {
+      timeout: 5_000,
+    });
+    expect((await client.cart(cart.token)).billingAddress).toMatchObject({
+      name: 'Anna Muster',
+      line1: '',
+    });
+  });
+
   it('asks for the pickup day and time window', async () => {
     const { ui, client, variantId, visits, shop } = await setup([
       {

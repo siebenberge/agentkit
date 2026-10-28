@@ -195,6 +195,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 <OrderStatus orderId={params.id} token={searchParams.token} />
 ```
 
+For a pickup paid online `<Checkout>` asks only for the name (the receipt
+is in the bag); the billing address comes with «I need an invoice with my
+address», and always for invoice payment and deliveries.
+
 After sign-in call `useShop().cart.claim()` so the guest's cart stays.
 
 Run `await shop.runDue()` from a cron job every few minutes (expires unpaid

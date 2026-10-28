@@ -376,12 +376,9 @@ function AddressFields(props: {
   onCountryChange?: (country: string) => void;
   countries: string[];
   prefix: string;
-  /** `name`: only the name is mandatory (pickup paid online). */
-  required?: 'all' | 'name';
 }) {
   const { m, locale } = useShop();
   const t = m.ui.checkout;
-  const all = props.required !== 'name';
   const names = (() => {
     try {
       return new Intl.DisplayNames([locale ?? 'de'], { type: 'region' });
@@ -425,7 +422,7 @@ function AddressFields(props: {
         className: 'sk-span-2',
       })}
       {field('line1', t.line1, {
-        required: all,
+        required: true,
         autoComplete: 'address-line1',
         className: 'sk-span-2',
       })}
@@ -434,11 +431,11 @@ function AddressFields(props: {
         className: 'sk-span-2',
       })}
       {field('postalCode', t.postalCode, {
-        required: all,
+        required: true,
         autoComplete: 'postal-code',
       })}
       {field('city', t.city, {
-        required: all,
+        required: true,
         autoComplete: 'address-level2',
       })}
       <label className="sk-field">
@@ -479,6 +476,8 @@ export function Checkout(props: CheckoutProps) {
   const [shipping, setShipping] = useState<Address>(EMPTY_ADDRESS);
   const [billing, setBilling] = useState<Address>(EMPTY_ADDRESS);
   const [sameBilling, setSameBilling] = useState(true);
+  // pickup: the name is enough – an address only for an invoice
+  const [withAddress, setWithAddress] = useState(false);
   const [note, setNote] = useState('');
   const [method, setMethod] = useState<'online' | 'invoice' | null>(null);
   const [giftCode, setGiftCode] = useState('');
@@ -506,6 +505,7 @@ export function Checkout(props: CheckoutProps) {
 
       setBilling((current) => (current === EMPTY_ADDRESS ? saved : current));
       setSameBilling(false);
+      if (cart.billingAddress.line1) setWithAddress(true);
     }
     setNote((current) => current || (cart.note ?? ''));
   }, [cart, loaded]);
@@ -547,6 +547,9 @@ export function Checkout(props: CheckoutProps) {
     (option) => option.id === cart.shippingRateId,
   );
   const needsAddress = cart.requiresShipping && !selectedRate?.pickup;
+  const showBillingFields = needsAddress
+    ? !sameBilling
+    : method === 'invoice' || withAddress;
   const giftCardTotal = Math.min(
     cart.totals.total,
     giftCards.reduce((acc, card) => acc + card.balance, 0),
@@ -580,7 +583,13 @@ export function Checkout(props: CheckoutProps) {
       await state.updateDetails({
         email,
         shippingAddress: needsAddress ? shipping : null,
-        billingAddress: sameBilling ? null : billing,
+        billingAddress: needsAddress
+          ? sameBilling
+            ? null
+            : billing
+          : withAddress || method === 'invoice'
+            ? billing
+            : { ...EMPTY_ADDRESS, name: billing.name },
         note,
       });
 
@@ -702,7 +711,36 @@ export function Checkout(props: CheckoutProps) {
             <span>{t.sameAsShipping}</span>
           </label>
         ) : null}
-        {!sameBilling || !needsAddress ? (
+        {!needsAddress && method !== 'invoice' ? (
+          // pickup paid online: the name for the pickup, the receipt is
+          // in the bag – an address only when the customer needs an invoice
+          <>
+            {withAddress ? null : (
+              <label className="sk-field">
+                <span>{t.name}</span>
+                <input
+                  className="sk-input"
+                  name="billing-name"
+                  required
+                  autoComplete="name"
+                  value={billing.name}
+                  onChange={(event) =>
+                    setBilling({ ...billing, name: event.target.value })
+                  }
+                />
+              </label>
+            )}
+            <label className="sk-check">
+              <input
+                type="checkbox"
+                checked={withAddress}
+                onChange={(event) => setWithAddress(event.target.checked)}
+              />
+              <span>{t.invoiceAddress}</span>
+            </label>
+          </>
+        ) : null}
+        {showBillingFields ? (
           <>
             <h3 className="sk-heading">{t.billingAddress}</h3>
             <AddressFields
@@ -713,9 +751,6 @@ export function Checkout(props: CheckoutProps) {
                 if (!needsAddress) setSameBilling(false);
               }}
               countries={countries}
-              // an invoice goes to a full address; a pickup paid online
-              // needs only the name
-              required={needsAddress || method === 'invoice' ? 'all' : 'name'}
             />
           </>
         ) : null}
