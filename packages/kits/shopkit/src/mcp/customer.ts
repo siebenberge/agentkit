@@ -56,6 +56,12 @@ export type ShopCustomerMcpOptions = {
   allowedOrigins?: string[];
   /** Extra guidance for the model, appended to the built-in instructions. */
   instructions?: string;
+  /**
+   * Save the card / TWINT of the customer's payment-page payments even when
+   * the agent does not ask – e.g. the customer chose it when connecting the
+   * agent. Applies while the customer has no active saved payment method.
+   */
+  savePaymentMethod?: (customer: McpCustomer) => MaybePromise<boolean>;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -102,6 +108,7 @@ export function createShopCustomerMcpHandler(options: ShopCustomerMcpOptions) {
       shop: options.shop,
       locale: resolveLocale(options.locale),
       orderUrl: options.orderUrl,
+      savePaymentMethod: options.savePaymentMethod,
       customer: async (request) => {
         const customer = await identify(request);
 
@@ -140,6 +147,7 @@ type ToolsContext = {
   shop: Shop;
   locale: Locale;
   orderUrl: ShopCustomerMcpOptions['orderUrl'];
+  savePaymentMethod?: ShopCustomerMcpOptions['savePaymentMethod'];
   customer: (request: Request) => Promise<McpCustomer>;
 };
 
@@ -212,6 +220,21 @@ const orderIdSchema = {
 
 export function customerTools(context: ToolsContext): McpTool[] {
   const { shop, locale } = context;
+
+  /** The agent asked, or the shop saves for this customer (`savePaymentMethod`). */
+  async function saving(customer: McpCustomer, args: JsonObject) {
+    if (optionalBoolean(args, 'savePaymentMethod')) return true;
+    if (
+      !context.savePaymentMethod ||
+      !(await context.savePaymentMethod(customer))
+    ) {
+      return false;
+    }
+
+    const methods = await shop.listPaymentMethods(customer.externalId);
+
+    return !methods.some((method) => method.status === 'active');
+  }
 
   async function redirectUrls(order: Order): Promise<RedirectUrls> {
     const page = await context.orderUrl({
@@ -449,7 +472,7 @@ export function customerTools(context: ToolsContext): McpTool[] {
           paymentMethod,
           urls: redirectUrls,
           savePaymentMethod:
-            optionalBoolean(args, 'savePaymentMethod') ?? false,
+            paymentMethod === 'online' && (await saving(customer, args)),
           useSavedPaymentMethod: payWith === 'saved_payment_method',
           expectedAmount: expectedAmount(args, payWith),
         });
@@ -485,7 +508,7 @@ export function customerTools(context: ToolsContext): McpTool[] {
         const customer = await context.customer(request);
         const order = await ownOrder(customer, requiredString(args, 'orderId'));
         const payWith = payWithOf(args);
-        const save = optionalBoolean(args, 'savePaymentMethod') ?? false;
+        const save = await saving(customer, args);
 
         if (payWith === 'saved_payment_method') {
           const charge = await shop.payOrderWithSavedMethod({
