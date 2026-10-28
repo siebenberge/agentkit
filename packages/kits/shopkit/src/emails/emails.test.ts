@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { memoryAdapter } from '../adapters/memory';
 import { createShop } from '../engine';
 import type { ShopEvent } from '../types';
-import { type ShopEmailMessage, createEmailNotifier } from './index';
+import {
+  type ShopEmailMessage,
+  createEmailNotifier,
+  renderShopEmail,
+} from './index';
 
 async function setup(merchant = false) {
   const sent: ShopEmailMessage[] = [];
@@ -140,6 +144,15 @@ describe('createEmailNotifier', () => {
     expect(merchant[1]?.html).toContain(
       `https://admin.example/orders/${placed.id}`,
     );
+    // what the shop needs to prepare the order, without the back office
+    expect(merchant[1]?.text).toContain('2 × Kaffee – 500 g');
+    expect(merchant[1]?.text).toContain(
+      'Kunde: Anna <Muster>, anna@example.ch',
+    );
+    expect(merchant[1]?.text).toContain(
+      'Lieferung an: Anna <Muster>, Weg 1, 3000 Bern',
+    );
+    expect(merchant[1]?.html).toContain('Anna &lt;Muster&gt;');
   });
 
   it('names the pickup day in the confirmation and the ready email', async () => {
@@ -198,5 +211,57 @@ describe('createEmailNotifier', () => {
         'Jour de retrait: mercredi, 21.10.2026, 07:00–09:00',
       );
     }
+  });
+
+  it('renders the theme: logo, font, colors and footer lines', () => {
+    const data = {
+      copy: {
+        subject: 'Hallo',
+        heading: 'Danke',
+        body: 'Text',
+        cta: 'Ansehen',
+      },
+      shopName: 'Beck',
+      customerName: 'Anna',
+      ctaUrl: 'https://shop.example/o/1',
+    };
+    const plain = renderShopEmail(data);
+    const themed = renderShopEmail(data, {
+      accentColor: '#0074c8',
+      theme: {
+        logo: {
+          url: 'https://shop.example/logo.png',
+          alt: 'Beck <Logo>',
+          width: 180,
+          height: 30,
+          href: 'https://shop.example',
+        },
+        fontFamily: "'Barlow',Arial,sans-serif",
+        background: '#eef5fb',
+        headingColor: '#005ba1',
+        radius: 20,
+        buttonRadius: 999,
+        footer: ['Beck GmbH', 'Dorfstrasse 1, 9630 Wattwil'],
+      },
+    });
+
+    expect(plain.html).not.toContain('<img');
+    expect(plain.html).toContain('#f4f4f5');
+    expect(themed.html).toContain(
+      '<a href="https://shop.example" style="display:inline-block"><img src="https://shop.example/logo.png" alt="Beck &lt;Logo&gt;" width="180" height="30"',
+    );
+    expect(themed.html).toContain(
+      'font-family:&#39;Barlow&#39;,Arial,sans-serif',
+    );
+    expect(themed.html).toContain('background:#eef5fb');
+    expect(themed.html).not.toContain('#f4f4f5');
+    expect(themed.html).toContain('color:#005ba1');
+    expect(themed.html).toContain('border-radius:20px');
+    expect(themed.html).toContain('background:#0074c8');
+    expect(themed.html).toContain('border-radius:999px');
+    expect(themed.html).toContain('Beck GmbH<br>Dorfstrasse 1, 9630 Wattwil');
+    expect(themed.text.endsWith('Beck GmbH\nDorfstrasse 1, 9630 Wattwil')).toBe(
+      true,
+    );
   });
 });

@@ -163,6 +163,7 @@ export const it: Messages = {
       pickup: 'Ritiro',
     },
     merchant: {
+      labels: { customer: 'Cliente', note: 'Nota' },
       newOrder: {
         subject: 'Nuovo ordine {{orderNumber}} – {{amount}}',
         body: '{{customerName}} ha ordinato ({{method}}).',

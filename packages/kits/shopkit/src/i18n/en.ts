@@ -161,6 +161,7 @@ export const en: Messages = {
       pickup: 'Pickup',
     },
     merchant: {
+      labels: { customer: 'Customer', note: 'Note' },
       newOrder: {
         subject: 'New order {{orderNumber}} – {{amount}}',
         body: '{{customerName}} placed an order ({{method}}).',

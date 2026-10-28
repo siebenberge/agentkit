@@ -76,7 +76,9 @@ The package ships ES modules with type declarations; peer dependencies
   payments after expiry are reported, not lost.
 - **Emails**: confirmation (with the invoice for invoice orders), payment
   received, shipped / ready for pickup, canceled, refunded, reminder, gift
-  card code; copies for the shop on new orders, late payments, low stock.
+  card code; copies for the shop on new orders (with items, customer,
+  pickup or delivery and the note), late payments, low stock. `theme` puts
+  them in your shop's look: logo, font, colors, footer lines.
 - **HS-Soft (WaWiAssist)**: products imported from the articles (price
   category, special prices, image, declaration, allergens, nutrition,
   delivery days), orders sent to WaWiAssist once they are placed.
@@ -127,6 +129,14 @@ export const shop = createShop({
       shop: () => 'https://acme.ch/shop',
     },
     merchant: { email: 'shop@acme.ch' },
+    accentColor: '#0f766e',
+    // optional: your shop's look (PNG/JPG logo – many mail clients block SVG)
+    theme: {
+      logo: { url: 'https://acme.ch/logo-mail.png', alt: 'Acme', width: 160, height: 32 },
+      fontFamily: "'Inter',Helvetica,Arial,sans-serif",
+      background: '#f0fdfa',
+      footer: ['Acme GmbH', 'Bahnhofstrasse 1, 8001 Zürich'],
+    },
   }),
 });
 ```
