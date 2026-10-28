@@ -1,6 +1,7 @@
 // Untranslated content shared by all languages: code samples,
 // product names, tags. Copy lives in lib/i18n.
 import type { ErrorDocKey, KitId, Status } from './i18n/types';
+import type { AgentId } from './prompt/answers';
 
 export const HERO_CODE = {
   'billing.ts': `
@@ -225,6 +226,14 @@ export const AGENT_LINKS: { name: string; url: (prompt: string) => string }[] =
       url: (p) => `https://lovable.dev/#prompt=${encodeURIComponent(p)}`,
     },
   ];
+
+/** Coding agents of the prompt generator (`lib/prompt/answers.ts`). */
+export const PROMPT_AGENT_NAMES: Record<AgentId, string> = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  lovable: 'Lovable',
+};
 
 /** Background images of the landing page: `public/bg/<name>.webp`. */
 export type SceneName =

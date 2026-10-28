@@ -49,6 +49,12 @@ Guide for contributors and coding agents. Human-oriented setup is in
   and options of the kits, keep them in sync. Background photos live in
   `apps/web/public/bg/<scene>.webp` (`SceneName` in `lib/content.ts`). The one Swiss
   motif is the contour lines (`components/topo.tsx`) – keep it to that.
+- Prompt generator: `/[locale]/prompt-generator` (`components/prompt-generator-page.tsx`,
+  form in `components/prompt-generator.tsx`, copy in `promptGenerator`). The answers
+  and presets are in `lib/prompt/answers.ts`, the generated prompt in
+  `lib/prompt/build.ts` (German and English, tests next to it). Payment always routes
+  to zahls.ch – keep it that way, and keep the kit options it names in sync with
+  the kits.
 - Logo: the mark in `apps/web/app/icon.svg` (stem, red dot, block). The same mark is in
   the site header, the OG images (`apps/web/lib/og.tsx`) and `apps/demos` – change them
   together.

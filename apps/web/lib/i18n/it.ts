@@ -1093,4 +1093,289 @@ export const it: Dict = {
       theme: { light: 'Chiaro', dark: 'Scuro', system: 'Sistema' },
     },
   },
+  promptGenerator: {
+    meta: {
+      title: 'Creare un sito web con l’IA: generatore di prompt | agentkit',
+      description:
+        'Componi in sei passi il prompt con cui Claude Code, Codex o Cursor costruisce tutto il tuo sito – con l’importazione del vecchio sito, shop con TWINT e QR-fattura tramite zahls.ch e quattro lingue.',
+    },
+    nav: 'Generatore di prompt',
+    eyebrow: 'Generatore di prompt · creare un sito con l’IA',
+    title: 'Un prompt per tutto il tuo sito',
+    lead: 'Rispondi a sei domande e ricevi l’**incarico completo** per il tuo agente di programmazione: contenuti del vecchio sito, pagine, shop con **TWINT e QR-fattura**, tecnica, lingue e messa online. L’agente costruisce il sito in un’unica passata.',
+    privacy:
+      'Le tue risposte restano nel tuo browser e non arrivano a nessun server. Condividile con «Copia link»: si trovano allora dopo il # dell’indirizzo.',
+    presets: {
+      label: 'Scegli un modello',
+      items: {
+        gastro: {
+          title: 'Ristorante, bar, birrificio',
+          text: 'Menu, eventi, orari, shop con ritiro',
+        },
+        shop: {
+          title: 'Negozio online',
+          text: 'Migrazione da WooCommerce, spedizione, fattura',
+        },
+        club: {
+          title: 'Associazione',
+          text: 'Eventi, notizie, quote sociali, donazioni',
+        },
+        saas: {
+          title: 'Software in abbonamento',
+          text: 'Offerta, prezzi, abbonamenti con fattura',
+        },
+        services: {
+          title: 'Servizi',
+          text: 'Servizi, team, lavoro, senza vendita',
+        },
+        blank: { title: 'Vuoto', text: 'Scegli tutto tu' },
+      },
+    },
+    steps: {
+      project: {
+        title: 'Progetto',
+        lead: 'Di cosa si tratta, per chi, e cosa deve ottenere il sito?',
+      },
+      legacy: {
+        title: 'Sito attuale',
+        lead: 'Esiste già un sito? Allora l’agente riprende contenuti, immagini e prodotti e reindirizza tutti i vecchi indirizzi.',
+      },
+      pages: {
+        title: 'Pagine',
+        lead: 'Quali pagine servono, e il team deve gestire i contenuti da sé?',
+      },
+      sales: {
+        title: 'Vendita',
+        lead: 'Cosa vendi? Si paga sempre tramite zahls.ch – con TWINT, carta e QR-fattura.',
+      },
+      tech: {
+        title: 'Tecnica',
+        lead: 'Con cosa si costruisce, dove si ospita e quale agente costruisce.',
+      },
+      style: {
+        title: 'Lingua e design',
+        lead: 'Lingue, forma di cortesia e cosa è già deciso per il design.',
+      },
+    },
+    fields: {
+      name: { label: 'Nome', placeholder: 'Birrificio Esempio' },
+      domain: { label: 'Dominio', placeholder: 'www.birrificio-esempio.ch' },
+      industry: {
+        label: 'Settore',
+        placeholder: 'Birrificio con bar e negozio',
+      },
+      description: {
+        label: 'Di cosa si tratta',
+        placeholder:
+          'Piccolo birrificio in Ticino, bar nel fine settimana, birra in negozio e online.',
+      },
+      audiences: {
+        label: 'Pubblico',
+        hint: 'Il più importante per primo.',
+        placeholder: 'Clientela locale, escursionisti, aziende per aperitivi',
+      },
+      goals: {
+        label: 'Obiettivi',
+        placeholder: 'Più ordini online, eventi più pieni',
+      },
+      repo: {
+        label: 'Repository',
+        hint: 'Lascia vuoto e l’agente ne crea uno.',
+        placeholder: 'github.com/azienda/sito',
+      },
+      legacySystem: { label: 'Sistema' },
+      legacyUrl: {
+        label: 'Indirizzo del sito attuale',
+        placeholder: 'https://www.birrificio-esempio.ch',
+      },
+      dumpPath: {
+        label: 'Dump del database (facoltativo)',
+        hint: 'Percorso sul tuo computer, p. es. il dump MySQL di WordPress.',
+        placeholder: 'D:\\Clienti\\Birrificio\\dump.sql',
+      },
+      filesPath: {
+        label: 'Cartella con i file (facoltativo)',
+        hint: 'Immagini, PDF, esportazioni – p. es. wp-content/uploads.',
+        placeholder: 'D:\\Clienti\\Birrificio\\uploads',
+      },
+      pages: {
+        label: 'Pagine',
+        hint: 'Note legali e protezione dei dati sono sempre incluse.',
+      },
+      pagesExtra: {
+        label: 'Altri desideri',
+        placeholder: 'Richieste di prenotazione per gruppi, newsletter',
+      },
+      admin: {
+        label: 'Amministrazione propria per gestire i contenuti',
+        hint: 'Modificare pagine, eventi, menu e prodotti senza sviluppatori.',
+      },
+      sales: {
+        label: 'Cosa vendi?',
+        hint: 'Nessuna scelta: nessuna vendita.',
+      },
+      delivery: { label: 'Consegna' },
+      invoice: {
+        label: 'Acquisto su fattura con QR-fattura',
+        hint: 'Oltre a TWINT e carta.',
+      },
+      stack: { label: 'Tecnica e hosting' },
+      otherStack: {
+        label: 'Quale stack?',
+        placeholder: 'Laravel su Hostpoint, Astro su Netlify …',
+      },
+      typescript: {
+        label: 'Lo stack è TypeScript o JavaScript',
+        hint: 'Allora i kit di agentkit funzionano al suo interno.',
+      },
+      agent: { label: 'Agente di programmazione' },
+      languages: { label: 'Lingue del sito' },
+      defaultLanguage: { label: 'Lingua predefinita' },
+      address: { label: 'Forma di cortesia' },
+      colors: {
+        label: 'Colori (facoltativo)',
+        placeholder: 'Verde scuro #1f3d2b, rame #b87333',
+      },
+      fonts: {
+        label: 'Caratteri (facoltativo)',
+        placeholder: 'Alice per i titoli, Open Sans per il testo',
+      },
+      logo: {
+        label: 'Logo (facoltativo)',
+        placeholder: 'D:\\Clienti\\Birrificio\\logo.svg',
+      },
+      inspiration: {
+        label: 'Riferimenti (facoltativo)',
+        placeholder: 'Siti che ti piacciono, e perché',
+      },
+    },
+    legacySystems: {
+      none: 'Nessuno',
+      wordpress: 'WordPress',
+      woocommerce: 'WooCommerce',
+      wix: 'Wix',
+      jimdo: 'Jimdo',
+      shopify: 'Shopify',
+      static: 'Statico',
+      other: 'Altro',
+    },
+    pages: {
+      home: 'Home',
+      about: 'Chi siamo',
+      offer: 'Offerta',
+      events: 'Eventi',
+      menu: 'Menu',
+      locations: 'Sedi e orari',
+      shop: 'Shop',
+      news: 'Notizie',
+      team: 'Team',
+      gallery: 'Galleria',
+      faq: 'FAQ',
+      jobs: 'Lavora con noi',
+      contact: 'Contatto',
+    },
+    sales: {
+      products: 'Prodotti',
+      giftCards: 'Buoni regalo',
+      tickets: 'Biglietti',
+      subscriptions: 'Abbonamenti e quote associative',
+      donations: 'Donazioni',
+    },
+    deliveries: { shipping: 'Spedizione', pickup: 'Ritiro' },
+    stacks: {
+      vercel: {
+        title: 'Next.js su Vercel, Postgres su Railway',
+        text: 'Il nostro standard: TypeScript, Tailwind, shadcn, Drizzle, Cloudflare.',
+      },
+      railway: {
+        title: 'Tutto su Railway',
+        text: 'Stesso stack, sito e database presso un solo fornitore.',
+      },
+      keep: {
+        title: 'Mantenere il sistema esistente',
+        text: 'Nessun rifacimento, p. es. rielaborare WordPress.',
+      },
+      other: { title: 'Altro stack', text: 'Da indicare tu.' },
+    },
+    agentHints: {
+      claude:
+        'Gira in locale nella cartella del progetto: legge dump e file, usa gh, vercel e railway.',
+      codex:
+        'Gira in locale nella cartella del progetto: legge dump e file, usa le CLI.',
+      cursor:
+        'Lavora in modalità agente nella cartella del progetto, così raggiunge dump e file.',
+      lovable:
+        'Lovable non raggiunge i file locali: carica dump e immagini. Per una migrazione con dump sono più adatti Claude Code o Codex.',
+    },
+    address: { informal: 'tu', formal: 'Lei' },
+    payment: {
+      title: 'Come si paga',
+      none: 'Nessuna vendita prevista. Il prompt stabilisce che i pagamenti futuri passeranno da **zahls.ch** con shopkit o subkit.',
+      kits: 'Si paga tramite **zahls.ch** con TWINT e carta. L’agente costruisce la vendita con i kit di agentkit invece di programmarla da zero.',
+      plugin:
+        'Il sistema esistente resta. L’agente vi integra **zahls.ch** – con il plugin o tramite l’API.',
+      api: 'I kit qui non sono adatti. L’agente integra **zahls.ch** direttamente tramite l’API, con le regole per webhook sicuri.',
+    },
+    preview: {
+      title: 'Il tuo prompt di progetto',
+      language: 'Lingua del prompt',
+      copy: 'Copia',
+      copied: 'Copiato',
+      download: 'Scarica',
+      share: 'Copia link',
+      shared: 'Link copiato',
+      reset: 'Azzera',
+      starterTitle: 'Come iniziare',
+      starterLead:
+        'Metti {file} in una cartella vuota, avvia lì il tuo agente e dagli questo prompt iniziale:',
+      copyStarter: 'Copia prompt iniziale',
+      lines: 'righe',
+    },
+    stepper: { back: 'Indietro', next: 'Avanti', step: 'Passo' },
+    how: {
+      eyebrow: 'Come procedere',
+      title: 'Dal questionario al sito finito',
+      lead: 'È così che costruiamo i siti noi stessi: un incarico completo invece di tanti piccoli prompt. L’agente lavora fase per fase e annota le ipotesi invece di chiedere.',
+      items: [
+        {
+          title: 'Rispondi alle domande',
+          text: 'Scegli un modello e adattalo. Ciò che lasci vuoto diventa un punto aperto nel prompt.',
+        },
+        {
+          title: 'Prepara i dati',
+          text: 'Dump del vecchio sito, immagini e logo in una cartella. L’agente li legge con script, non a mano.',
+        },
+        {
+          title: 'Avvia l’agente',
+          text: 'Il prompt come file nella cartella del progetto, poi il prompt iniziale. Ogni fase termina con un’anteprima da controllare.',
+        },
+      ],
+    },
+    faq: {
+      eyebrow: 'FAQ',
+      title: 'Domande frequenti',
+      items: [
+        {
+          q: 'Quale agente di programmazione è adatto?',
+          a: 'Idealmente uno che gira in locale nella cartella del progetto – Claude Code o Codex. Legge il dump del vecchio sito, usa GitHub, Vercel e Railway e può costruire tutto il sito in un’unica passata. Cursor funziona in modalità agente, Lovable è adatto a siti senza migrazione.',
+        },
+        {
+          q: 'Le mie risposte vengono salvate?',
+          a: 'No. Il prompt nasce nel tuo browser e le risposte vengono salvate solo lì. Un link condiviso le porta dopo il # dell’indirizzo – una parte che non viene inviata al server.',
+        },
+        {
+          q: 'Perché sempre zahls.ch?',
+          a: 'zahls.ch è un fornitore di pagamenti svizzero con TWINT, carte e PostFinance, e i kit di agentkit si basano su di esso. Se nessun kit è adatto, il prompt descrive l’integrazione diretta tramite l’API – con le regole che rendono sicuri i pagamenti.',
+        },
+        {
+          q: 'Cosa succede al vecchio sito?',
+          a: 'L’agente riprende testi, immagini e prodotti dal dump o li legge dal sito. Tutti i vecchi indirizzi reindirizzano alle nuove pagine, così link e posizionamenti su Google restano.',
+        },
+        {
+          q: 'Il generatore di prompt costa qualcosa?',
+          a: 'No. I kit sono open source (MIT). I costi derivano solo dall’agente, dall’hosting e da zahls.ch per pagamento.',
+        },
+      ],
+    },
+  },
 };

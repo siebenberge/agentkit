@@ -198,6 +198,17 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   `quote_order`, `place_order`, `pay_order`, `list_my_orders`,
   `get_my_order`, `list_payment_methods`, `remove_payment_method`.
 
+## Prompt generator
+
+https://agentkit.ch/en/prompt-generator (also /de, /fr, /it) writes a project
+prompt for a whole website: context, import of the old website (WordPress /
+WooCommerce dump, files, 301 redirects), pages, selling and payment, stack
+(default Next.js on Vercel, Postgres on Railway), languages, design, quality
+and phases. The prompt is in German or English and runs in the browser only.
+Payment always goes through zahls.ch: shopkit or subkit where they fit, the
+zahls.ch API or a plugin where they don't. The text lives in
+`apps/web/lib/prompt/build.ts`.
+
 ## Website languages
 
 The site exists in German (/de), French (/fr), Italian (/it) and English

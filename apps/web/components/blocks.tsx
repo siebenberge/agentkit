@@ -185,6 +185,10 @@ export function SiteFooter({
               href: k.docs,
               label: `${h.footer.docs} · ${k.id}`,
             })),
+            {
+              href: `/${locale}/prompt-generator`,
+              label: t.promptGenerator.nav,
+            },
             { href: '/llms.txt', label: 'llms.txt' },
             { href: '/mcp', label: 'MCP' },
             { href: `/${locale}/errors`, label: t.errors.title },
