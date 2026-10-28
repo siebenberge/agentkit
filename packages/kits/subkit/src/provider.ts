@@ -49,7 +49,16 @@ export type ChargeResult =
    * credentials, network). Not the customer's fault: the engine retries
    * later without counting an attempt or notifying the customer.
    */
-  | { status: 'error'; error: string };
+  | {
+      status: 'error';
+      error: string;
+      /**
+       * `true` when the request was refused before anything was charged
+       * (credentials, rate limit, host unreachable). Otherwise the charge may
+       * have gone through (timeout, 5xx).
+       */
+      notCharged?: boolean;
+    };
 
 export type SavedPaymentMethodDetails = {
   brand: string | null;

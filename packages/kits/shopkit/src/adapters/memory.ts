@@ -8,6 +8,7 @@ const UNIQUE: { [M in ModelName]?: (keyof ModelMap[M])[] } = {
   discount: ['id', 'code'],
   giftCard: ['id', 'code'],
   order: ['id', 'number', 'accessToken'],
+  paymentMethod: ['id', 'token'],
 };
 
 type Tables = { [M in ModelName]: ModelMap[M][] };
@@ -28,6 +29,7 @@ export function memoryAdapter(): StorageAdapter & { tables: Tables } {
     discount: [],
     giftCard: [],
     order: [],
+    paymentMethod: [],
   };
 
   const clone = <T>(value: T): T => structuredClone(value);

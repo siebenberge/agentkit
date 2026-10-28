@@ -66,6 +66,10 @@ The package ships ES modules with type declarations; peer dependencies
   invoice with QR-bill (payment term, reminders after the due date,
   `invoice.allow` decides who may buy on invoice); orders fully covered by
   gift cards need no payment.
+- **Saved payment methods**: signed-in customers save their card or TWINT
+  while paying (`savePaymentMethod: true`, zahls.ch tokenization) and pay
+  later orders with it, without the payment page
+  (`payOrderWithSavedMethod`); a declined charge falls back to the page.
 - **Orders**: numbers, guest links with access token, statuses for order,
   payment and fulfillment; shipped (tracking), delivered / picked up,
   canceled; refunds in parts (provider first, then gift cards); late
@@ -476,6 +480,103 @@ Tools: `list_orders`, `get_order`, `mark_order_paid`, `ship_order`,
 `issue_gift_card`, `disable_gift_card` (with `hssoft`: `hssoft_sync_order`,
 `hssoft_set_availability_period`, `hssoft_import_products`). Guest-link tokens are removed from
 orders; listed gift card codes show only their last 4 characters.
+
+### MCP server for your customers
+
+Let your customers order through their own agent: it finds products, prices
+the order, places it and gets a zahls.ch payment link back. A customer who
+saved a payment method pays directly – only the amount they confirmed.
+
+```ts
+// app/api/shop-agent/route.ts
+import { createShopCustomerMcpHandler } from '@agentkit.ch/shopkit/mcp';
+import { shop } from '@/lib/shop';
+
+export const POST = createShopCustomerMcpHandler({
+  shop,
+  // the signed-in customer of the request (OAuth access token, personal
+  // API key of their account …); null → 401
+  identify: async (request) => {
+    const user = await userFromBearerToken(request.headers.get('authorization'));
+    return user ? { externalId: user.id, email: user.email, name: user.name } : null;
+  },
+  orderUrl: (order) => `https://acme.ch/bestellung/${order.id}?token=${order.accessToken}`,
+  locale: 'de',
+});
+```
+
+Tools: `search_products`, `get_product`, `quote_order` (lines, VAT, total,
+shipping / pickup options, the saved payment method), `place_order`,
+`pay_order`, `list_my_orders`, `get_my_order`, `list_payment_methods`,
+`remove_payment_method`. Every tool acts only for the customer `identify`
+returns; payment tokens and guest-link tokens never reach the model.
+
+- A pickup / delivery option with a `schedule` needs a day: the agent asks
+  the customer and passes `fulfillmentDate` (and `fulfillmentWindow`) from the
+  option's `schedule` in `quote_order`.
+- `place_order` with `payWith: "payment_link"` (default) returns `paymentUrl`.
+  `savePaymentMethod: true` (only when the customer asks) saves the card /
+  TWINT used on that page for later orders.
+- `payWith: "saved_payment_method"` charges the saved payment method at once
+  and needs `expectedAmount`, the total the customer confirmed – another
+  amount fails with `AMOUNT_CHANGED` before anything is charged. A declined
+  charge returns a `paymentUrl` instead. When the provider does not answer
+  (timeout, outage), the result is `uncertain`: the charge may have gone
+  through, so no other payment of the order starts until the webhook
+  settles it or 30 minutes pass.
+- The same works without MCP: `shop.quoteOrder()`, `shop.placeOrder()`,
+  `shop.payOrderWithSavedMethod()`, `shop.listPaymentMethods()`.
+
+#### Sign-in for agents: OAuth with Better Auth
+
+Claude, ChatGPT and other MCP clients sign the customer in with OAuth on their
+own: the customer adds your endpoint, logs in on your site and allows the
+connection – no token to copy. With [Better Auth](https://www.better-auth.com)
+(`better-auth`, `@better-auth/mcp`, `@better-auth/cimd`, 1.7+) your app is the
+authorization server; wrap the handler with `requireMcpAuth` and pass the
+customer in, `identify` is then not needed:
+
+```ts
+// lib/auth.ts (excerpt)
+plugins: [
+  jwt(),
+  mcp({
+    loginPage: '/login', // your sign-in page, receives the signed OAuth query
+    consentPage: '/connect', // «Allow» posts { accept, oauth_query } to /api/auth/oauth2/consent
+    resource: 'https://acme.ch/api/shop-agent',
+    allowDynamicClientRegistration: true, // clients without CIMD (ChatGPT, Cursor …)
+    allowUnauthenticatedClientRegistration: true,
+  }),
+  cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }), // Claude
+],
+
+// app/api/shop-agent/route.ts
+import { requireMcpAuth } from '@better-auth/mcp';
+
+const shopAgent = createShopCustomerMcpHandler({ shop, orderUrl, locale: 'de' });
+
+export const POST = requireMcpAuth(
+  auth,
+  async (request, claims) => {
+    const user = await userById(claims.sub);
+    if (!user) return new Response(null, { status: 401 });
+    return shopAgent(request, { customer: { externalId: user.id, email: user.email, name: user.name } });
+  },
+  { resource: 'https://acme.ch/api/shop-agent' },
+);
+```
+
+Serve `/.well-known/*` with `auth.handler` too (protected resource and
+authorization server metadata). A «Connect with Claude» button can open
+Claude's add-connector dialog prefilled:
+`https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Acme&connectorUrl=<encoded endpoint>`.
+Prefer a one-time code over a magic link on the login page: a link opened
+from a mail app on the phone often lands in another browser, and the
+redirect back to the client fails.
+
+Saved payment methods need a provider with `chargeToken` (`zahlsProvider`
+has it) and the new table `shop_payment_methods` – generate a migration
+from `@agentkit.ch/shopkit/drizzle/schema` when you upgrade (additive).
 
 ## Development
 

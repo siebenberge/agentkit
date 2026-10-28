@@ -474,6 +474,16 @@ export const fr: Dict = {
           'Le mode de paiement (en ligne ou facture) n’est pas proposé pour cette boutique ou cette commande, ou aucun prestataire n’est configuré.',
         fix: 'Configurez le prestataire et les modes de paiement dans `createShop()`, ou choisissez un autre mode.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'Le client n’a pas (ce) mode de paiement enregistré : aucun enregistré, supprimé, refusé par le prestataire et désactivé, ou il appartient à un autre client.',
+        fix: 'Commandez sans `useSavedPaymentMethod` (lien de paiement) et laissez le client en enregistrer un avec `savePaymentMethod: true`.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'Le montant dû diffère de celui confirmé par le client (`expectedAmount`), par exemple parce qu’un prix, un rabais ou la livraison a changé. Rien n’a été débité.',
+        fix: 'Recalculez la commande (`quoteOrder` / `quote_order`), montrez le nouveau montant au client et commandez à nouveau avec le montant confirmé.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'Aucune commande avec cet identifiant, ou le jeton du lien de commande ne correspond pas.',

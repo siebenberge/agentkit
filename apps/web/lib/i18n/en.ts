@@ -466,6 +466,16 @@ export const en: Dict = {
           'The payment method (online or invoice) is not offered for this shop or order, or no provider is configured.',
         fix: 'Configure the provider and the methods in `createShop()`, or choose another method.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'The customer has no (such) saved payment method: none saved yet, removed, refused by the provider and deactivated, or it belongs to another customer.',
+        fix: 'Order without `useSavedPaymentMethod` (payment link) and let the customer save one with `savePaymentMethod: true`.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'The amount due differs from the one the customer confirmed (`expectedAmount`), e.g. because a price, discount or shipping changed. Nothing was charged.',
+        fix: 'Quote the order again (`quoteOrder` / `quote_order`), show the customer the new amount and order again with the confirmed amount.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'No order with this id, or the token of the order link does not match.',

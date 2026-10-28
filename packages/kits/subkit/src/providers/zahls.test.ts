@@ -253,6 +253,19 @@ describe('zahlsProvider', () => {
       }),
     ).toMatchObject({ status: 'failed', retryable: false });
 
+    // success status without a readable answer: may have been charged
+    expect(
+      await charge({ status: 200, body: { status: 'success', data: [] } }),
+    ).toEqual({ status: 'error', error: 'HTTP 200' });
+
+    // a refused request (amount, reference …): the token stays usable
+    expect(
+      await charge({
+        status: 422,
+        body: { status: 'error', message: 'amount too small' },
+      }),
+    ).toMatchObject({ status: 'failed', retryable: true });
+
     // wrong API key, outage, rate limit, network: not the customer's fault
     for (const status of [401, 403, 429, 502]) {
       expect(await charge({ status, body: { status: 'error' } })).toMatchObject(
