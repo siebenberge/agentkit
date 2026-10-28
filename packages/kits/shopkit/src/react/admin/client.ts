@@ -4,6 +4,10 @@ import type {
   AdminDiscount,
   AdminDiscountInput,
   AdminGiftCard,
+  AdminHsSoftAvailabilityPeriod,
+  AdminHsSoftImportSummary,
+  AdminHsSoftOrderSync,
+  AdminHsSoftOrdersSummary,
   AdminOrder,
   AdminOrderQuery,
   AdminProduct,
@@ -178,6 +182,31 @@ export function createShopAdminClient(options: ShopAdminClientOptions) {
     /** camt.054 / camt.053 of your bank: marks the paid invoices paid. */
     importBankFile: (camt: string) =>
       request<AdminBankReconciliation>('/bank-payments', { body: { camt } }),
+
+    // ---------------------------------------------------------- HS-Soft
+    // only with `hssoft` on `createShopAdminHandler` (else 404)
+    hssoft: {
+      /** Articles of WaWiAssist → products; `force` writes unchanged ones too. */
+      importProducts: (input: { force?: boolean } = {}) =>
+        request<AdminHsSoftImportSummary>('/hssoft/import', { body: input }),
+      /** Orders that are due (retries) go to WaWiAssist. */
+      syncOrders: () =>
+        request<AdminHsSoftOrdersSummary>('/hssoft/sync', { body: {} }),
+      /** One order to WaWiAssist; `force` sends a failed / uncertain one again. */
+      syncOrder: (orderId: string, input: { force?: boolean } = {}) =>
+        request<AdminHsSoftOrderSync>(`/orders/${id(orderId)}/hssoft`, {
+          body: input,
+        }),
+      /** Own availability period of a product; `null` removes it. */
+      setAvailabilityPeriod: (
+        productId: string,
+        period: AdminHsSoftAvailabilityPeriod | null,
+      ) =>
+        request<AdminProduct>(
+          `/products/${id(productId)}/hssoft-availability`,
+          { body: period ?? {} },
+        ),
+    },
   };
 }
 

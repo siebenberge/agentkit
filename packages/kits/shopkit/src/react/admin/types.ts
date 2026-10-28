@@ -1,6 +1,13 @@
 import type { BankPayment } from '../../camt';
 import type { DiscountInput, ProductInput, VariantInput } from '../../engine';
 import type {
+  HsSoftAvailabilityPeriod,
+  HsSoftImportSummary,
+  HsSoftOrderSync,
+  HsSoftOrdersSummary,
+  HsSoftProductData,
+} from '../../hssoft';
+import type {
   Discount,
   FulfillmentStatus,
   GiftCard,
@@ -53,6 +60,16 @@ export type AdminOrderQuery = {
 };
 
 export type AdminBankPayment = Json<BankPayment>;
+
+/** HS-Soft (WaWiAssist) plugin: what the admin routes of `hssoft` return. */
+export type AdminHsSoftImportSummary = HsSoftImportSummary;
+export type AdminHsSoftOrdersSummary = HsSoftOrdersSummary;
+/** Sync state of an order (`order.metadata.hssoft`). */
+export type AdminHsSoftOrderSync = HsSoftOrderSync;
+/** Article data of an imported product (`product.metadata.hssoft`). */
+export type AdminHsSoftProductData = HsSoftProductData;
+/** Own availability period (`product.metadata.hssoftAvailability`). */
+export type AdminHsSoftAvailabilityPeriod = HsSoftAvailabilityPeriod;
 
 /** What a bank file did (`reconcileBankPayments()`). */
 export type AdminBankReconciliation = {

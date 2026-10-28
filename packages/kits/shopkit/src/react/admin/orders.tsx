@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { interpolate } from '../../i18n';
 import type { Address } from '../../types';
+import { HsSoftOrderHint, HsSoftOrderPanel } from './hssoft';
 import { useShopAdmin } from './provider';
 import type { AdminOrder, AdminOrderQuery } from './types';
 import {
@@ -104,7 +105,7 @@ export type AdminOrdersProps = {
 
 /** Orders: filters, search by number or email, detail with every action. */
 export function AdminOrders(props: AdminOrdersProps) {
-  const { client, m, money, date } = useShopAdmin();
+  const { client, m, money, date, hssoft } = useShopAdmin();
   const pageSize = props.pageSize ?? 50;
   const [selected, setSelected] = useState<string | null>(
     props.initialOrderId ?? null,
@@ -260,6 +261,7 @@ export function AdminOrders(props: AdminOrdersProps) {
                         {fulfillmentDay(order, date)}
                       </div>
                     ) : null}
+                    {hssoft ? <HsSoftOrderHint order={order} /> : null}
                   </td>
                 </tr>
               ))}
@@ -380,7 +382,8 @@ export type AdminOrderDetailProps = {
 
 /** One order: customer, items, totals, payment, shipping and the actions. */
 export function AdminOrderDetail(props: AdminOrderDetailProps) {
-  const { client, m, money, date, dateTime, openHtml, locale } = useShopAdmin();
+  const { client, m, money, date, dateTime, openHtml, locale, hssoft } =
+    useShopAdmin();
   const {
     data: order,
     setData,
@@ -794,6 +797,18 @@ export function AdminOrderDetail(props: AdminOrderDetailProps) {
               ) : null}
             </dl>
           </section>
+        ) : null}
+
+        {hssoft ? (
+          <HsSoftOrderPanel
+            order={order}
+            onSynced={(sync) =>
+              setData({
+                ...order,
+                metadata: { ...order.metadata, hssoft: sync },
+              })
+            }
+          />
         ) : null}
       </div>
 
