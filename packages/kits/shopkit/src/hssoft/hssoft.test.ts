@@ -1119,6 +1119,29 @@ describe('orders → WaWiAssist', () => {
     });
   });
 
+  it('sends an HTML note next to the plain-text comment', async () => {
+    const { hs, placeOrder } = await withCatalog({
+      orders: {
+        comment: (order) => `Bestellung ${order.number}`,
+        commentHtml: (order) => `<b>Bestellung ${order.number}</b>`,
+      },
+    });
+    const order = await placeOrder([{ sku: 'A1', quantity: 1 }]);
+
+    expect(hs.orders[0]!.body).toMatchObject({
+      notePlainText: `Bestellung ${order.number}`,
+      note: `<b>Bestellung ${order.number}</b>`,
+    });
+  });
+
+  it('sends no HTML note without commentHtml', async () => {
+    const { hs, placeOrder } = await withCatalog();
+
+    await placeOrder([{ sku: 'A1', quantity: 1 }]);
+
+    expect(hs.orders[0]!.body).not.toHaveProperty('note');
+  });
+
   it('tries again when building the order fails for a moment', async () => {
     let down = true;
     const { hs, sync, clock, failures, placeOrder } = await withCatalog({
