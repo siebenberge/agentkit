@@ -138,7 +138,9 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   and places orders and gets a zahls.ch payment link back; with a saved
   payment method it pays directly, only for the amount the customer
   confirmed (`expectedAmount`). Your `identify` returns the signed-in
-  customer on every request; tools: `search_products`, `get_product`,
+  customer on every request – or an OAuth wrapper passes it in
+  (`handler(request, { customer })`, recipe with Better Auth `requireMcpAuth`
+  in the shopkit README); tools: `search_products`, `get_product`,
   `quote_order`, `place_order`, `pay_order`, `list_my_orders`,
   `get_my_order`, `list_payment_methods`, `remove_payment_method`.
 

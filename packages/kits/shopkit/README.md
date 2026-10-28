@@ -286,6 +286,53 @@ returns; payment tokens and guest-link tokens never reach the model.
 - The same works without MCP: `shop.quoteOrder()`, `shop.placeOrder()`,
   `shop.payOrderWithSavedMethod()`, `shop.listPaymentMethods()`.
 
+#### Sign-in for agents: OAuth with Better Auth
+
+Claude, ChatGPT and other MCP clients sign the customer in with OAuth on their
+own: the customer adds your endpoint, logs in on your site and allows the
+connection – no token to copy. With [Better Auth](https://www.better-auth.com)
+(`better-auth`, `@better-auth/mcp`, `@better-auth/cimd`, 1.7+) your app is the
+authorization server; wrap the handler with `requireMcpAuth` and pass the
+customer in, `identify` is then not needed:
+
+```ts
+// lib/auth.ts (excerpt)
+plugins: [
+  jwt(),
+  mcp({
+    loginPage: '/login', // your sign-in page, receives the signed OAuth query
+    consentPage: '/connect', // «Allow» posts { accept, oauth_query } to /api/auth/oauth2/consent
+    resource: 'https://acme.ch/api/shop-agent',
+    allowDynamicClientRegistration: true, // clients without CIMD (ChatGPT, Cursor …)
+    allowUnauthenticatedClientRegistration: true,
+  }),
+  cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }), // Claude
+],
+
+// app/api/shop-agent/route.ts
+import { requireMcpAuth } from '@better-auth/mcp';
+
+const shopAgent = createShopCustomerMcpHandler({ shop, orderUrl, locale: 'de' });
+
+export const POST = requireMcpAuth(
+  auth,
+  async (request, claims) => {
+    const user = await userById(claims.sub);
+    if (!user) return new Response(null, { status: 401 });
+    return shopAgent(request, { customer: { externalId: user.id, email: user.email, name: user.name } });
+  },
+  { resource: 'https://acme.ch/api/shop-agent' },
+);
+```
+
+Serve `/.well-known/*` with `auth.handler` too (protected resource and
+authorization server metadata). A «Connect with Claude» button can open
+Claude's add-connector dialog prefilled:
+`https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Acme&connectorUrl=<encoded endpoint>`.
+Prefer a one-time code over a magic link on the login page: a link opened
+from a mail app on the phone often lands in another browser, and the
+redirect back to the client fails.
+
 Saved payment methods need a provider with `chargeToken` (`zahlsProvider`
 has it) and the new table `shop_payment_methods` – generate a migration
 from `@agentkit.ch/shopkit/drizzle/schema` when you upgrade (additive).
