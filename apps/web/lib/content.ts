@@ -78,6 +78,101 @@ const html = renderInvoiceHtml({
 // → « Facture 2026-0142 · Total TTC CHF 2 054.90 »`,
 };
 
+/** Code tabs of the shopkit page (from the README's ten-minute setup). */
+export const SHOP_CODE = {
+  'shop.ts': `
+import { createShop } from '@agentkit.ch/shopkit';
+import { drizzleAdapter } from '@agentkit.ch/shopkit/drizzle';
+import { zahlsProvider } from '@agentkit.ch/shopkit/zahls';
+import { db, env } from './db';
+
+export const shop = createShop({
+  // your Postgres, your tables
+  database: drizzleAdapter(db),
+  provider: zahlsProvider({ instance: 'acme', apiKey: env.ZAHLS_KEY }),
+  tax: { inclusive: true, defaultRateBps: 810 }, // Swiss VAT 8.1 %
+  shipping: {
+    rates: [
+      {
+        id: 'post',
+        name: 'PostPac Economy',
+        amount: 900,
+        tiers: [
+          { maxWeightGrams: 2_000, amount: 900 },
+          { maxWeightGrams: 10_000, amount: 1_100 },
+        ],
+        freeAbove: 10_000,
+      },
+      { id: 'pickup', name: 'Abholung im Laden', amount: 0, pickup: true },
+    ],
+  },
+  // invoice only for signed-in customers
+  invoice: { allow: ({ customerExternalId }) => customerExternalId !== null },
+});`,
+  'route.ts': `
+// app/api/shop/[...path]/route.ts
+import { createShopHandler, toNextJsHandler } from '@agentkit.ch/shopkit/http';
+import { swissQrBill } from '@agentkit.ch/shopkit/swiss-qr-bill';
+import { shop } from '@/lib/shop';
+import { getUser } from '@/lib/auth';
+
+export const { GET, POST } = toNextJsHandler(
+  createShopHandler({
+    shop,
+    basePath: '/api/shop',
+    identify: async (request) => {
+      const user = await getUser(request); // null for guests
+      return user ? { externalId: user.id, email: user.email } : null;
+    },
+    orderUrl: (_request, order) =>
+      \`https://acme.ch/bestellung/\${order.id}?token=\${order.accessToken}\`,
+    receipts: {
+      seller: { name: 'Acme GmbH', vatNumber: 'CHE-123.456.789 MWST' },
+      paymentSlip: swissQrBill({
+        name: 'Acme GmbH',
+        street: 'Bahnhofstrasse',
+        buildingNumber: '1',
+        postalCode: '8001',
+        city: 'Zürich',
+        iban: 'CH44 3199 9123 0008 8901 2',
+      }),
+    },
+  }),
+);`,
+  'checkout.tsx': `
+'use client';
+import { Checkout, ShopProvider } from '@agentkit.ch/shopkit/react';
+import '@agentkit.ch/shopkit/react/styles.css';
+
+// Address, shipping or pickup day, TWINT or invoice – one component.
+export default function CheckoutPage() {
+  return (
+    <ShopProvider baseUrl="/api/shop" locale="fr">
+      <Checkout
+        cartHref="/panier"
+        orderHref={({ orderId, accessToken }) =>
+          \`/commande/\${orderId}?token=\${accessToken}\`
+        }
+      />
+    </ShopProvider>
+  );
+}`,
+  'admin.tsx': `
+'use client';
+import { ShopAdmin, ShopAdminProvider } from '@agentkit.ch/shopkit/react/admin';
+import '@agentkit.ch/shopkit/react/styles.css';
+
+// Orders, products and stock, discount codes, gift cards, bank import.
+// Access: your auth in createShopAdminHandler({ authorize }).
+export default function AdminPage() {
+  return (
+    <ShopAdminProvider baseUrl="/api/shop-admin" locale="de">
+      <ShopAdmin />
+    </ShopAdminProvider>
+  );
+}`,
+};
+
 export const REPO_URL = 'https://github.com/siebenberge/agentkit';
 
 /** `demo`: test site where the kit runs in the browser (apps/demos). */
@@ -137,6 +232,12 @@ export type SceneName =
   | 'mist'
   | 'dusk'
   | 'dawn';
+
+/** Background of each kit: its card on the home page, its page and OG image. */
+export const KIT_SCENES: Record<KitId, SceneName> = {
+  subkit: 'meadow',
+  shopkit: 'lake',
+};
 
 /** Sample data of the animated mocks (names, numbers, rows – not translated). */
 export const MOCK = {

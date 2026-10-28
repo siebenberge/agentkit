@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 
 import { ErrorsPage } from '~/components/errors-page';
-import { LOCALES, type Locale, getDict, isLocale } from '~/lib/i18n';
+import { type Locale, getDict, isLocale } from '~/lib/i18n';
+import { pageMetadata } from '~/lib/metadata';
 
 export async function generateMetadata({
   params,
@@ -10,17 +11,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) return {};
-  const t = getDict(locale);
-  return {
-    title: t.errors.meta.title,
-    description: t.errors.meta.description,
-    alternates: {
-      canonical: `/${locale}/errors`,
-      languages: Object.fromEntries(
-        LOCALES.map((l) => [getDict(l).htmlLang, `/${l}/errors`]),
-      ),
-    },
-  };
+  return pageMetadata({
+    locale,
+    path: '/errors',
+    ...getDict(locale).errors.meta,
+  });
 }
 
 export default async function Page({

@@ -268,6 +268,233 @@ export const en: Dict = {
     company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
+  kitPage: {
+    more: 'More about {kit}',
+    audience: 'Who it is for',
+    install: 'Install',
+    otherKit: 'The other kit',
+  },
+  kitPages: {
+    subkit: {
+      meta: {
+        title: 'subkit – subscriptions and invoices with TWINT and QR-bill',
+        description:
+          'Subscriptions, invoices and self-service for SaaS, memberships and club fees: a TypeScript library with TWINT, Swiss QR-bill, VAT, bank reconciliation and four languages. Free and open source.',
+      },
+      title: 'Subscriptions that bill themselves',
+      lead: 'subkit brings plans, trials, proration and invoices into your TypeScript app. Your customers pay by **TWINT, card or QR-bill**; subkit renews, sends reminders and matches payments with your bank. The data stays in **your** database.',
+      prompt:
+        'Add subscriptions with QR-bill and TWINT using @agentkit.ch/subkit. Read {url}/llms.txt first.',
+      proof: [
+        { value: '3', label: 'Payment methods: TWINT, card and QR-bill' },
+        { value: '4', label: 'Languages for portal, emails and invoices' },
+        { value: 'CHF 0', label: 'Fee per transaction to us' },
+        { value: 'MIT', label: 'Open source on GitHub, packages on npm' },
+      ],
+      audience: {
+        title: 'For everything that is paid every month or every year.',
+        lead: 'subkit handles recurring payments – from the SaaS with teams and limits to the club whose members pay in e-banking.',
+        items: [
+          {
+            title: 'SaaS',
+            text: 'Plans with features and limits, trials and prorated upgrades. hasFeature() and getLimit() decide in your code what a team may do.',
+          },
+          {
+            title: 'Memberships',
+            text: 'Monthly or yearly subscriptions with TWINT or card, saved once and renewed automatically. Receipts and reminders in four languages.',
+          },
+          {
+            title: 'Club fees',
+            text: 'An invoice with QR-bill instead of a card: members pay in e-banking, the camt.054 of your bank marks the invoice as paid.',
+          },
+        ],
+      },
+      portal: {
+        eyebrow: 'Self-service',
+        title: 'The billing page is already built.',
+        lead: 'With <BillingPortal /> your customers change their plan, save TWINT or a card and download their invoices. Every payment lands as a row in your database.',
+      },
+      features: {
+        title: 'Everything a subscription needs.',
+        lead: 'From code that runs in production at Membear: plans, payments, invoices and the cases that only show up in production.',
+        items: [
+          {
+            title: 'Plans & trials',
+            text: 'Monthly or yearly, with a trial and a free plan. Hidden plans stay with their subscribers but are no longer sold.',
+          },
+          {
+            title: 'Proration to the Rappen',
+            text: 'When a team moves to a bigger plan mid-month, subkit works out the difference and charges it right away.',
+          },
+          {
+            title: 'TWINT, card or invoice',
+            text: 'Save a payment method once and charge it every period – or let customers pay by invoice with QR-bill.',
+          },
+          {
+            title: 'Reminders & retries',
+            text: 'Payment terms, automatic retries and reminder emails. Dunning levels with fees come next.',
+          },
+          {
+            title: 'Entitlements & limits',
+            text: 'hasFeature() and getLimit() read the current plan – no table of your own for features.',
+          },
+          {
+            title: 'Bank reconciliation',
+            text: 'Import camt.053 and camt.054 from your bank, match QR references to open invoices, mark them paid.',
+          },
+          {
+            title: 'Emails & invoices',
+            text: 'Receipts, reminders and renewals as HTML and text, printable invoices with QR payment part – in four languages.',
+          },
+          {
+            title: 'VAT on every invoice',
+            text: 'VAT line and CHE number on every invoice, worked out in whole Rappen instead of floating point.',
+          },
+          {
+            title: 'MCP for your team',
+            text: 'Find customers, change plans, cancel, mark invoices paid – from Claude or ChatGPT, behind your own sign-in.',
+          },
+        ],
+      },
+      code: {
+        title: 'Billing in five minutes.',
+        lead: 'Plans, payment provider and VAT in one file, one route for API and webhook, one component for the billing page.',
+      },
+      faq: [
+        {
+          q: 'What products is subkit for?',
+          a: 'For anything paid on a recurring basis: SaaS subscriptions, memberships, club fees, courses on subscription. For selling products there is shopkit.',
+        },
+        {
+          q: 'How do my customers pay?',
+          a: 'By TWINT or card through zahls.ch – the payment method is saved once and charged every period – or by invoice with a Swiss QR-bill. collectionMethods sets which ones you offer.',
+        },
+        {
+          q: 'What happens when a payment fails?',
+          a: 'subkit retries automatically and sends a reminder email. While an invoice is overdue, subkit sells the customer nothing new until it is paid.',
+        },
+        {
+          q: 'Where does my customers’ data live?',
+          a: 'In your database. subkit runs as a library in your app and writes to your Postgres tables through the Drizzle adapter. There is no agentkit backend and no extra data processor.',
+        },
+        {
+          q: 'What does subkit cost?',
+          a: 'Nothing. subkit is open source under MIT, with no fee per transaction. You only pay your payment provider.',
+        },
+      ],
+      cta: {
+        title: 'Subscriptions in your app, today',
+        lead: 'Copy the setup prompt into your coding agent – or try subkit in the browser first.',
+      },
+    },
+    shopkit: {
+      meta: {
+        title: 'shopkit – online shop with TWINT, QR-bill and Swiss Post labels',
+        description:
+          'The online shop as a TypeScript library: products, cart and checkout with TWINT or on invoice, VAT per product, Swiss Post labels, gift cards and ordering through AI agents. Free and open source.',
+      },
+      title: 'Sell with TWINT and QR-bill',
+      lead: 'shopkit brings catalog, cart, checkout and back office into your TypeScript app. Customers pay by **TWINT, card or on invoice**; shopkit works out stock, shipping and VAT, and the labels come from **Swiss Post**. The data stays in **your** database.',
+      prompt:
+        'Add a shop with TWINT and QR-bill using @agentkit.ch/shopkit. Read {url}/llms.txt first.',
+      proof: [
+        { value: '3', label: 'VAT rates per product: 8.1, 2.6 and 3.8 %' },
+        { value: '4', label: 'Languages for shop, emails and receipts' },
+        { value: 'CHF 0', label: 'Fee per order to us' },
+        { value: 'MIT', label: 'Open source on GitHub, packages on npm' },
+      ],
+      audience: {
+        title: 'For shops that serve Swiss customers.',
+        lead: 'From a club’s fan shop to the bakery with pickup: shopkit knows TWINT, the QR-bill, Swiss Post and the Swiss VAT rates.',
+        items: [
+          {
+            title: 'Club shops & merch',
+            text: 'Jerseys in sizes, scarves and gift cards – paid by TWINT or on invoice, shipped with Swiss Post or picked up.',
+          },
+          {
+            title: 'Bakeries & farm shops',
+            text: 'Pickup day with time window, order cutoff and closed days. With WaWiAssist from HS-Soft the articles, allergens included, come from the ERP.',
+          },
+          {
+            title: 'Roasters & SMEs',
+            text: 'Variants, stock, shipping by weight and the Swiss Post label in one click. Regulars even order through their AI agent.',
+          },
+        ],
+      },
+      features: {
+        title: 'Everything a shop needs.',
+        lead: 'Catalog, checkout and back office, with the Swiss details that generic shop systems add later as a plugin.',
+        items: [
+          {
+            title: 'Products & variants',
+            text: 'Physical products and gift cards, variants with their own price and stock, struck-through prices, images and texts in four languages.',
+          },
+          {
+            title: 'Stock you can trust',
+            text: 'Stock is reserved at checkout: shopkit sells the last item once, also under load.',
+          },
+          {
+            title: 'TWINT, card or invoice',
+            text: 'Online through zahls.ch or on invoice with QR-bill. You decide who may buy on invoice.',
+          },
+          {
+            title: 'VAT per product',
+            text: '8.1, 2.6 or 3.8 % per product, shipping split across the rates, every receipt lists all rates. Optionally rounded to 5 Rappen.',
+          },
+          {
+            title: 'Shipping & pickup',
+            text: 'Flat, by weight, free above an amount or pickup. Pickup and delivery day with time window and order cutoff.',
+          },
+          {
+            title: 'Discount codes & gift cards',
+            text: 'Percent, amount or free shipping with conditions. Sell gift cards and redeem them across several orders.',
+          },
+          {
+            title: 'Orders & refunds',
+            text: 'Order numbers, links for guests, statuses for payment and fulfillment, refunds in parts with restock.',
+          },
+          {
+            title: 'Back office to embed',
+            text: '<ShopAdmin /> with orders, products, stock, discount codes, gift cards and bank import – behind your own sign-in.',
+          },
+          {
+            title: 'Emails in your look',
+            text: 'Confirmation, payment received, shipped, reminder, gift card code – in four languages, with your logo and colors.',
+          },
+        ],
+      },
+      code: {
+        title: 'A shop in ten minutes.',
+        lead: 'The shop in one file, one route for storefront API and webhook, ready-made components for checkout and back office.',
+      },
+      faq: [
+        {
+          q: 'Who is shopkit for?',
+          a: 'For anyone selling products in their own app: club shops, bakeries with pickup, coffee roasters, SMEs with merch or gift cards. For recurring payments there is subkit.',
+        },
+        {
+          q: 'How do my customers pay?',
+          a: 'By TWINT or card through zahls.ch, or on invoice with a Swiss QR-bill. Signed-in customers can save their payment method and pay the next order without the payment page. shopkit matches invoices with the camt.054 of your bank.',
+        },
+        {
+          q: 'Does shopkit create Swiss Post labels?',
+          a: 'Yes, since shopkit 0.4: the label with barcode from the order, in the back office, through the API or MCP, plus the tracking number with Track & Trace in the shipping email. At checkout Swiss Post suggests addresses and checks them. You need a franking licence and access to the Digital Commerce API of Swiss Post. Labels for items abroad and live tariffs are planned.',
+        },
+        {
+          q: 'Does shopkit work with HS-Soft (WaWiAssist)?',
+          a: 'Yes. @agentkit.ch/shopkit/hssoft imports the articles from WaWiAssist as products and sends every order back as a WaWiAssist order, with the pickup day as the order date. All you need is the API key of your WaWiAssist from HS-Soft.',
+        },
+        {
+          q: 'What does shopkit cost?',
+          a: 'Nothing. shopkit is open source under MIT, with no fee per order. You only pay your payment provider and Swiss Post for your parcels.',
+        },
+      ],
+      cta: {
+        title: 'Your shop, today',
+        lead: 'Copy the setup prompt into your coding agent – or try shopkit in the browser first.',
+      },
+    },
+  },
   errors: {
     meta: {
       title: 'Error codes – agentkit',

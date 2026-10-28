@@ -36,13 +36,17 @@ Guide for contributors and coding agents. Human-oriented setup is in
   `apps/web/lib/i18n/{de,fr,it,en}.ts` (shape: `types.ts`); untranslated content
   (code samples, product names, tags) in `apps/web/lib/content.ts`. Change copy in
   all four files.
-- Home page: `components/home.tsx` (`/[locale]`). Animated mocks:
-  `components/hero-mock.tsx`, `components/mocks.tsx` – they show real column names
+- Home page: `components/home.tsx` (`/[locale]`). Kit pages: `components/kit-page.tsx`
+  (`/[locale]/subkit`, `/[locale]/shopkit`, copy in `kitPages`); header, footer and
+  sections they share in `components/blocks.tsx`. Every page gets an
+  `opengraph-image.tsx` (`lib/og.tsx`, one image per language) – a new page too.
+  Animated mocks: `components/hero-mock.tsx`, `components/mocks.tsx` – they show real column names
   and options of the kits, keep them in sync. Background photos live in
   `apps/web/public/bg/<scene>.webp` (`SceneName` in `lib/content.ts`). The one Swiss
   motif is the contour lines (`components/topo.tsx`) – keep it to that.
 - Logo: the mark in `apps/web/app/icon.svg` (stem, red dot, block). The same mark is in
-  the site header and `apps/demos` – change them together.
+  the site header, the OG images (`apps/web/lib/og.tsx`) and `apps/demos` – change them
+  together.
 - Test sites: `apps/demos` – one static Next.js app, built twice
   (`NEXT_PUBLIC_DEMO_KIT` = `shop` → shop.agentkit.ch, `sub` → sub.agentkit.ch).
   The kits run in the browser; copy (de / fr / it / en) in `apps/demos/lib/copy.ts`.

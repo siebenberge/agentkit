@@ -4,6 +4,7 @@ import { GeistSans } from 'geist/font/sans';
 import { notFound } from 'next/navigation';
 
 import { getDict, isLocale, LOCALES } from '~/lib/i18n';
+import { pageMetadata } from '~/lib/metadata';
 import { SITE_URL } from '~/lib/site';
 
 import '../globals.css';
@@ -24,13 +25,7 @@ export async function generateMetadata({
   const t = getDict(locale);
   return {
     metadataBase: new URL(SITE_URL),
-    title: t.meta.title,
-    description: t.meta.description,
-    alternates: {
-      canonical: `/${locale}`,
-      languages: Object.fromEntries(LOCALES.map((l) => [getDict(l).htmlLang, `/${l}`])),
-    },
-    openGraph: { title: 'agentkit', description: t.meta.description, type: 'website' },
+    ...pageMetadata({ locale, path: '', ...t.meta }),
   };
 }
 
