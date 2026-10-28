@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { LOCALES, interpolate } from '../../i18n';
 import type { Locale, ProductKind, ProductStatus } from '../../types';
@@ -791,9 +791,20 @@ function VariantEditor(props: {
   const { busy, feedback, run } = useAction();
   const t = m.products;
 
+  // Follow a new saved stock only while the input still shows the old one:
+  // saving the variant hands in a new object, a typed count stays.
+  const savedStock = variant?.stock;
+  const lastSavedStock = useRef(savedStock);
+
   useEffect(() => {
-    if (variant) setStock(String(variant.stock));
-  }, [variant]);
+    const previous = lastSavedStock.current;
+
+    lastSavedStock.current = savedStock;
+    if (savedStock === undefined || savedStock === previous) return;
+    setStock((current) =>
+      current === String(previous) ? String(savedStock) : current,
+    );
+  }, [savedStock]);
 
   const save = () =>
     run(async () => {

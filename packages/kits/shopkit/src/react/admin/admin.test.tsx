@@ -320,22 +320,31 @@ describe('back office components', () => {
 
     ui(<ShopAdmin initialSection="products" />);
 
-    // edit: new price and counted stock
+    // edit: counted stock typed, then a new price saved – the typed stock stays
     fireEvent.click(await screen.findByRole('button', { name: 'Kaffee' }));
 
     const prices = await screen.findAllByLabelText('Preis (CHF)');
+    const stock = screen.getByLabelText<HTMLInputElement>('Lager KAF-500');
 
+    fireEvent.change(stock, { target: { value: '12' } });
     fireEvent.change(prices[0]!, { target: { value: '19.50' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Speichern' })[1]!);
 
     expect(await screen.findByText('Gespeichert.')).toBeTruthy();
+    await waitFor(async () => {
+      const product = await shop.getProduct(coffee.id);
 
-    fireEvent.change(screen.getByLabelText('Lager KAF-500'), {
-      target: { value: '12' },
+      expect(product!.variants[0]).toMatchObject({ price: 1_950, stock: 5 });
     });
-    fireEvent.click(
-      screen.getAllByRole('button', { name: 'Lager setzen' })[0]!,
-    );
+
+    const setStock = screen.getAllByRole<HTMLButtonElement>('button', {
+      name: 'Lager setzen',
+    })[0]!;
+
+    await waitFor(() => expect(setStock.disabled).toBe(false));
+    expect(stock.value).toBe('12');
+
+    fireEvent.click(setStock);
 
     await waitFor(async () => {
       const product = await shop.getProduct(coffee.id);
