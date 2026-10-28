@@ -82,6 +82,8 @@ export const en: Dict = {
           'Stock & shipping rates by weight',
           'Discount codes',
           'Gift vouchers',
+          'Connection to HS-Soft (WaWiAssist)',
+          'Pickup and delivery day with time window',
         ],
       },
     },
@@ -449,6 +451,16 @@ export const en: Dict = {
           'The chosen shipping method does not exist or does not fit this cart.',
         fix: 'Pick one of the `shippingOptions` of the cart.',
       },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'The chosen shipping rate has a `schedule`, but the cart has no pickup or delivery day yet – or no time window although there are some.',
+        fix: 'Set a day from `shippingOptions[].schedule.dates` (and a window from `timeWindows`) with `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'The day or time window is not (or no longer) offered: before the lead time, after the cutoff, on a closed day or beyond `maxDays`.',
+        fix: 'Choose a day from the current `schedule.dates` of the shipping rate – the list changes over time and with the products in the cart.',
+      },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:
           'The payment method (online or invoice) is not offered for this shop or order, or no provider is configured.',
@@ -490,6 +502,21 @@ export const en: Dict = {
       'shopkit.INVALID_CAMT': {
         cause: 'The bank file is not a camt.053 or camt.054 XML document.',
         fix: 'Export camt.054 (or camt.053) as XML from e-banking and send it as `{ "camt": "<?xml …" }`.',
+      },
+      'shopkit.HSSOFT_REJECTED': {
+        cause:
+          'HS-Soft (WaWiAssist) refused the request: invalid API key, a channel the key may not write, a locked order date, an order that is already invoiced or an unknown article. `error.details.type` names the reason.',
+        fix: 'Fix the cause (check the API key with HS-Soft, correct the date or article) and send the order again with `syncOrder(id, { force: true })`. Retrying unchanged will not help.',
+      },
+      'shopkit.HSSOFT_UNAVAILABLE': {
+        cause:
+          'HS-Soft could not be reached or failed temporarily (503, timeout, gateway error).',
+        fix: '`syncOrders()` tries again by itself after `retryMinutes`. If the order is `uncertain`, first check in WaWiAssist whether it arrived – only then send it again.',
+      },
+      'shopkit.HSSOFT_UNMAPPED': {
+        cause:
+          'An order line or the shipping costs have no HS-Soft article – the product does not come from the import.',
+        fix: 'Import the product from HS-Soft, set `orders.articleId` or `orders.shippingArticleId`, or leave the order out with `orders.filter`.',
       },
     },
   },

@@ -93,6 +93,27 @@ export function formatDate(date: Date | string, locale?: string) {
   }).format(new Date(date));
 }
 
+/**
+ * Pickup / delivery day (`YYYY-MM-DD`) with its weekday and the time window:
+ * `Mittwoch, 21.10.2026, 07:00–09:00`.
+ */
+export function formatFulfillmentDate(
+  day: string,
+  window?: string | null,
+  locale?: string,
+) {
+  // noon UTC is the same calendar day in Zurich
+  const date = new Intl.DateTimeFormat(INTL_LOCALES[resolveLocale(locale)], {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Europe/Zurich',
+  }).format(new Date(`${day}T12:00:00Z`));
+
+  return window ? `${date}, ${window}` : date;
+}
+
 export function formatNumber(value: number, locale?: string) {
   return new Intl.NumberFormat(INTL_LOCALES[resolveLocale(locale)]).format(
     value,

@@ -4,6 +4,7 @@ import {
   type Messages,
   escapeHtml,
   formatDate,
+  formatFulfillmentDate,
   formatMoney,
   getMessages,
   interpolate,
@@ -210,6 +211,16 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
         ? [m.labels.pickup, order.shipping.name]
         : [m.labels.shippingTo, addressLine(order.shippingAddress)]
       : null;
+    const dateRow: [string, string] | null = order.fulfillmentDate
+      ? [
+          order.shipping?.pickup ? m.labels.pickupDate : m.labels.deliveryDate,
+          formatFulfillmentDate(
+            order.fulfillmentDate,
+            order.fulfillmentWindow,
+            locale,
+          ),
+        ]
+      : null;
 
     let kind: ShopEmailKind;
     let details: [string, string][] = [orderRow];
@@ -239,6 +250,7 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
         }
 
         if (shippingRow) details.push(shippingRow);
+        if (dateRow) details.push(dateRow);
         break;
 
       case 'order.paid':
@@ -256,6 +268,7 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
         if (order.trackingNumber) {
           details.push([m.labels.tracking, order.trackingNumber]);
         }
+        if (dateRow) details.push(dateRow);
         break;
 
       case 'order.canceled':

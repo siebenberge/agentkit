@@ -88,6 +88,8 @@ export const de: Dict = {
           'Lager & Versandkosten nach Gewicht',
           'Rabattcodes',
           'Geschenkgutscheine',
+          'Anbindung an HS-Soft (WaWiAssist)',
+          'Abhol- und Liefertag mit Zeitfenster',
         ],
       },
     },
@@ -458,6 +460,16 @@ export const de: Dict = {
           'Die gewählte Versandart gibt es nicht, oder sie passt nicht zu diesem Warenkorb.',
         fix: 'Eine der `shippingOptions` des Warenkorbs wählen.',
       },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'Die gewählte Versandart hat einen Zeitplan (`schedule`), aber der Warenkorb hat noch keinen Abhol- oder Liefertag – oder kein Zeitfenster, obwohl es welche gibt.',
+        fix: 'Einen Tag aus `shippingOptions[].schedule.dates` (und ein Zeitfenster aus `timeWindows`) mit `updateCartDetails({ fulfillmentDate, fulfillmentWindow })` setzen.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'Der Tag oder das Zeitfenster wird nicht (mehr) angeboten: vor der Vorlaufzeit, nach dem Bestellschluss, an einem geschlossenen Tag oder ausserhalb von `maxDays`.',
+        fix: 'Einen Tag aus den aktuellen `schedule.dates` der Versandart wählen – die Liste ändert sich mit der Zeit und den Produkten im Warenkorb.',
+      },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:
           'Die Zahlungsart (online oder Rechnung) wird für diesen Shop oder diese Bestellung nicht angeboten, oder es ist kein Anbieter konfiguriert.',
@@ -499,6 +511,21 @@ export const de: Dict = {
       'shopkit.INVALID_CAMT': {
         cause: 'Die Bankdatei ist kein camt.053- oder camt.054-XML-Dokument.',
         fix: 'camt.054 (oder camt.053) im E-Banking als XML exportieren und als `{ "camt": "<?xml …" }` senden.',
+      },
+      'shopkit.HSSOFT_REJECTED': {
+        cause:
+          'HS-Soft (WaWiAssist) hat die Anfrage abgelehnt: ungültiger API-Key, ein Kanal, den der Key nicht schreiben darf, ein gesperrtes Bestelldatum, eine schon fakturierte Bestellung oder ein unbekannter Artikel. `error.details.type` nennt den Grund.',
+        fix: 'Den Grund beheben (API-Key bei HS-Soft prüfen, Datum oder Artikel korrigieren) und die Bestellung mit `syncOrder(id, { force: true })` erneut senden. Unverändert wiederholen hilft nicht.',
+      },
+      'shopkit.HSSOFT_UNAVAILABLE': {
+        cause:
+          'HS-Soft war nicht erreichbar oder vorübergehend gestört (503, Zeitüberschreitung, Gateway-Fehler).',
+        fix: '`syncOrders()` versucht es nach `retryMinutes` selbst wieder. Steht die Bestellung auf `uncertain`, zuerst in WaWiAssist nachsehen, ob sie angekommen ist – erst dann erneut senden.',
+      },
+      'shopkit.HSSOFT_UNMAPPED': {
+        cause:
+          'Eine Position oder die Versandkosten der Bestellung haben keinen HS-Soft-Artikel – das Produkt stammt nicht aus dem Import.',
+        fix: 'Das Produkt aus HS-Soft importieren, `orders.articleId` bzw. `orders.shippingArticleId` setzen oder die Bestellung mit `orders.filter` ausnehmen.',
       },
     },
   },

@@ -98,7 +98,7 @@ const CART_HEADER = 'x-cart-token';
  * - `POST /cart/items` `{ variantId, quantity }` – add
  * - `POST /cart/items/set` `{ variantId, quantity }` – set (0 removes)
  * - `POST /cart/discount` `{ code }` (`null` removes)
- * - `POST /cart/details` `{ email, shippingAddress, billingAddress, shippingRateId, note, locale }`
+ * - `POST /cart/details` `{ email, shippingAddress, billingAddress, shippingRateId, fulfillmentDate, fulfillmentWindow, note, locale }`
  * - `POST /cart/claim` – after sign-in: the guest cart becomes the customer's
  *   (merged with the cart they had)
  * - `POST /checkout` `{ paymentMethod, giftCardCodes }`
@@ -266,6 +266,8 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
               shippingAddress: optionalAddress(body.shippingAddress),
               billingAddress: optionalAddress(body.billingAddress),
               shippingRateId: optionalText(body.shippingRateId, 100),
+              fulfillmentDate: optionalText(body.fulfillmentDate, 10),
+              fulfillmentWindow: optionalText(body.fulfillmentWindow, 40),
               note: optionalText(body.note, 1000),
               locale: optionalText(body.locale, 10),
             });
@@ -467,6 +469,8 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
         : null,
       shippingAddress: order.shippingAddress,
       billingAddress: order.billingAddress,
+      fulfillmentDate: order.fulfillmentDate ?? null,
+      fulfillmentWindow: order.fulfillmentWindow ?? null,
       discountCode: order.discountCode,
       totals: totalsDto(order),
       giftCardTotal: order.giftCardTotal,
@@ -504,6 +508,8 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
       shippingAddress: cart.shippingAddress,
       billingAddress: cart.billingAddress,
       shippingRateId: cart.shippingRateId,
+      fulfillmentDate: cart.fulfillmentDate ?? null,
+      fulfillmentWindow: cart.fulfillmentWindow ?? null,
       note: cart.note,
       requiresShipping: pricing.requiresShipping,
       shippingOptions: summary.shippingOptions,

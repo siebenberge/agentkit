@@ -17,6 +17,10 @@ export type ShopErrorCode =
   | 'ADDRESS_REQUIRED'
   | 'SHIPPING_RATE_REQUIRED'
   | 'SHIPPING_RATE_UNAVAILABLE'
+  /** The shipping rate has a `schedule`: choose the pickup / delivery day. */
+  | 'FULFILLMENT_DATE_REQUIRED'
+  /** The chosen day or time window is not offered (any more). */
+  | 'FULFILLMENT_DATE_UNAVAILABLE'
   | 'PAYMENT_METHOD_UNAVAILABLE'
   | 'ORDER_NOT_FOUND'
   /** The order is not in a state that allows this action. */
@@ -29,7 +33,13 @@ export type ShopErrorCode =
   | 'INVALID_INPUT'
   | 'WEBHOOK_INVALID'
   /** Refused by the app's rate limit (HTTP 429). */
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  /** HS-Soft (WaWiAssist) refused the request (key, channel, content). */
+  | 'HSSOFT_REJECTED'
+  /** HS-Soft could not be reached or failed transiently. */
+  | 'HSSOFT_UNAVAILABLE'
+  /** An order line or the shipping has no HS-Soft article. */
+  | 'HSSOFT_UNMAPPED';
 
 /** Every error code with its cause and fix, in de / fr / it / en. */
 export const ERRORS_URL = 'https://agentkit.ch/errors';

@@ -27,6 +27,7 @@ The package ships ES modules with type declarations; peer dependencies
 | `@agentkit.ch/shopkit` | `createShop()`: catalog, stock, carts, checkout, orders, discount codes, gift cards, refunds, `runDue()` |
 | `@agentkit.ch/shopkit/drizzle`, `/memory` | Storage adapters (or implement `StorageAdapter`: five methods, with `transaction`) |
 | `@agentkit.ch/shopkit/zahls` | zahls.ch provider (TWINT, cards, PostFinance) – or pass subkit's `zahlsProvider`, it fits both kits |
+| `@agentkit.ch/shopkit/hssoft` | HS-Soft (WaWiAssist): `createHsSoftSync()` – product import and orders to WaWiAssist, `hsSoftClient()` for the API |
 | `@agentkit.ch/shopkit/http` | Storefront API + webhook (`createShopHandler`) and back office API (`createShopAdminHandler`) as fetch handlers |
 | `@agentkit.ch/shopkit/react` | `<ShopProvider>`, `<AddToCartButton>`, `<Cart>`, `<Checkout>`, `<OrderStatus>`, `<OrderHistory>`, hooks `useCart()`, `useOrder()`, `useOrders()` |
 | `@agentkit.ch/shopkit/react/admin` | Back office: `<ShopAdmin>` (orders, products and stock, discount codes, gift cards, bank import) or each part alone, `createShopAdminClient()` |
@@ -58,6 +59,9 @@ The package ships ES modules with type declarations; peer dependencies
   as discount.
 - **Shipping**: flat rates, weight tiers (Swiss Post parcels), free above
   an amount, countries, pickup (no address).
+- **Pickup / delivery day**: per rate a `schedule` (lead time, cutoff,
+  weekdays, closed days, time windows); the customer chooses the day at
+  checkout, it is on the order, the emails and the receipt.
 - **Payment**: online (hosted page of the provider, verified webhook) or
   invoice with QR-bill (payment term, reminders after the due date,
   `invoice.allow` decides who may buy on invoice); orders fully covered by
@@ -69,6 +73,9 @@ The package ships ES modules with type declarations; peer dependencies
 - **Emails**: confirmation (with the invoice for invoice orders), payment
   received, shipped / ready for pickup, canceled, refunded, reminder, gift
   card code; copies for the shop on new orders, late payments, low stock.
+- **HS-Soft (WaWiAssist)**: products imported from the articles (price
+  category, special prices, image, declaration, allergens, nutrition,
+  delivery days), orders sent to WaWiAssist once they are placed.
 
 Next / planned (not built yet): Swiss Post labels and live tariffs,
 refunds through the zahls.ch API,
@@ -282,6 +289,157 @@ Refunds with zahls.ch: refund in the zahls dashboard, then record it with
 
 Theming: `.my-app :is(.sk-root, .sk-add) { --sk-primary: #f97316; --sk-radius: 4px; }`.
 
+### Pickup and delivery day
+
+A rate with a `schedule` lets the customer choose the day (and time window)
+– for bakeries, click & collect or deliveries on fixed days. Days are
+calendar days in Zurich (`YYYY-MM-DD`).
+
+```ts
+shipping: {
+  rates: [
+    {
+      id: 'laden',
+      name: 'Abholung im Laden',
+      amount: 0,
+      pickup: true,
+      schedule: {
+        leadDays: 1, // tomorrow at the earliest …
+        cutoff: '16:00', // … the day after when ordered after 16:00
+        maxDays: 14, // days offered from the earliest one
+        weekdays: ['tue', 'wed', 'thu', 'fri', 'sat'],
+        closedDates: ['2026-12-25', '2026-12-26'],
+        timeWindows: ['07:00–09:00', '16:00–18:00'], // optional
+      },
+    },
+  ],
+},
+// optional: further limit the days, e.g. no cakes on Saturdays
+allowFulfillmentDate: ({ weekday, products }) =>
+  weekday !== 'sat' || !products.some((product) => product.metadata.cake),
+```
+
+- The cart summary lists the days per option (`shippingOptions[].schedule`:
+  `dates`, `timeWindows`, `required`); `<Checkout>` shows them as a select
+  (with weekday) and the windows as a choice.
+- Set them with `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`
+  (`POST /cart/details`). A day that is not offered is refused
+  (`FULFILLMENT_DATE_UNAVAILABLE`); a single window is set with the day,
+  another rate starts without day and window; until one is chosen `missing` contains
+  `fulfillment_date` and checkout answers `FULFILLMENT_DATE_REQUIRED`
+  (`required: false` makes it optional). A day that passed while the cart
+  was open is checked again at checkout.
+- The order carries `fulfillmentDate` / `fulfillmentWindow`: shown in
+  `<OrderStatus>`, the confirmation and ready-for-pickup emails and the
+  receipt. The day's orders: `shop.listOrders({ fulfillmentDate:
+  '2026-10-21' })`, `GET {admin}/orders?fulfillmentDate=2026-10-21` or the
+  MCP tool `list_orders`.
+
+### HS-Soft (WaWiAssist)
+
+For bakeries and confectioners with the WaWiAssist ERP of HS-Soft: products
+come from WaWiAssist, orders go there. Needs the API key of your WaWiAssist (from HS-Soft, [API
+reference](https://api.hssoft.com/rest/docs)).
+
+```ts
+// lib/shop.ts
+import { createHsSoftSync } from '@agentkit.ch/shopkit/hssoft';
+
+export const shop = createShop({
+  database: drizzleAdapter(db),
+  tax: { inclusive: true, defaultRateBps: 260 }, // prices with VAT, as kept in WaWiAssist
+  // pickup days: delivery days, own periods and WaWiAssist's answer per day
+  allowFulfillmentDate: (context) => hssoft.allowFulfillmentDate(context),
+  // …
+  onEvent: async (event) => {
+    await emails(event);
+    await hssoft.onEvent(event); // placed orders → WaWiAssist
+  },
+});
+
+export const hssoft = createHsSoftSync({
+  shop,
+  apiKey: process.env.HSSOFT_API_KEY!,
+  products: {
+    marketingGroupIds: [3, 7], // the marketing groups to import (required)
+    priceCategory: 1, // K1 … K10
+    images: { save: (image) => uploadToBucket(`products/${image.articleNumber}.jpg`, image.jpeg) },
+  },
+  orders: {
+    shippingArticleId: { post: 9001, laden: 9002 }, // article per rate (costs or pickup location)
+    caOrderName: 'Onlineshop',
+    onFailure: ({ order, sync }) => mailer.send(staffAlert(order, sync)),
+  },
+  availability: { customerId: 4711 }, // the WaWiAssist customer «Onlineshop»
+});
+```
+
+```ts
+// cron: every few minutes / once a night
+await hssoft.syncOrders(); // retries while HS-Soft is unavailable
+await hssoft.importProducts(); // e.g. daily at 03:00
+```
+
+- **Products**: the active articles of the chosen marketing groups (dough
+  articles never), one product per article (SKU = article number, not
+  counted in stock – made to order). Name, description (consumer
+  information), price of the chosen price category (empty → the default
+  price), a current special price with the normal price struck through,
+  weight (`weight: 'recipe'` for K2; missing → the other one), image (JPEG,
+  saved by your `images.save`). Declaration, allergens, nutrition,
+  attributes (vegan, gluten-free …), shelf life and delivery days are in
+  `hsSoftProductData(product, sku)` for the product page. Unchanged articles
+  are not written again; products whose article is gone, inactive or
+  skipped become drafts (`missing`). Fields you maintain in the shop stay
+  with `keep: ['name', 'description', …]`; `newProductStatus: 'draft'` with
+  `keep: ['status']` lets you check new products before you publish them.
+  Articles sold per 100 g / kg or open amounts are skipped; the API has no
+  VAT rate per article – set `taxRateBps(article)` if your rates differ.
+- **Variants as articles**: give the variants of a product the article
+  numbers as SKU (Zopf 500 g = `A1`, 1 kg = `A2`) and the import keeps the
+  price, weight and status of each variant; name, texts and image stay
+  yours. A variant without an article of its own (Zopf «geschnitten») is
+  ordered as the product's article, its name on the delivery note.
+- **Orders**: sent once when placed (`when: 'paid'`: after the payment), as
+  a one-time customer with the address, or to a WaWiAssist customer of
+  `customerId(order)` (e.g. B2B). Positions carry the price paid, the
+  discount in percent and the VAT code, the note the order number, payment,
+  shipping, the customer's note and the variants ordered. WaWiAssist stores
+  Latin-1 only: typographic quotes and dashes become plain ones, emojis are
+  removed. The shipping rate goes as its article (`shippingArticleId`), also
+  at CHF 0 – the pickup location; a rate with costs but without article
+  fails the order. `dateOffsetDays` moves the order date (per rate, e.g. `-1`
+  for the production day). Canceled orders stay in WaWiAssist
+  (`deleteCanceled: true` deletes them). The customer has paid: positions
+  that break WaWiAssist's min/max, lot size or days-to-produce rules are
+  kept and reported as warnings.
+- **Pickup / delivery day**: the day the customer chose
+  (`order.fulfillmentDate`) is the order date in WaWiAssist, the start of
+  the time window its delivery time. `createShop({ allowFulfillmentDate:
+  (context) => hssoft.allowFulfillmentDate(context) })` offers only days on
+  which every HS-Soft product of the cart can be had:
+  - its delivery days in WaWiAssist (per variant for variant articles);
+  - its own availability period, set in the shop
+    (`hssoft.setAvailabilityPeriod(productId, { from, to, recurring })`,
+    `POST {admin}/products/:id/hssoft-availability` or the MCP tool
+    `hssoft_set_availability_period`, e.g. Grittibänz 1.11.–6.12. every
+    year; `hsSoftAvailabilityPeriod(product)` for the product page);
+  - with `availability: { customerId }`: what WaWiAssist answers for the day
+    (`articles-available-for-order` of that customer – lead times,
+    assortment), cached per day for `cacheMinutes` (default 10). If HS-Soft
+    cannot be reached, only the first two rules apply.
+- **State** in `order.metadata.hssoft` (`hsSoftOrderSync(order)`): `synced`
+  with the WaWiAssist order number, `retry` (unavailable, `syncOrders()`
+  tries again), `failed` (refused – fix and resend), `uncertain` (no
+  answer – check WaWiAssist first, then resend), `skipped` (gift cards
+  only), `deleted` / `delete_failed` (canceled). Resend by hand with
+  `hssoft.syncOrder(orderId, { force: true })`, or pass `hssoft` to
+  `createShopAdminHandler` (`POST /orders/:id/hssoft`, `POST /hssoft/import`,
+  `POST /hssoft/sync`) and `createShopMcpHandler` (tools `hssoft_sync_order`,
+  `hssoft_import_products`).
+- Not possible with the API: categories from the marketing groups (it has
+  no names for them), the availability periods of the articles, stock.
+
 
 Errors: every `ShopError` has a `code` and `docsUrl`, the link to its cause
 and fix (e.g. https://agentkit.ch/errors#shopkit-OUT_OF_STOCK); the message
@@ -315,7 +473,8 @@ claude mcp add --transport http shop https://acme.ch/api/shop-mcp \
 Tools: `list_orders`, `get_order`, `mark_order_paid`, `ship_order`,
 `mark_order_delivered`, `cancel_order`, `refund_order`, `list_products`,
 `set_stock`, `list_discounts`, `set_discount_active`, `list_gift_cards`,
-`issue_gift_card`, `disable_gift_card`. Guest-link tokens are removed from
+`issue_gift_card`, `disable_gift_card` (with `hssoft`: `hssoft_sync_order`,
+`hssoft_set_availability_period`, `hssoft_import_products`). Guest-link tokens are removed from
 orders; listed gift card codes show only their last 4 characters.
 
 ## Development

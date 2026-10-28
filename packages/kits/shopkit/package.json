@@ -10,7 +10,9 @@
     "swiss",
     "twint",
     "zahls",
-    "vat"
+    "vat",
+    "hs-soft",
+    "wawiassist"
   ],
   "license": "MIT",
   "homepage": "https://agentkit.ch",
@@ -46,6 +48,10 @@
       "./zahls": {
         "types": "./dist/providers/zahls.d.ts",
         "default": "./dist/providers/zahls.js"
+      },
+      "./hssoft": {
+        "types": "./dist/hssoft/index.d.ts",
+        "default": "./dist/hssoft/index.js"
       },
       "./http": {
         "types": "./dist/http/index.d.ts",
@@ -99,6 +105,9 @@
         "zahls": [
           "dist/providers/zahls.d.ts"
         ],
+        "hssoft": [
+          "dist/hssoft/index.d.ts"
+        ],
         "http": [
           "dist/http/index.d.ts"
         ],
@@ -151,6 +160,7 @@
     "./drizzle": "./src/adapters/drizzle/index.ts",
     "./drizzle/schema": "./src/adapters/drizzle/schema.ts",
     "./zahls": "./src/providers/zahls.ts",
+    "./hssoft": "./src/hssoft/index.ts",
     "./http": "./src/http/index.ts",
     "./mcp": "./src/mcp/index.ts",
     "./emails": "./src/emails/index.ts",
