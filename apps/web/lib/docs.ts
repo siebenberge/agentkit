@@ -78,15 +78,22 @@ export function docSections(): DocSection[] {
       const page = file.replace(/\.md$/, '');
       const pageUrl = `${REPO_URL}/blob/main/packages/kits/${kit}/docs/${file}`;
       const pageTitle = /^# (.+)$/m.exec(markdown)?.[1]?.trim() ?? page;
+      const ids = new Set<string>();
 
       for (const section of split(markdown, 3)) {
         // the intro under the page title
         const top = section.level === 1;
+        const base = top
+          ? `${kit}/docs/${page}`
+          : `${kit}/docs/${page}/${slug(section.title)}`;
+        let id = base;
+
+        // the same heading twice on a page (`### Options` under two `##`)
+        for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;
+        ids.add(id);
 
         sections.push({
-          id: top
-            ? `${kit}/docs/${page}`
-            : `${kit}/docs/${page}/${slug(section.title)}`,
+          id,
           title: top
             ? `${kit}: ${pageTitle}`
             : `${kit}: ${pageTitle} – ${section.title}`,
