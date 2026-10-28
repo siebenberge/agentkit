@@ -85,6 +85,8 @@ export const it: Dict = {
           'Magazzino e spese di spedizione secondo il peso',
           'Codici sconto',
           'Buoni regalo',
+          'Collegamento a HS-Soft (WaWiAssist)',
+          'Giorno di ritiro e consegna con fascia oraria',
         ],
       },
     },
@@ -452,6 +454,16 @@ export const it: Dict = {
           'La modalità di spedizione scelta non esiste o non è adatta a questo carrello.',
         fix: 'Scegli una delle `shippingOptions` del carrello.',
       },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'La modalità di spedizione scelta ha un calendario (`schedule`), ma il carrello non ha ancora un giorno di ritiro o consegna – o nessuna fascia oraria, anche se ce ne sono.',
+        fix: 'Imposta un giorno da `shippingOptions[].schedule.dates` (e una fascia da `timeWindows`) con `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'Il giorno o la fascia oraria non è (più) offerto: prima del preavviso, dopo l’orario limite, in un giorno di chiusura o oltre `maxDays`.',
+        fix: 'Scegli un giorno tra le `schedule.dates` attuali della modalità di spedizione – l’elenco cambia nel tempo e con i prodotti nel carrello.',
+      },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:
           'Il metodo di pagamento (online o fattura) non è offerto per questo shop o questo ordine, oppure non è configurato alcun fornitore.',
@@ -504,6 +516,21 @@ export const it: Dict = {
       'shopkit.INVALID_CAMT': {
         cause: 'Il file bancario non è un documento XML camt.053 o camt.054.',
         fix: 'Esporta il camt.054 (o camt.053) in XML dall’e-banking e invialo come `{ "camt": "<?xml …" }`.',
+      },
+      'shopkit.HSSOFT_REJECTED': {
+        cause:
+          'HS-Soft (WaWiAssist) ha rifiutato la richiesta: chiave API non valida, un canale che la chiave non può scrivere, data d’ordine bloccata, ordine già fatturato o articolo sconosciuto. `error.details.type` indica il motivo.',
+        fix: 'Correggi la causa (verifica la chiave API presso HS-Soft, correggi la data o l’articolo) e invia di nuovo l’ordine con `syncOrder(id, { force: true })`. Ripetere senza modifiche non serve.',
+      },
+      'shopkit.HSSOFT_UNAVAILABLE': {
+        cause:
+          'HS-Soft non era raggiungibile o aveva un disturbo temporaneo (503, timeout, errore del gateway).',
+        fix: '`syncOrders()` riprova da solo dopo `retryMinutes`. Se l’ordine è `uncertain`, controlla prima in WaWiAssist se è arrivato – solo dopo invialo di nuovo.',
+      },
+      'shopkit.HSSOFT_UNMAPPED': {
+        cause:
+          'Una posizione o le spese di spedizione dell’ordine non hanno un articolo HS-Soft – il prodotto non proviene dall’importazione.',
+        fix: 'Importa il prodotto da HS-Soft, imposta `orders.articleId` o `orders.shippingArticleId`, oppure escludi l’ordine con `orders.filter`.',
       },
     },
   },

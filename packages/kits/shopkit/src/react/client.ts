@@ -32,6 +32,8 @@ export type CartDetailsInput = {
   shippingAddress?: Address | null;
   billingAddress?: Address | null;
   shippingRateId?: string | null;
+  fulfillmentDate?: string | null;
+  fulfillmentWindow?: string | null;
   note?: string | null;
   locale?: string | null;
 };

@@ -67,6 +67,16 @@ async function setup(
       rates: [
         { id: 'post', name: 'PostPac Economy', amount: 900 },
         { id: 'pickup', name: 'Abholung', amount: 0, pickup: true },
+        {
+          id: 'laden',
+          name: 'Abholung im Laden',
+          amount: 0,
+          pickup: true,
+          schedule: {
+            leadDays: 1,
+            timeWindows: ['07:00–09:00', '16:00–18:00'],
+          },
+        },
       ],
     },
   });
@@ -224,6 +234,72 @@ describe('createShopHandler', () => {
     expect(html).toContain('Rechnung');
     expect(html).toContain('CHE-123.456.789 MWST');
     expect(html).toContain('<svg');
+  });
+
+  it('lets the customer choose the pickup day', async () => {
+    const { client, variantId, adminCall, handler } = await setup();
+
+    let cart = await client.createCart('de');
+
+    cart = await client.addItem(cart.token, variantId, 1);
+    cart = await client.updateDetails(cart.token, {
+      email: 'anna@example.ch',
+      shippingRateId: 'laden',
+    });
+
+    const schedule = cart.shippingOptions.find(
+      (option) => option.id === 'laden',
+    )!.schedule!;
+
+    expect(schedule.dates).toHaveLength(14);
+    expect(schedule.timeWindows).toEqual(['07:00–09:00', '16:00–18:00']);
+    expect(cart.missing).toEqual(['fulfillment_date']);
+    await expect(
+      client.checkout(cart.token, { paymentMethod: 'invoice' }),
+    ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_REQUIRED', status: 400 });
+    await expect(
+      client.updateDetails(cart.token, { fulfillmentDate: '1999-01-01' }),
+    ).rejects.toMatchObject({ code: 'FULFILLMENT_DATE_UNAVAILABLE' });
+
+    const day = schedule.dates[2]!;
+
+    cart = await client.updateDetails(cart.token, {
+      fulfillmentDate: day,
+      fulfillmentWindow: '16:00–18:00',
+    });
+    expect(cart).toMatchObject({
+      fulfillmentDate: day,
+      fulfillmentWindow: '16:00–18:00',
+      missing: [],
+    });
+
+    const result = await client.checkout(cart.token, {
+      paymentMethod: 'invoice',
+    });
+    const order = await client.order(result.orderId, result.accessToken);
+
+    expect(order).toMatchObject({
+      fulfillmentDate: day,
+      fulfillmentWindow: '16:00–18:00',
+    });
+
+    const receipt = await (
+      await handler(new Request(`https://shop.example${order.receiptUrl}`))
+    ).text();
+
+    expect(receipt).toContain('Abholtag');
+    expect(receipt).toContain('16:00–18:00');
+
+    const listed = (await (
+      await adminCall(`/orders?fulfillmentDate=${day}`)
+    ).json()) as { id: string }[];
+
+    expect(listed.map((entry) => entry.id)).toEqual([result.orderId]);
+    expect(
+      (await (
+        await adminCall('/orders?fulfillmentDate=1999-01-01')
+      ).json()) as unknown[],
+    ).toEqual([]);
   });
 
   it('books a camt.054 bank file against invoice orders', async () => {

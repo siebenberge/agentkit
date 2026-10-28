@@ -62,6 +62,8 @@ export const ERROR_DOC_KEYS = [
   'shopkit.ADDRESS_REQUIRED',
   'shopkit.SHIPPING_RATE_REQUIRED',
   'shopkit.SHIPPING_RATE_UNAVAILABLE',
+  'shopkit.FULFILLMENT_DATE_REQUIRED',
+  'shopkit.FULFILLMENT_DATE_UNAVAILABLE',
   'shopkit.PAYMENT_METHOD_UNAVAILABLE',
   'shopkit.PAYMENT_METHOD_NOT_FOUND',
   'shopkit.AMOUNT_CHANGED',
@@ -73,6 +75,9 @@ export const ERROR_DOC_KEYS = [
   'shopkit.TOO_LARGE',
   'shopkit.NO_PAYMENT_SLIP',
   'shopkit.INVALID_CAMT',
+  'shopkit.HSSOFT_REJECTED',
+  'shopkit.HSSOFT_UNAVAILABLE',
+  'shopkit.HSSOFT_UNMAPPED',
 ] as const;
 
 export type ErrorDocKey = (typeof ERROR_DOC_KEYS)[number];

@@ -64,6 +64,7 @@ const INSTRUCTIONS = `Shop of this store (shopkit), acting for the signed-in cus
 - Amounts are in minor units (Rappen/cents): 1290 = CHF 12.90.
 - Find products with search_products, price the order with quote_order, then place it with place_order.
 - quote_order lists the shipping / pickup options and what is still missing; pickup needs no shipping address.
+- An option with a schedule needs a day: ask the customer and pass fulfillmentDate (one of schedule.dates) and, if it lists timeWindows, fulfillmentWindow.
 - Payment: place_order returns a payment link (TWINT, card) for the customer to open. If quote_order shows a savedPaymentMethod, the order can be paid with it directly: tell the customer the total and the payment method, and only after they agree call place_order with payWith "saved_payment_method" and expectedAmount = the confirmed amount.
 - savePaymentMethod: true stores the card / TWINT used on the payment page for later orders – only when the customer asked for it.
 - Errors carry a code and a docs link with cause and fix.`;
@@ -183,6 +184,16 @@ const orderProperties = {
     type: 'string',
     description: 'Id of a shipping or pickup option from quote_order.',
   },
+  fulfillmentDate: {
+    type: 'string',
+    description:
+      'Pickup / delivery day YYYY-MM-DD – one of schedule.dates of the chosen option in quote_order.',
+  },
+  fulfillmentWindow: {
+    type: 'string',
+    description:
+      'Time window – one of schedule.timeWindows of the chosen option (a single window is set for you).',
+  },
   shippingAddress: {
     ...addressSchema,
     description: 'Only for delivery, not for pickup.',
@@ -251,6 +262,8 @@ export function customerTools(context: ToolsContext): McpTool[] {
       email: customer.email,
       items: items(args),
       shippingRateId: optionalString(args, 'shippingRateId', 100),
+      fulfillmentDate: optionalString(args, 'fulfillmentDate', 10),
+      fulfillmentWindow: optionalString(args, 'fulfillmentWindow', 40),
       shippingAddress: address(args, 'shippingAddress'),
       billingAddress:
         address(args, 'billingAddress') ??
@@ -716,6 +729,8 @@ function publicOrder(order: Order) {
       total: line.total,
     })),
     shipping: order.shipping,
+    fulfillmentDate: order.fulfillmentDate,
+    fulfillmentWindow: order.fulfillmentWindow,
     shippingAddress: order.shippingAddress,
     itemsSubtotal: order.itemsSubtotal,
     discountTotal: order.discountTotal,

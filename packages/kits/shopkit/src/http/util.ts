@@ -28,6 +28,9 @@ const STATUS: Record<string, number> = {
   INVALID_STATE: 409,
   PROVIDER_UNAVAILABLE: 503,
   RATE_LIMITED: 429,
+  HSSOFT_REJECTED: 502,
+  HSSOFT_UNAVAILABLE: 503,
+  HSSOFT_UNMAPPED: 422,
 };
 
 /** Error → JSON response; unexpected errors are reported, not leaked. */

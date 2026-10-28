@@ -88,6 +88,8 @@ export const fr: Dict = {
           'Stock et frais d’envoi selon le poids',
           'Codes promo',
           'Bons cadeaux',
+          'Connexion à HS-Soft (WaWiAssist)',
+          'Jour de retrait et de livraison avec créneau',
         ],
       },
     },
@@ -457,6 +459,16 @@ export const fr: Dict = {
           'Le mode d’envoi choisi n’existe pas ou ne convient pas à ce panier.',
         fix: 'Choisissez l’une des `shippingOptions` du panier.',
       },
+      'shopkit.FULFILLMENT_DATE_REQUIRED': {
+        cause:
+          'Le mode d’envoi choisi a un calendrier (`schedule`), mais le panier n’a pas encore de jour de retrait ou de livraison – ou pas de créneau alors qu’il y en a.',
+        fix: 'Définissez un jour de `shippingOptions[].schedule.dates` (et un créneau de `timeWindows`) avec `updateCartDetails({ fulfillmentDate, fulfillmentWindow })`.',
+      },
+      'shopkit.FULFILLMENT_DATE_UNAVAILABLE': {
+        cause:
+          'Le jour ou le créneau n’est pas (plus) proposé : avant le délai, après l’heure limite, un jour de fermeture ou au-delà de `maxDays`.',
+        fix: 'Choisissez un jour des `schedule.dates` actuelles du mode d’envoi – la liste change avec le temps et les produits du panier.',
+      },
       'shopkit.PAYMENT_METHOD_UNAVAILABLE': {
         cause:
           'Le mode de paiement (en ligne ou facture) n’est pas proposé pour cette boutique ou cette commande, ou aucun prestataire n’est configuré.',
@@ -510,6 +522,21 @@ export const fr: Dict = {
         cause:
           'Le fichier bancaire n’est pas un document XML camt.053 ou camt.054.',
         fix: 'Exportez le camt.054 (ou camt.053) en XML depuis l’e-banking et envoyez-le sous la forme `{ "camt": "<?xml …" }`.',
+      },
+      'shopkit.HSSOFT_REJECTED': {
+        cause:
+          'HS-Soft (WaWiAssist) a refusé la requête : clé API invalide, canal que la clé ne peut pas écrire, date de commande verrouillée, commande déjà facturée ou article inconnu. `error.details.type` en donne la raison.',
+        fix: 'Corrigez la cause (vérifiez la clé API auprès de HS-Soft, corrigez la date ou l’article) et renvoyez la commande avec `syncOrder(id, { force: true })`. Répéter sans changement ne sert à rien.',
+      },
+      'shopkit.HSSOFT_UNAVAILABLE': {
+        cause:
+          'HS-Soft n’était pas joignable ou était temporairement en panne (503, délai dépassé, erreur de passerelle).',
+        fix: '`syncOrders()` réessaie lui-même après `retryMinutes`. Si la commande est `uncertain`, vérifiez d’abord dans WaWiAssist si elle est arrivée – ne la renvoyez qu’ensuite.',
+      },
+      'shopkit.HSSOFT_UNMAPPED': {
+        cause:
+          'Une position ou les frais d’envoi de la commande n’ont pas d’article HS-Soft – le produit ne provient pas de l’import.',
+        fix: 'Importez le produit depuis HS-Soft, définissez `orders.articleId` ou `orders.shippingArticleId`, ou excluez la commande avec `orders.filter`.',
       },
     },
   },

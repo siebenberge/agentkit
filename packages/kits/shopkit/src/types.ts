@@ -100,6 +100,10 @@ export type Cart = {
   /** `null` → same as the shipping address. */
   billingAddress: Address | null;
   shippingRateId: string | null;
+  /** Chosen pickup / delivery day (`YYYY-MM-DD`) of a rate with a `schedule`. */
+  fulfillmentDate: string | null;
+  /** Chosen time window (`07:00–09:00`). */
+  fulfillmentWindow: string | null;
   note: string | null;
   locale: Locale;
   /** Order the cart was turned into. */
@@ -150,6 +154,29 @@ export type GiftCard = {
   updatedAt: Date;
 };
 
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+/**
+ * Customers choose the day (and time window) of the pickup or delivery.
+ * Days are calendar days in Zurich, as `YYYY-MM-DD`.
+ */
+export type FulfillmentSchedule = {
+  /** Earliest day: today plus this many days (default 0; 1 = tomorrow). */
+  leadDays?: number;
+  /** After this time (`HH:mm`, Zurich) the earliest day moves one day on (`16:00`). */
+  cutoff?: string | null;
+  /** Days offered from the earliest one on (default 14). */
+  maxDays?: number;
+  /** Days of the week it is possible (default every day). */
+  weekdays?: Weekday[];
+  /** Closed days (`2026-12-25`): holidays, company holidays. */
+  closedDates?: string[];
+  /** Time windows to choose from (`07:00–09:00`); none → the day only. */
+  timeWindows?: string[];
+  /** The customer must choose a day (default `true`). */
+  required?: boolean;
+};
+
 export type ShippingRate = {
   id: string;
   name: string;
@@ -170,6 +197,8 @@ export type ShippingRate = {
   pickup?: boolean;
   /** Delivery time shown to the customer (`1–2 Werktage`). */
   description?: string;
+  /** The customer chooses the pickup / delivery day (and time window). */
+  schedule?: FulfillmentSchedule;
 };
 
 export type OrderStatus =
@@ -301,6 +330,10 @@ export type Order = {
   amountDue: number;
   refunds: OrderRefund[];
   refundedTotal: number;
+  /** Pickup / delivery day (`YYYY-MM-DD`, Zurich), `null` without a schedule. */
+  fulfillmentDate: string | null;
+  /** Time window of that day (`07:00–09:00`). */
+  fulfillmentWindow: string | null;
   note: string | null;
   /** Stock, discount usage and gift card balances are held by the order. */
   reserved: boolean;

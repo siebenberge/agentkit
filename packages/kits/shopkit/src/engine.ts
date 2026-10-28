@@ -25,6 +25,7 @@ import type {
   CartItem,
   Discount,
   DiscountType,
+  FulfillmentSchedule,
   GiftCard,
   Locale,
   ModelMap,
@@ -41,6 +42,7 @@ import type {
   ShippingRate,
   ShopEvent,
   Variant,
+  Weekday,
 } from './types';
 
 export type Logger = {
@@ -111,6 +113,15 @@ export type ShopOptions = {
   };
   /** `stock.low` fires when tracked stock falls to this (default 3). */
   lowStockThreshold?: number;
+  /**
+   * Further limits the pickup / delivery days of rates with a `schedule`,
+   * e.g. to the days the products of the cart are made
+   * (`hssoft.allowFulfillmentDate` of `/hssoft`). Called per day offered;
+   * cache what you look up.
+   */
+  allowFulfillmentDate?: (
+    context: FulfillmentDateContext,
+  ) => boolean | Promise<boolean>;
   giftCards?: {
     /** Validity of issued gift cards in days (default: no expiry). */
     validityDays?: number | null;
@@ -204,16 +215,38 @@ export type CartLineView = {
   issue: CartLineIssue | null;
 };
 
+export type FulfillmentDateContext = {
+  /** `YYYY-MM-DD`. */
+  date: string;
+  weekday: Weekday;
+  rate: ShippingRate;
+  /** Products of the cart (gift cards and digital products included). */
+  products: Product[];
+  /** The cart's lines with product and variant. */
+  lines: { product: Product; variant: Variant; quantity: number }[];
+};
+
 export type ShippingOption = {
   id: string;
   name: string;
   description: string | null;
   pickup: boolean;
   amount: number;
+  /** Days (`YYYY-MM-DD`) and time windows to choose from (rates with a `schedule`). */
+  schedule: {
+    dates: string[];
+    timeWindows: string[];
+    required: boolean;
+  } | null;
 };
 
 export type CartRequirement =
-  'items' | 'email' | 'shipping_address' | 'shipping_rate';
+  | 'items'
+  | 'email'
+  | 'shipping_address'
+  | 'shipping_rate'
+  /** Missing, or no longer offered (past the cutoff, closed day). */
+  | 'fulfillment_date';
 
 export type CartSummary = {
   cart: Cart;
@@ -263,6 +296,10 @@ export type OrderInput = {
   email: string;
   items: OrderItemInput[];
   shippingRateId?: string | null;
+  /** Pickup / delivery day `YYYY-MM-DD`, one of the rate's `schedule.dates`. */
+  fulfillmentDate?: string | null;
+  /** One of the rate's `schedule.timeWindows` (a single window is chosen for you). */
+  fulfillmentWindow?: string | null;
   /** Not needed for pickup. */
   shippingAddress?: Address | null;
   billingAddress?: Address | null;
@@ -332,6 +369,10 @@ export type OrderQuery = {
   status?: OrderStatus | OrderStatus[];
   paymentStatus?: PaymentStatus | PaymentStatus[];
   fulfillmentStatus?: Order['fulfillmentStatus'] | Order['fulfillmentStatus'][];
+  /** Only orders created at or after this time. */
+  createdAfter?: Date;
+  /** Pickup / delivery day (`YYYY-MM-DD`). */
+  fulfillmentDate?: string;
   limit?: number;
   offset?: number;
 };
@@ -390,6 +431,7 @@ export function createShop(options: ShopOptions) {
       throw new Error(`shipping rate "${rate.id}" is defined twice`);
     }
     rateIds.add(rate.id);
+    if (rate.schedule) checkSchedule(rate.id, rate.schedule);
   }
 
   const configuredMethods: CheckoutPaymentMethod[] = (
@@ -1190,6 +1232,8 @@ export function createShop(options: ShopOptions) {
       shippingAddress: null,
       billingAddress: null,
       shippingRateId: null,
+      fulfillmentDate: null,
+      fulfillmentWindow: null,
       note: null,
       locale: resolveLocale(params.locale),
       orderId: null,
@@ -1402,6 +1446,10 @@ export function createShop(options: ShopOptions) {
       shippingAddress?: Address | null;
       billingAddress?: Address | null;
       shippingRateId?: string | null;
+      /** `YYYY-MM-DD`, one of the `schedule.dates` of the shipping option. */
+      fulfillmentDate?: string | null;
+      /** One of its `schedule.timeWindows`. */
+      fulfillmentWindow?: string | null;
       note?: string | null;
       locale?: string | null;
     },
@@ -1432,6 +1480,17 @@ export function createShop(options: ShopOptions) {
       }
       patch.shippingRateId = details.shippingRateId;
     }
+    if (details.fulfillmentDate !== undefined) {
+      if (details.fulfillmentDate !== null && !isDay(details.fulfillmentDate)) {
+        invalid('fulfillmentDate must be a date YYYY-MM-DD');
+      }
+      patch.fulfillmentDate = details.fulfillmentDate;
+    }
+    if (details.fulfillmentWindow !== undefined) {
+      const window = details.fulfillmentWindow?.trim().slice(0, 40);
+
+      patch.fulfillmentWindow = window ? window : null;
+    }
     if (details.note !== undefined) {
       const note = details.note?.trim().slice(0, 1000);
 
@@ -1441,7 +1500,64 @@ export function createShop(options: ShopOptions) {
       patch.locale = resolveLocale(details.locale);
     }
 
-    return mutateCart(token, () => patch);
+    return mutateCart(token, async (cart) => {
+      const change = { ...patch };
+
+      // the day and window belong to the rate: a new rate starts without
+      if (
+        change.shippingRateId !== undefined &&
+        change.shippingRateId !== cart.shippingRateId
+      ) {
+        change.fulfillmentDate ??= null;
+        change.fulfillmentWindow ??= null;
+      }
+
+      // a day or window the chosen rate does not offer is refused right away
+      if (
+        (change.fulfillmentDate ?? null) !== null ||
+        (change.fulfillmentWindow ?? null) !== null
+      ) {
+        const window = await offeredFulfillmentWindow({ ...cart, ...change });
+
+        if (window !== undefined) change.fulfillmentWindow = window;
+      }
+
+      return change;
+    });
+  }
+
+  /**
+   * Refuses a day or window the cart's rate does not offer
+   * (`FULFILLMENT_DATE_UNAVAILABLE`). A single window needs no choice: it is
+   * returned when the cart has a day but no window yet.
+   */
+  async function offeredFulfillmentWindow(cart: Cart) {
+    const date = cart.fulfillmentDate ?? null;
+    const window = cart.fulfillmentWindow ?? null;
+
+    if (date === null && window === null) return undefined;
+
+    const { shippingOptions } = await summarize(cart);
+    const schedule = shippingOptions.find(
+      (option) => option.id === cart.shippingRateId,
+    )?.schedule;
+
+    if (
+      schedule &&
+      ((date !== null && !schedule.dates.includes(date)) ||
+        (window !== null && !schedule.timeWindows.includes(window)))
+    ) {
+      throw new ShopError(
+        'FULFILLMENT_DATE_UNAVAILABLE',
+        `${date ?? ''} ${window ?? ''}`.trim() + ' is not offered',
+      );
+    }
+
+    return date !== null &&
+      window === null &&
+      schedule?.timeWindows.length === 1
+      ? schedule.timeWindows[0]!
+      : undefined;
   }
 
   /**
@@ -1571,11 +1687,81 @@ export function createShop(options: ShopOptions) {
     });
   }
 
-  function shippingOptionsFor(
+  /** Days (and time windows) a rate offers for these products from now on. */
+  async function scheduleOf(
+    rate: ShippingRate,
+    lines: FulfillmentDateContext['lines'],
+  ): Promise<ShippingOption['schedule']> {
+    const schedule = rate.schedule;
+
+    if (!schedule) return null;
+
+    const date = now();
+    let first = addDays(zurichDay(date), schedule.leadDays ?? 0);
+
+    if (schedule.cutoff && zurichTime(date) >= schedule.cutoff) {
+      first = addDays(first, 1);
+    }
+
+    const closed = new Set(schedule.closedDates ?? []);
+    const candidates: { day: string; weekday: Weekday }[] = [];
+    const products = [...new Set(lines.map((line) => line.product))];
+
+    for (let offset = 0; offset < (schedule.maxDays ?? 14); offset++) {
+      const day = addDays(first, offset);
+      const weekday = weekdayOf(day);
+
+      if (schedule.weekdays && !schedule.weekdays.includes(weekday)) continue;
+      if (closed.has(day)) continue;
+
+      candidates.push({ day, weekday });
+    }
+
+    // the days at once: the callback may ask a remote system
+    const allow = options.allowFulfillmentDate;
+    const allowed = allow
+      ? await Promise.all(
+          candidates.map(({ day, weekday }) =>
+            Promise.resolve(
+              allow({ date: day, weekday, rate, products, lines }),
+            ),
+          ),
+        )
+      : null;
+    const dates = candidates
+      .filter((_, index) => allowed?.[index] ?? true)
+      .map(({ day }) => day);
+
+    return {
+      dates,
+      timeWindows: schedule.timeWindows ?? [],
+      required: schedule.required !== false,
+    };
+  }
+
+  /** The chosen day / window does not fit the schedule (or is missing). */
+  function fulfillmentInvalid(
+    cart: Cart,
+    schedule: NonNullable<ShippingOption['schedule']>,
+  ) {
+    const date = cart.fulfillmentDate ?? null;
+    const window = cart.fulfillmentWindow ?? null;
+
+    if (date === null) return schedule.required;
+    if (!schedule.dates.includes(date)) return true;
+
+    return (
+      schedule.timeWindows.length > 0 &&
+      (window === null || !schedule.timeWindows.includes(window))
+    );
+  }
+
+  async function shippingOptionsFor(
     pricing: PricingResult,
     country: string | null,
     locale: Locale,
-  ): ShippingOption[] {
+    lines: FulfillmentDateContext['lines'],
+  ): Promise<ShippingOption[]> {
     if (!pricing.requiresShipping) return [];
 
     const goodsValue = pricing.lines.reduce(
@@ -1583,23 +1769,26 @@ export function createShop(options: ShopOptions) {
       0,
     );
 
-    return rates.flatMap((rate) => {
-      if (!shipsTo(rate, country)) return [];
+    const offered: ShippingOption[] = [];
+
+    for (const rate of rates) {
+      if (!shipsTo(rate, country)) continue;
 
       const amount = shippingAmount(rate, pricing.weightGrams, goodsValue);
 
-      if (amount === null) return [];
+      if (amount === null) continue;
 
-      return [
-        {
-          id: rate.id,
-          name: rateName(rate, locale),
-          description: rate.description ?? null,
-          pickup: rate.pickup ?? false,
-          amount,
-        },
-      ];
-    });
+      offered.push({
+        id: rate.id,
+        name: rateName(rate, locale),
+        description: rate.description ?? null,
+        pickup: rate.pickup ?? false,
+        amount,
+        schedule: await scheduleOf(rate, lines),
+      });
+    }
+
+    return offered;
   }
 
   async function paymentMethodsFor(
@@ -1644,7 +1833,16 @@ export function createShop(options: ShopOptions) {
       tax,
       roundToFiveRappen: options.roundToFiveRappen,
     });
-    const shippingOptions = shippingOptionsFor(base, country, cart.locale);
+    const shippingOptions = await shippingOptionsFor(
+      base,
+      country,
+      cart.locale,
+      loaded.map((line) => ({
+        product: line.product,
+        variant: line.variant,
+        quantity: line.input.quantity,
+      })),
+    );
     const selected = shippingOptions.find(
       (option) => option.id === cart.shippingRateId,
     );
@@ -1699,6 +1897,9 @@ export function createShop(options: ShopOptions) {
       !addressComplete(cart.shippingAddress)
     ) {
       missing.push('shipping_address');
+    }
+    if (selected?.schedule && fulfillmentInvalid(cart, selected.schedule)) {
+      missing.push('fulfillment_date');
     }
 
     return {
@@ -1764,6 +1965,34 @@ export function createShop(options: ShopOptions) {
     }
     if (summary.missing.includes('shipping_address')) {
       throw new ShopError('ADDRESS_REQUIRED', 'Shipping address missing');
+    }
+    const schedule =
+      summary.shippingOptions.find(
+        (option) => option.id === cart.shippingRateId,
+      )?.schedule ?? null;
+
+    if (summary.missing.includes('fulfillment_date')) {
+      const date = cart.fulfillmentDate ?? null;
+      const window = cart.fulfillmentWindow ?? null;
+
+      if (date === null) {
+        throw new ShopError(
+          'FULFILLMENT_DATE_REQUIRED',
+          'Choose the day of the pickup / delivery',
+        );
+      }
+      if (!schedule?.dates.includes(date)) {
+        throw new ShopError(
+          'FULFILLMENT_DATE_UNAVAILABLE',
+          `${date} is no longer offered, choose another day`,
+        );
+      }
+      throw window === null
+        ? new ShopError('FULFILLMENT_DATE_REQUIRED', 'Choose the time window')
+        : new ShopError(
+            'FULFILLMENT_DATE_UNAVAILABLE',
+            `${window} is no longer offered, choose another time window`,
+          );
     }
     if (cart.discountCode && pricing.discount.status !== 'applied') {
       throw new ShopError(
@@ -1930,6 +2159,11 @@ export function createShop(options: ShopOptions) {
         amountDue,
         refunds: [],
         refundedTotal: 0,
+        fulfillmentDate: schedule ? (cart.fulfillmentDate ?? null) : null,
+        fulfillmentWindow:
+          schedule && schedule.timeWindows.length > 0
+            ? (cart.fulfillmentWindow ?? null)
+            : null,
         note: cart.note,
         reserved: true,
         paymentAttempts: 0,
@@ -2535,6 +2769,15 @@ export function createShop(options: ShopOptions) {
       throw new ShopError('SHIPPING_RATE_UNAVAILABLE', 'Unknown shipping rate');
     }
 
+    if (
+      input.fulfillmentDate !== undefined &&
+      input.fulfillmentDate !== null &&
+      !isDay(input.fulfillmentDate)
+    ) {
+      invalid('fulfillmentDate must be a date YYYY-MM-DD');
+    }
+
+    const window = input.fulfillmentWindow?.trim().slice(0, 40) ?? '';
     const note = input.note?.trim().slice(0, 1000) ?? '';
     const code = input.discountCode
       ? normalizeDiscountCode(input.discountCode)
@@ -2545,6 +2788,8 @@ export function createShop(options: ShopOptions) {
       email,
       discountCode: code ? code : null,
       shippingRateId: input.shippingRateId ?? null,
+      fulfillmentDate: input.fulfillmentDate ?? null,
+      fulfillmentWindow: window ? window : null,
       shippingAddress: cleanAddress(input.shippingAddress),
       billingAddress: cleanAddress(input.billingAddress),
       note: note ? note : null,
@@ -2560,7 +2805,7 @@ export function createShop(options: ShopOptions) {
   async function quoteOrder(input: OrderInput): Promise<OrderQuote> {
     const fields = await cartFields(input);
     const date = now();
-    const { cart: _cart, ...summary } = await summarize({
+    const cart: Cart = {
       id: 'quote',
       token: '',
       customerExternalId: input.customerExternalId,
@@ -2570,7 +2815,12 @@ export function createShop(options: ShopOptions) {
       createdAt: date,
       updatedAt: date,
       ...fields,
-    });
+    };
+    const window = await offeredFulfillmentWindow(cart);
+
+    if (window !== undefined) cart.fulfillmentWindow = window;
+
+    const { cart: _cart, ...summary } = await summarize(cart);
     const saved =
       input.customerExternalId && provider?.chargeToken
         ? await activePaymentMethod(input.customerExternalId)
@@ -2639,7 +2889,13 @@ export function createShop(options: ShopOptions) {
       locale: fields.locale,
     });
 
-    await mutateCart(cart.token, () => fields);
+    await mutateCart(cart.token, async (current) => {
+      const window = await offeredFulfillmentWindow({ ...current, ...fields });
+
+      return window === undefined
+        ? fields
+        : { ...fields, fulfillmentWindow: window };
+    });
 
     const result = await placeFromCart({
       token: cart.token,
@@ -3115,6 +3371,16 @@ export function createShop(options: ShopOptions) {
         value: fulfillmentStatus,
       });
     }
+    if (query.createdAfter) {
+      where.push({
+        field: 'createdAt',
+        operator: 'gte',
+        value: query.createdAfter,
+      });
+    }
+    if (query.fulfillmentDate) {
+      where.push({ field: 'fulfillmentDate', value: query.fulfillmentDate });
+    }
 
     return db.findMany('order', {
       where,
@@ -3122,6 +3388,49 @@ export function createShop(options: ShopOptions) {
       limit: query.limit ?? 50,
       offset: query.offset,
     });
+  }
+
+  /**
+   * Changes `order.metadata` with compare-and-set on `updatedAt`, so
+   * concurrent changes are not lost: `change` gets the current metadata and
+   * returns the new one, or `null` to leave the order as it is (→ `null`).
+   * Integrations keep their sync state here.
+   */
+  async function updateOrderMetadata(
+    orderId: string,
+    change: (
+      metadata: Record<string, unknown>,
+      order: Order,
+    ) => Record<string, unknown> | null,
+  ): Promise<Order | null> {
+    for (let attempt = 0; attempt < CAS_ATTEMPTS; attempt++) {
+      const order = await getOrder(orderId);
+
+      if (!order) throw new ShopError('ORDER_NOT_FOUND', 'Unknown order');
+
+      const metadata = change(order.metadata, order);
+
+      if (metadata === null) return null;
+
+      const updated = await db.update(
+        'order',
+        [
+          { field: 'id', value: order.id },
+          { field: 'updatedAt', value: order.updatedAt },
+        ],
+        {
+          metadata,
+          // two changes within one millisecond must not share a CAS token
+          updatedAt: new Date(
+            Math.max(now().getTime(), order.updatedAt.getTime() + 1),
+          ),
+        },
+      );
+
+      if (updated) return updated;
+    }
+
+    throw new ShopError('BUSY', 'Order is changing, try again');
   }
 
   async function updateOrderWhere(
@@ -3803,6 +4112,7 @@ export function createShop(options: ShopOptions) {
     getOrder,
     getOrderWithToken,
     listOrders,
+    updateOrderMetadata,
     markPaid,
     reconcileBankPayments,
     markShipped,
@@ -3817,6 +4127,94 @@ export function createShop(options: ShopOptions) {
 }
 
 export type Shop = ReturnType<typeof createShop>;
+
+const WEEKDAYS: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+const zurichParts = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Zurich',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function zurich(date: Date) {
+  const parts = Object.fromEntries(
+    zurichParts.formatToParts(date).map((part) => [part.type, part.value]),
+  );
+
+  return {
+    day: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`,
+  };
+}
+
+/** Calendar day in Zurich (`YYYY-MM-DD`). */
+function zurichDay(date: Date) {
+  return zurich(date).day;
+}
+
+/** Time of day in Zurich (`HH:mm`). */
+function zurichTime(date: Date) {
+  return zurich(date).time;
+}
+
+function isDay(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+function addDays(day: string, days: number) {
+  const date = new Date(`${day}T00:00:00Z`);
+
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function weekdayOf(day: string): Weekday {
+  return WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]!;
+}
+
+function checkSchedule(rateId: string, schedule: FulfillmentSchedule) {
+  const fail = (message: string): never => {
+    throw new Error(`shipping rate "${rateId}": schedule.${message}`);
+  };
+  const days = (value: number | undefined, name: string, min: number) => {
+    if (
+      value !== undefined &&
+      (!Number.isInteger(value) || value < min || value > 366)
+    ) {
+      fail(`${name} must be an integer from ${min} to 366`);
+    }
+  };
+
+  days(schedule.leadDays, 'leadDays', 0);
+  days(schedule.maxDays, 'maxDays', 1);
+  if (
+    schedule.cutoff !== undefined &&
+    schedule.cutoff !== null &&
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.cutoff)
+  ) {
+    fail('cutoff must be HH:mm');
+  }
+  for (const weekday of schedule.weekdays ?? []) {
+    if (!WEEKDAYS.includes(weekday)) fail(`weekdays: unknown "${weekday}"`);
+  }
+  for (const day of schedule.closedDates ?? []) {
+    if (!isDay(day)) fail(`closedDates: "${day}" is not YYYY-MM-DD`);
+  }
+  for (const window of schedule.timeWindows ?? []) {
+    if (!window.trim() || window !== window.trim() || window.length > 40) {
+      fail('timeWindows: 1–40 characters each, no spaces around');
+    }
+  }
+}
 
 function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;

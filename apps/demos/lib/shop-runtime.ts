@@ -1,6 +1,7 @@
 import {
   type PaymentProvider,
   type ProviderEvent,
+  type ShippingRate,
   createShop,
 } from '@agentkit.ch/shopkit';
 import { createCamt054, parseCamt } from '@agentkit.ch/shopkit/camt';
@@ -22,6 +23,7 @@ import {
   num,
   numOrNull,
   parseDays,
+  pickupLeadDays,
 } from './config';
 import { advanceInSteps, createSandbox } from './sandbox';
 
@@ -293,6 +295,7 @@ async function create(page: string) {
   // what the visitor set in the Config tab
   const config = loadConfig('shop');
   const rates = list(config['shipping.rates']!);
+  const leadDays = pickupLeadDays(config);
   const methods = list(config.paymentMethods!) as ('online' | 'invoice')[];
   const database = memoryAdapter();
   const restored = sandbox.restoreTables(
@@ -353,13 +356,25 @@ async function create(page: string) {
     provider,
     now: sandbox.now,
     shipping: {
-      rates: RATES.filter((rate) => rates.includes(rate.id)).map((rate) =>
-        rate.id === 'economy'
-          ? {
-              ...rate,
-              freeAbove: numOrNull(config['shipping.economy.freeAbove']!),
-            }
-          : rate,
+      rates: RATES.filter((rate) => rates.includes(rate.id)).map(
+        (rate): ShippingRate =>
+          rate.id === 'economy'
+            ? {
+                ...rate,
+                freeAbove: numOrNull(config['shipping.economy.freeAbove']!),
+              }
+            : rate.id === 'pickup' && leadDays !== null
+              ? {
+                  ...rate,
+                  schedule: {
+                    leadDays,
+                    weekdays: ['tue', 'wed', 'thu', 'fri', 'sat'],
+                    timeWindows: list(
+                      config['shipping.pickup.schedule.timeWindows']!,
+                    ),
+                  },
+                }
+              : rate,
       ),
     },
     tax: { inclusive: config['tax.inclusive'] !== false },
