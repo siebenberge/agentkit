@@ -397,6 +397,12 @@ describe('createShopCustomerMcpHandler', () => {
               items: [{ sku: 'ZOPF', quantity: 1 }],
               shippingRateId: 'laden',
               paymentMethod: 'invoice',
+              billingAddress: {
+                name: 'Anna Muster',
+                line1: 'Dorfstrasse 1',
+                postalCode: '9630',
+                city: 'Wattwil',
+              },
             },
           },
         }),

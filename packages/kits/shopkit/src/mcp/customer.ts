@@ -5,7 +5,7 @@ import type {
   RedirectUrls,
   Shop,
 } from '../engine';
-import { isShopError } from '../errors';
+import { ShopError, isShopError } from '../errors';
 import { resolveLocale } from '../i18n';
 import type { Address, Locale, Order } from '../types';
 import { VERSION } from '../version';
@@ -261,6 +261,15 @@ export function customerTools(context: ToolsContext): McpTool[] {
     paymentMethod: 'online' | 'invoice' = 'online',
   ): OrderInput {
     const shippingAddress = address(args, 'shippingAddress');
+    const billingAddress = address(args, 'billingAddress');
+
+    // the QR-bill of an invoice needs the debtor's address
+    if (paymentMethod === 'invoice' && !billingAddress) {
+      throw new ShopError(
+        'INVALID_INPUT',
+        'billingAddress is required to pay by invoice',
+      );
+    }
 
     return {
       customerExternalId: customer.externalId,
@@ -271,10 +280,10 @@ export function customerTools(context: ToolsContext): McpTool[] {
       fulfillmentWindow: optionalString(args, 'fulfillmentWindow', 40),
       shippingAddress,
       billingAddress:
-        address(args, 'billingAddress') ??
-        // pickup paid online: the name is enough (shown on the payment page);
-        // a delivery bills the shipping address, an invoice needs a real one
-        (customer.name && !shippingAddress && paymentMethod === 'online'
+        billingAddress ??
+        // paid online: the name is enough (shown on the payment page); a
+        // delivery bills its shipping address instead
+        (customer.name
           ? { name: customer.name, line1: '', postalCode: '', city: '' }
           : null),
       note: optionalString(args, 'note', 1000),

@@ -59,6 +59,15 @@ type ZahlsWebhookBody = {
   };
 };
 
+/** Connection errors before the request reached zahls (nothing charged). */
+const NOT_SENT = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'];
+
+function neverSent(error: unknown) {
+  const cause = (error as { cause?: { code?: unknown } } | null)?.cause;
+
+  return typeof cause?.code === 'string' && NOT_SENT.includes(cause.code);
+}
+
 /** zahls messages for a token that cannot be charged any more. */
 const TOKEN_GONE = /expired|revoked|not found|abgelaufen|widerrufen/i;
 
@@ -215,6 +224,8 @@ export function zahlsProvider(options: ZahlsProviderOptions): PaymentProvider {
         return {
           status: 'error',
           error: `zahls unreachable: ${error instanceof Error ? error.message : String(error)}`,
+          // no connection at all: the request never reached zahls
+          notCharged: neverSent(error),
         };
       }
 
@@ -224,15 +235,19 @@ export function zahlsProvider(options: ZahlsProviderOptions): PaymentProvider {
       if (!ok || !transaction) {
         const message = data.message ?? `HTTP ${response.status}`;
 
-        // outage, rate limit or wrong / rotated API key: not the customer's
-        // fault (the order stays payable through a payment page)
+        // a success status without a readable transaction, or an outage:
+        // not the customer's fault, and the charge may have gone through
+        if (response.ok || response.status >= 500) {
+          return { status: 'error', error: message };
+        }
+
+        // rate limit or wrong / rotated API key: refused, nothing charged
         if (
-          response.status >= 500 ||
           response.status === 429 ||
           response.status === 401 ||
           response.status === 403
         ) {
-          return { status: 'error', error: message };
+          return { status: 'error', error: message, notCharged: true };
         }
 
         // the authorization behind the token is gone (expired, revoked):

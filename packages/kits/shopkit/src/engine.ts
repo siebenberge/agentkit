@@ -319,13 +319,19 @@ export type SavedMethodPayment =
   /** Accepted by the provider; the webhook marks the order paid. */
   | { status: 'processing'; order: Order }
   /**
-   * The provider did not answer (timeout, outage, error): the charge may have
-   * gone through. No other payment of the order starts until the webhook
-   * settles it or 5 minutes pass – do not offer another payment before.
+   * The provider did not answer (timeout, outage): the charge may have gone
+   * through. No other payment of the order starts until the webhook settles
+   * it or 30 minutes pass – do not offer another payment before.
    */
   | { status: 'uncertain'; order: Order; error: string }
-  /** Declined: the order stays payable (offer `payOrder`'s page). */
-  | { status: 'failed'; order: Order; error: string };
+  /** Not charged: the order stays payable (offer `payOrder`'s page). */
+  | {
+      status: 'failed';
+      order: Order;
+      error: string;
+      /** Refused by the provider (outage, credentials) – not a decline. */
+      providerError: boolean;
+    };
 
 export type PlaceOrderResult = {
   order: Order;
@@ -2145,7 +2151,11 @@ export function createShop(options: ShopOptions) {
         lines: pricing.lines,
         shipping: pricing.shipping,
         shippingAddress,
-        billingAddress: cart.billingAddress ?? shippingAddress,
+        // a name-only billing address (agents, pickup) defers to a delivery's
+        billingAddress:
+          shippingAddress && !addressComplete(cart.billingAddress)
+            ? shippingAddress
+            : (cart.billingAddress ?? shippingAddress),
         discountCode:
           pricing.discount.status === 'applied' ? pricing.discount.code : null,
         itemsSubtotal: pricing.itemsSubtotal,
@@ -2297,6 +2307,10 @@ export function createShop(options: ShopOptions) {
                   pendingCharge: {
                     transactionId: null,
                     startedAt: now().toISOString(),
+                    reference: paymentReference({
+                      ...current,
+                      paymentAttempts: current.paymentAttempts + 1,
+                    }),
                   },
                 },
               }
@@ -2539,7 +2553,15 @@ export function createShop(options: ShopOptions) {
     await emit([{ type: 'payment_method.saved', paymentMethod: saved, order }]);
   }
 
-  type PendingCharge = { transactionId: string | null; startedAt: string };
+  type PendingCharge = {
+    transactionId: string | null;
+    startedAt: string;
+    /** Payment reference of the charge (matches its webhooks). */
+    reference?: string;
+  };
+
+  /** A charge without an answer (no transaction id) blocks this long. */
+  const UNANSWERED_CHARGE_MS = 30 * 60 * 1000;
 
   function pendingChargeOf(order: Order) {
     const pending = order.metadata.pendingCharge as PendingCharge | undefined;
@@ -2578,8 +2600,8 @@ export function createShop(options: ShopOptions) {
   /**
    * A charge of a saved payment method that is not resolved yet blocks
    * every new payment of the order (no double charge): confirmed meanwhile
-   * → the order is settled; declined, or a request that never came back
-   * (5 minutes) → paying again is fine; still processing → `INVALID_STATE`.
+   * → the order is settled; declined, or a request that never got an answer
+   * (30 minutes) → paying again is fine; still processing → `INVALID_STATE`.
    */
   async function settlePendingCharge(order: Order) {
     const pending = pendingChargeOf(order);
@@ -2591,7 +2613,7 @@ export function createShop(options: ShopOptions) {
     if (pending.transactionId === null) {
       const age = now().getTime() - new Date(pending.startedAt).getTime();
 
-      if (age > 5 * 60 * 1000) status = 'failed';
+      if (age > UNANSWERED_CHARGE_MS) status = 'failed';
     } else if (provider?.getTransactionStatus) {
       try {
         status = await provider.getTransactionStatus(pending.transactionId);
@@ -2711,6 +2733,7 @@ export function createShop(options: ShopOptions) {
       return {
         status: 'processing',
         order: await replacePendingCharge(claimed, marker, {
+          ...marker,
           transactionId: result.transactionId,
           startedAt: now().toISOString(),
         }),
@@ -2718,8 +2741,8 @@ export function createShop(options: ShopOptions) {
     }
 
     // no answer (timeout, outage): the charge may have gone through – the
-    // marker stays, the webhook settles the order or it expires (5 minutes)
-    if (result.status === 'error') {
+    // marker stays, the webhook settles the order or it expires (30 minutes)
+    if (result.status === 'error' && !result.notCharged) {
       logger.error(
         { orderId: claimed.id, error: result.error },
         'shop: charge of a saved payment method unanswered',
@@ -2732,10 +2755,10 @@ export function createShop(options: ShopOptions) {
 
     logger.info(
       { orderId: claimed.id, error: result.error },
-      'shop: charge of a saved payment method declined',
+      'shop: charge of a saved payment method not made',
     );
 
-    if (!result.retryable) {
+    if (result.status === 'failed' && !result.retryable) {
       await db.update(
         'paymentMethod',
         [
@@ -2746,7 +2769,12 @@ export function createShop(options: ShopOptions) {
       );
     }
 
-    return { status: 'failed', order: released, error: result.error };
+    return {
+      status: 'failed',
+      order: released,
+      error: result.error,
+      providerError: result.status === 'error',
+    };
   }
 
   // ------------------------------------------------- orders in one call
@@ -2966,14 +2994,18 @@ export function createShop(options: ShopOptions) {
       });
     } catch (error) {
       // not the customer's storefront cart: it must not show up there
-      await db.update(
-        'cart',
-        [
-          { field: 'id', value: cart.id },
-          { field: 'status', value: 'active' },
-        ],
-        { status: 'abandoned', updatedAt: now() },
-      );
+      await db
+        .update(
+          'cart',
+          [
+            { field: 'id', value: cart.id },
+            { field: 'status', value: 'active' },
+          ],
+          { status: 'abandoned', updatedAt: now() },
+        )
+        .catch((cleanup: unknown) =>
+          logger.error({ error: cleanup }, 'shop: cart not abandoned'),
+        );
       throw error;
     }
 
@@ -3337,7 +3369,11 @@ export function createShop(options: ShopOptions) {
       // a declined charge of a saved payment method: the order is payable again
       const pending = pendingChargeOf(order);
 
-      if (pending?.transactionId === event.transactionId) {
+      if (
+        pending &&
+        (pending.transactionId === event.transactionId ||
+          pending.reference === event.referenceId)
+      ) {
         await replacePendingCharge(order, pending, null);
       }
       return;

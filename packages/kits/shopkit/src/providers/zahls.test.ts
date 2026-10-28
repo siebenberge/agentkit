@@ -293,6 +293,26 @@ describe('zahlsProvider (shop)', () => {
         })
       ).result,
     ).toMatchObject({ status: 'failed', retryable: true });
+    // wrong key or rate limit: refused, nothing charged
+    expect(
+      (await charge({ status: 401, body: { status: 'error', message: 'key' } }))
+        .result,
+    ).toMatchObject({ status: 'error', notCharged: true });
+    // success status without a readable answer: may have been charged
+    expect(
+      (await charge({ status: 200, body: { status: 'success', data: [] } }))
+        .result,
+    ).toEqual({ status: 'error', error: 'HTTP 200' });
+    // no connection at all: never sent
+    expect(
+      (
+        await charge(
+          Object.assign(new TypeError('fetch failed'), {
+            cause: { code: 'ECONNREFUSED' },
+          }),
+        )
+      ).result,
+    ).toMatchObject({ status: 'error', notCharged: true });
     expect((await charge(new Error('ECONNRESET'))).result).toMatchObject({
       status: 'error',
     });

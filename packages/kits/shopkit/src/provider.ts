@@ -38,7 +38,16 @@ export type ChargeResult =
   /** Declined; `retryable: false` when the token cannot be used any more. */
   | { status: 'failed'; error: string; retryable: boolean }
   /** The provider could not process the request (outage, credentials). */
-  | { status: 'error'; error: string };
+  | {
+      status: 'error';
+      error: string;
+      /**
+       * `true` when the request was refused before anything was charged
+       * (credentials, rate limit, host unreachable). Otherwise the charge may
+       * have gone through (timeout, 5xx).
+       */
+      notCharged?: boolean;
+    };
 
 export type SavedPaymentMethodDetails = {
   brand: string | null;

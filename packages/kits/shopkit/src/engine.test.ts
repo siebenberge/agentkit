@@ -1654,7 +1654,7 @@ describe('saved payment methods and orders in one call', () => {
       shop.payOrder({ orderId: order.id, urls }),
     ).rejects.toMatchObject({ code: 'INVALID_STATE' });
 
-    clock.now = new Date(clock.now.getTime() + 6 * 60 * 1000);
+    clock.now = new Date(clock.now.getTime() + 31 * 60 * 1000);
 
     // a pending charge is settled by its webhook
     fake.state.charge = { status: 'pending', transactionId: 'tx_later' };
@@ -1810,7 +1810,7 @@ describe('saved payment methods and orders in one call', () => {
     });
     await expect(paySecond()).rejects.toMatchObject({ code: 'INVALID_STATE' });
 
-    clock.now = new Date(clock.now.getTime() + 6 * 60 * 1000);
+    clock.now = new Date(clock.now.getTime() + 31 * 60 * 1000);
     fake.state.charge = { status: 'succeeded', transactionId: 'tx_ok' };
     expect((await paySecond()).status).toBe('paid');
   });
@@ -1841,6 +1841,72 @@ describe('saved payment methods and orders in one call', () => {
     ]);
 
     expect((await shop.payOrder({ orderId: order.id, urls })).url).toBeTruthy();
+  });
+
+  it('offers the payment page at once when the charge was refused unsent', async () => {
+    const { shop, products, variant, fake } = await withSavedCard();
+
+    // wrong API key: zahls refused the request, nothing was charged
+    fake.state.charge = {
+      status: 'error',
+      error: 'HTTP 401',
+      notCharged: true,
+    };
+
+    const result = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+      useSavedPaymentMethod: true,
+      expectedAmount: 3_900,
+    });
+
+    expect(result.payment).toMatchObject({
+      status: 'payment_page',
+      savedMethodError: 'HTTP 401',
+    });
+    expect((await shop.listPaymentMethods('user_1'))[0]?.status).toBe('active');
+  });
+
+  it('frees the order when an unanswered charge is declined by webhook', async () => {
+    const { shop, products, variant, fake, webhook } = await withSavedCard();
+    const { order } = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      paymentMethod: 'online',
+      urls,
+    });
+
+    fake.state.charge = 'throw';
+    await shop.payOrderWithSavedMethod({
+      orderId: order.id,
+      customerExternalId: 'user_1',
+    });
+
+    // no transaction id yet: the webhook is matched by the payment reference
+    await webhook([
+      {
+        type: 'payment.failed',
+        referenceId: fake.charges.at(-1)!.referenceId,
+        transactionId: 'tx_unknown',
+        error: 'declined',
+      },
+    ]);
+
+    expect((await shop.payOrder({ orderId: order.id, urls })).url).toBeTruthy();
+  });
+
+  it('bills a delivery to its shipping address when only a name is given', async () => {
+    const { shop, products, variant } = await withSavedCard();
+    const { order } = await shop.placeOrder({
+      ...pickupOrder(variant(products.book)),
+      shippingRateId: 'post',
+      shippingAddress: address,
+      billingAddress: { name: 'Anna', line1: '', postalCode: '', city: '' },
+      paymentMethod: 'online',
+      urls,
+    });
+
+    expect(order.billingAddress).toMatchObject({ line1: 'Bahnhofstrasse 1' });
   });
 
   it('keeps metadata written while a charge runs', async () => {
