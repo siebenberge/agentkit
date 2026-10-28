@@ -622,13 +622,23 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
               </div>
             ))}
           </div>
-          <a
-            href={REPO_URL}
-            className="mt-6 inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 font-mono text-xs transition hover:bg-card"
-            data-reveal
-          >
-            {REPO_URL.replace('https://', '')} ↗
-          </a>
+          <div className="mt-6 flex flex-wrap gap-2" data-reveal>
+            {[
+              { href: REPO_URL, label: REPO_URL.replace('https://', '') },
+              ...KITS.map((k) => ({
+                href: k.npm,
+                label: `npm · @agentkit.ch/${k.id}`,
+              })),
+            ].map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 font-mono text-xs transition hover:bg-card"
+              >
+                {l.label} ↗
+              </a>
+            ))}
+          </div>
         </section>
 
         {/* Roadmap */}

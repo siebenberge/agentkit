@@ -1,5 +1,8 @@
 # @agentkit.ch/shopkit
 
+[![npm](https://img.shields.io/npm/v/@agentkit.ch/shopkit)](https://www.npmjs.com/package/@agentkit.ch/shopkit)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/siebenberge/agentkit/blob/main/LICENSE)
+
 A shop for Swiss products as a library: catalog with variants and stock,
 cart for guests and signed-in customers, checkout with TWINT / card or
 invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping
@@ -7,13 +10,13 @@ rates, orders, fulfillment and refunds. Storefront API, React components,
 emails and receipts ship with the package. Database- and framework-agnostic;
 the data lives in your own database.
 
-Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
+npm: [@agentkit.ch/shopkit](https://www.npmjs.com/package/@agentkit.ch/shopkit) · Source and issues: [github.com/siebenberge/agentkit](https://github.com/siebenberge/agentkit) ·
 Try it: [shop.agentkit.ch](https://shop.agentkit.ch) · Error reference: [agentkit.ch/errors](https://agentkit.ch/errors)
 
 ## Install
 
 ```bash
-pnpm add @agentkit.ch/shopkit
+npm i @agentkit.ch/shopkit       # or: pnpm add / yarn add / bun add
 ```
 
 The package ships ES modules with type declarations; peer dependencies
