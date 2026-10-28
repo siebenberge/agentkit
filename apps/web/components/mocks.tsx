@@ -181,7 +181,8 @@ export function AgentOrderMock({
   t: Dict['home']['news']['agent'];
 }) {
   const [ref, step] = useSequence([1400, 1100, 1900, 1500, 1200, 3400], 5);
-  const { shop, prices, total, expectedAmount, order } = MOCK.agentOrder;
+  const { shop, prices, shipping, total, expectedAmount, order } =
+    MOCK.agentOrder;
   const show = (from: number) =>
     `transition-all duration-500 ${step >= from ? '' : 'translate-y-1 opacity-0'}`;
   return (
@@ -213,7 +214,7 @@ export function AgentOrderMock({
           {t.ask}
         </p>
         <div className={show(1)}>
-          <ToolCall name="search_products" arg="zopf, bauernbrot" />
+          <ToolCall name="search_products" arg={t.query} />
         </div>
         <div className={`space-y-2 ${show(2)}`}>
           <ToolCall name="quote_order" />
@@ -224,7 +225,10 @@ export function AgentOrderMock({
                 <span className="tabular-nums text-muted">{prices[i]}</span>
               </p>
             ))}
-            <p className="mt-1 truncate text-faint">{t.pickup}</p>
+            <p className="mt-1 flex justify-between gap-3 text-faint">
+              <span className="truncate">{t.shipping}</span>
+              <span className="tabular-nums">{shipping}</span>
+            </p>
             <p className="mt-1.5 flex justify-between border-t border-panel-line pt-1.5 font-semibold">
               <span>{t.total}</span>
               <span className="tabular-nums">CHF {total}</span>
@@ -375,7 +379,7 @@ export function HsSoftMock({ t }: { t: Dict['home']['news']['hssoft'] }) {
         left={
           <div>
             <p className="font-medium">
-              {order} · CHF {MOCK.agentOrder.total}
+              {order} · CHF {MOCK.hssoft.total}
             </p>
             <p className="mt-0.5 truncate text-[11px] text-faint">{t.pickup}</p>
           </div>

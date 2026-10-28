@@ -88,6 +88,14 @@ export type ErrorDocKey = (typeof ERROR_DOC_KEYS)[number];
  *
  * Inline emphasis: wrap words in **double asterisks** (rendered by `Rich`).
  */
+/** A section of the «new» part of the home page. */
+type NewsFeature = {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  points: string[];
+};
+
 export type Dict = {
   /** BCP 47 tag for <html lang>, e.g. 'de-CH'. */
   htmlLang: string;
@@ -215,36 +223,31 @@ export type Dict = {
       note: string;
     };
     /**
-     * New in shopkit: customers order through their own agent (customer MCP)
-     * and the HS-Soft (WaWiAssist) integration. Only what is on npm.
+     * New in shopkit, two separate sections: customers order through their
+     * own agent (customer MCP, for every shop) and the HS-Soft (WaWiAssist)
+     * integration for bakeries. Only what is on npm.
      */
     news: {
-      eyebrow: string;
-      title: string;
-      lead: string;
-      /** Pill in the hero that links to the section. */
+      /** Pill in the hero that links to the agent section. */
       pill: string;
       /** Link to the README section of the feature. */
       docs: string;
-      agent: {
-        title: string;
-        text: string;
-        points: string[];
+      agent: NewsFeature & {
         /** Chat mock: the customer's message. */
         ask: string;
+        /** Search terms the agent passes to `search_products`. */
+        query: string;
         /** Order lines of the quote (prices in MOCK.agentOrder). */
         items: string[];
-        pickup: string;
+        /** Shipping rate of the quote. */
+        shipping: string;
         total: string;
         /** The agent asks before it charges the saved method. */
         confirm: string;
         yes: string;
         paid: string;
       };
-      hssoft: {
-        title: string;
-        text: string;
-        points: string[];
+      hssoft: NewsFeature & {
         /** Article names of the import (numbers and prices in MOCK.hssoft). */
         articles: string[];
         /** Availability period of the last article, e.g. «ab 1.11.». */

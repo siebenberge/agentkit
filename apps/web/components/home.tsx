@@ -38,7 +38,7 @@ const SHOP_DEMO = KITS.find((k) => k.id === 'shopkit')!.demo!;
 
 const WRAP = 'mx-auto w-full max-w-[1360px] px-4 sm:px-8 lg:px-10';
 
-/** README sections of the features in the «new» section. */
+/** README sections of the features in the «new» sections. */
 const SHOPKIT_README = `${REPO_URL}/tree/main/packages/kits/shopkit`;
 
 export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
@@ -56,7 +56,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
   const nav = [
     { href: '#subkit', label: 'subkit' },
     { href: '#shopkit', label: 'shopkit' },
-    { href: '#new', label: h.nav.news },
+    { href: '#agents', label: h.nav.news },
     { href: '#switzerland', label: t.nav.switzerland },
     { href: '#developers', label: h.dev.eyebrow },
     { href: '#open-source', label: h.nav.openSource },
@@ -157,7 +157,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
             <div className="relative mx-auto flex max-w-[1300px] flex-col items-start px-5 pt-16 text-left text-white sm:px-8 sm:pt-24 lg:px-12">
               <div className="animate-hero-in flex max-w-full flex-wrap gap-2">
                 <a
-                  href="#new"
+                  href="#agents"
                   className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-white/15 p-1 pr-3.5 text-[13px] backdrop-blur-md transition hover:bg-white/25"
                 >
                   <span className="rounded-full bg-signal px-2.5 py-0.5 text-xs font-semibold text-white">
@@ -313,46 +313,49 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
           </div>
         </section>
 
-        {/* New in shopkit: ordering through agents, HS-Soft */}
-        <section id="new" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+        {/* New in shopkit: customers order through their agent (any shop) */}
+        <section id="agents" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
           <SplitHead
-            eyebrow={h.news.eyebrow}
-            title={h.news.title}
-            lead={h.news.lead}
+            eyebrow={h.news.agent.eyebrow}
+            title={h.news.agent.title}
+            lead={h.news.agent.lead}
           />
-          <div className="mt-14 grid gap-3 lg:grid-cols-2">
-            <NewsCard
-              icon={<IconChat />}
-              title={h.news.agent.title}
-              text={h.news.agent.text}
-              points={h.news.agent.points}
-              code="createShopCustomerMcpHandler"
-              entry="@agentkit.ch/shopkit/mcp"
-              docs={{
-                href: `${SHOPKIT_README}#mcp-server-for-your-customers`,
-                label: h.news.docs,
-              }}
-              scene="lavender"
-            >
-              <AgentOrderMock t={h.news.agent} />
-            </NewsCard>
-            <NewsCard
-              icon={<IconSync />}
-              title={h.news.hssoft.title}
-              text={h.news.hssoft.text}
-              points={h.news.hssoft.points}
-              code="createHsSoftSync"
-              entry="@agentkit.ch/shopkit/hssoft"
-              docs={{
-                href: `${SHOPKIT_README}#hs-soft-wawiassist`,
-                label: h.news.docs,
-              }}
-              scene="autumn"
-              delay="100ms"
-            >
-              <HsSoftMock t={h.news.hssoft} />
-            </NewsCard>
-          </div>
+          <FeatureRow
+            icon={<IconChat />}
+            points={h.news.agent.points}
+            code="createShopCustomerMcpHandler"
+            entry="@agentkit.ch/shopkit/mcp"
+            docs={{
+              href: `${SHOPKIT_README}#mcp-server-for-your-customers`,
+              label: h.news.docs,
+            }}
+            scene="lavender"
+          >
+            <AgentOrderMock t={h.news.agent} />
+          </FeatureRow>
+        </section>
+
+        {/* New in shopkit: HS-Soft (WaWiAssist) for bakeries */}
+        <section id="hs-soft" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+          <SplitHead
+            eyebrow={h.news.hssoft.eyebrow}
+            title={h.news.hssoft.title}
+            lead={h.news.hssoft.lead}
+          />
+          <FeatureRow
+            icon={<IconSync />}
+            points={h.news.hssoft.points}
+            code="createHsSoftSync"
+            entry="@agentkit.ch/shopkit/hssoft"
+            docs={{
+              href: `${SHOPKIT_README}#hs-soft-wawiassist`,
+              label: h.news.docs,
+            }}
+            scene="autumn"
+            flip
+          >
+            <HsSoftMock t={h.news.hssoft} />
+          </FeatureRow>
         </section>
 
         {/* Don't vibe-code billing */}
@@ -1112,58 +1115,49 @@ function KitCard({
   );
 }
 
-function NewsCard({
+/** A feature of the «new» sections: points and code beside a mock. */
+function FeatureRow({
   icon,
-  title,
-  text,
   points,
   code,
   entry,
   docs,
   scene,
-  delay,
+  flip,
   children,
 }: {
   icon: React.ReactNode;
-  title: string;
-  text: string;
   points: string[];
   /** Function that sets the feature up, and its entry point. */
   code: string;
   entry: string;
   docs: { href: string; label: string };
   scene: SceneName;
-  delay?: string;
+  /** Mock on the left on wide screens. */
+  flip?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <article
       data-reveal
-      style={delay ? { ['--d' as string]: delay } : undefined}
-      className="flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-line p-2"
+      className="mt-14 grid min-w-0 gap-2 overflow-hidden rounded-[22px] border border-line p-2 lg:grid-cols-[1fr_1.2fr]"
     >
-      <div className="px-5 pb-7 pt-5 sm:px-7 sm:pt-7">
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-fg text-bg">
-            {icon}
-          </span>
-          <h3 className="text-xl font-semibold tracking-tight text-balance">
-            {title}
-          </h3>
-        </div>
-        <p className="mt-5 max-w-xl text-pretty leading-relaxed text-muted">
-          {text}
-        </p>
-        <ul className="mt-6 grid gap-y-2.5 text-[15px]">
+      <div
+        className={`flex min-w-0 flex-col justify-center px-5 py-7 sm:px-8 ${flip ? 'lg:order-2' : ''}`}
+      >
+        <span className="grid size-11 place-items-center rounded-xl bg-fg text-bg">
+          {icon}
+        </span>
+        <ul className="mt-7 grid gap-y-3.5 text-[17px]">
           {points.map((p) => (
-            <li key={p} className="flex items-start gap-2.5">
+            <li key={p} className="flex items-start gap-3">
               <CheckMark />
               {p}
             </li>
           ))}
         </ul>
-        <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
-          <code className="min-w-0 truncate rounded-lg border border-line bg-code px-3 py-1.5 font-mono text-xs">
+        <div className="mt-9 flex flex-col items-start gap-4">
+          <code className="max-w-full truncate rounded-lg border border-line bg-code px-3 py-1.5 font-mono text-xs">
             <span className="text-violet">import</span> {`{ ${code} }`}{' '}
             <span className="text-violet">from</span>{' '}
             <span className="text-ok">&apos;{entry}&apos;</span>
@@ -1179,7 +1173,7 @@ function NewsCard({
       </div>
       <div
         data-loop
-        className="relative mt-auto flex min-h-[420px] items-center justify-center overflow-hidden rounded-[16px] p-4 sm:min-h-[460px] sm:p-8"
+        className="relative flex min-h-[440px] min-w-0 items-center justify-center overflow-hidden rounded-[16px] p-4 sm:min-h-[520px] sm:p-8"
       >
         <Scene name={scene} />
         <div className="relative flex w-full justify-center">{children}</div>
