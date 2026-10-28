@@ -59,6 +59,18 @@ type ZahlsWebhookBody = {
   };
 };
 
+/** Connection errors before the request reached zahls (nothing charged). */
+const NOT_SENT = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'];
+
+function neverSent(error: unknown) {
+  const cause = (error as { cause?: { code?: unknown } } | null)?.cause;
+
+  return typeof cause?.code === 'string' && NOT_SENT.includes(cause.code);
+}
+
+/** zahls messages for a token that cannot be charged any more. */
+const TOKEN_GONE = /expired|revoked|not found|abgelaufen|widerrufen/i;
+
 const SUCCEEDED = ['confirmed'];
 const PENDING = ['waiting', 'processing', 'uncaptured', 'reserved'];
 const FAILED = ['declined', 'error', 'cancelled', 'expired'];
@@ -205,6 +217,8 @@ export function zahlsProvider(options: ZahlsProviderOptions): PaymentProvider {
         return {
           status: 'error',
           error: `zahls unreachable: ${error instanceof Error ? error.message : String(error)}`,
+          // no connection at all: the request never reached zahls
+          notCharged: neverSent(error),
         };
       }
 
@@ -214,19 +228,30 @@ export function zahlsProvider(options: ZahlsProviderOptions): PaymentProvider {
       if (!ok || !transaction) {
         const message = data.message ?? `HTTP ${response.status}`;
 
-        // outage, rate limit or wrong / rotated API key: not the customer's
-        // fault and must not count against their subscription
+        // a success status without a readable transaction, or an outage:
+        // not the customer's fault, and the charge may have gone through
+        if (response.ok || response.status >= 500) {
+          return { status: 'error', error: message };
+        }
+
+        // rate limit or wrong / rotated API key: refused, nothing charged
         if (
-          response.status >= 500 ||
           response.status === 429 ||
           response.status === 401 ||
           response.status === 403
         ) {
-          return { status: 'error', error: message };
+          return { status: 'error', error: message, notCharged: true };
         }
 
-        // other 4xx: this token cannot be charged (expired, revoked …)
-        return { status: 'failed', error: message, retryable: false };
+        // the authorization behind the token is gone (expired, revoked):
+        // this token cannot be charged any more. Other 4xx refuse this
+        // request only (amount, reference …) – the token stays usable.
+        const tokenGone =
+          response.status === 404 ||
+          response.status === 410 ||
+          TOKEN_GONE.test(message);
+
+        return { status: 'failed', error: message, retryable: !tokenGone };
       }
 
       const status = transaction.status.toLowerCase();

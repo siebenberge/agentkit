@@ -247,7 +247,7 @@ export const en: Dict = {
       {
         title: 'core + CLI',
         when: 'next',
-        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: Swiss Post shipping labels and refunds through zahls.ch.',
+        text: 'A shared core with an adapter test suite, a CLI for schema and route, docs in German and English. In shopkit: a back office to embed (orders, products, stock, discount codes, gift cards, bank import – in the repo, on npm with the next release), Swiss Post shipping labels and refunds through zahls.ch.',
       },
       {
         title: 'Dunning & adapters',
@@ -262,7 +262,7 @@ export const en: Dict = {
     button: 'See the roadmap',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -466,6 +466,16 @@ export const en: Dict = {
           'The payment method (online or invoice) is not offered for this shop or order, or no provider is configured.',
         fix: 'Configure the provider and the methods in `createShop()`, or choose another method.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'The customer has no (such) saved payment method: none saved yet, removed, refused by the provider and deactivated, or it belongs to another customer.',
+        fix: 'Order without `useSavedPaymentMethod` (payment link) and let the customer save one with `savePaymentMethod: true`.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'The amount due differs from the one the customer confirmed (`expectedAmount`), e.g. because a price, discount or shipping changed. Nothing was charged.',
+        fix: 'Quote the order again (`quoteOrder` / `quote_order`), show the customer the new amount and order again with the confirmed amount.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'No order with this id, or the token of the order link does not match.',
@@ -593,7 +603,7 @@ export const en: Dict = {
         'Then we noticed that every Swiss product rebuilds exactly that. Generic billing tools think in Stripe, cents and English – Switzerland comes, if at all, as a plugin.',
         'So we are extracting the code from production and turning it into kits any TypeScript app can use. Free, and open source under MIT.',
       ],
-      sign: 'The Siebenberge team',
+      sign: 'The siebenberge team',
     },
     mock: {
       code: 'Your code',

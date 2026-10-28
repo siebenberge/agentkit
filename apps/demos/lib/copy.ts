@@ -71,17 +71,10 @@ type Copy = {
     order: string;
     myOrders: string;
     backoffice: {
-      orders: string;
-      none: string;
-      markPaid: string;
-      ship: string;
-      deliver: string;
-      cancel: string;
-      refund: string;
-      receipt: string;
-      stock: string;
-      giftCard: string;
-      issued: string;
+      /** App button: the kit's back office in the demo app. */
+      open: string;
+      lead: string;
+      openButton: string;
     };
   };
   sub: {
@@ -197,6 +190,7 @@ const de: Copy = {
       'Rabattcodes HERBST10, GRATISVERSAND oder KAFFEE5 (ab CHF 30)',
       'Kauf auf Rechnung → Beleg mit QR-Rechnung, Mahnung nach dem Vorspulen',
       'Backoffice → Zahlungseingang simulieren: camt.054 der Bank bezahlt die Rechnung',
+      'Backoffice: Preis oder Lager ändern, Rabattcode anlegen → der Shop zeigt es sofort',
       'Online bezahlen → simulierte TWINT-/Kartenzahlung, Webhook bestätigt',
       'Kaffee (2.6 %) und Tasse (8.1 %) zusammen → MWST pro Satz, Versand anteilig',
       'Die letzte Tasse kaufen → Lagerwarnung an den Shop',
@@ -210,17 +204,9 @@ const de: Copy = {
     order: 'Bestellung',
     myOrders: 'Bestellungen',
     backoffice: {
-      orders: 'Bestellungen',
-      none: 'Noch keine Bestellungen.',
-      markPaid: 'Zahlung erfassen',
-      ship: 'Versenden',
-      deliver: 'Zugestellt',
-      cancel: 'Stornieren',
-      refund: 'Rückerstatten',
-      receipt: 'Beleg',
-      stock: 'Lager',
-      giftCard: 'Gutschein CHF 50 ausstellen',
-      issued: 'Gutschein ausgestellt – der Code ist bei den E-Mails.',
+      open: 'Backoffice',
+      lead: 'Das Backoffice ist eine Komponente von shopkit (<ShopAdmin />): Bestellungen, Produkte und Lager, Rabattcodes, Gutscheine und Bankimport – es öffnet sich im Fenster links.',
+      openButton: 'Backoffice öffnen',
     },
   },
   sub: {
@@ -352,6 +338,7 @@ const fr: Copy = {
       'Codes promo HERBST10, GRATISVERSAND ou KAFFEE5 (dès CHF 30)',
       'Achat sur facture → justificatif avec QR-facture, rappel après avance du temps',
       'Back-office → simuler une entrée de paiement : le camt.054 de la banque règle la facture',
+      'Back-office : modifier un prix ou le stock, créer un code de réduction → la boutique l’affiche aussitôt',
       'Payer en ligne → paiement TWINT/carte simulé, confirmé par webhook',
       'Café (2,6 %) et tasse (8,1 %) ensemble → TVA par taux, envoi réparti',
       'Acheter la dernière tasse → alerte de stock pour la boutique',
@@ -365,17 +352,9 @@ const fr: Copy = {
     order: 'Commande',
     myOrders: 'Commandes',
     backoffice: {
-      orders: 'Commandes',
-      none: 'Pas encore de commandes.',
-      markPaid: 'Saisir le paiement',
-      ship: 'Expédier',
-      deliver: 'Livrée',
-      cancel: 'Annuler',
-      refund: 'Rembourser',
-      receipt: 'Justificatif',
-      stock: 'Stock',
-      giftCard: 'Émettre un bon de CHF 50',
-      issued: 'Bon émis – le code se trouve dans les e-mails.',
+      open: 'Back-office',
+      lead: 'Le back-office est un composant de shopkit (<ShopAdmin />) : commandes, produits et stock, codes de réduction, bons cadeaux et import bancaire – il s’ouvre dans la fenêtre de gauche.',
+      openButton: 'Ouvrir le back-office',
     },
   },
   sub: {
@@ -509,6 +488,7 @@ const it: Copy = {
       'Codici sconto HERBST10, GRATISVERSAND o KAFFEE5 (da CHF 30)',
       'Acquisto su fattura → ricevuta con QR-fattura, sollecito dopo aver mandato avanti il tempo',
       'Back office → simula un pagamento in entrata: il camt.054 della banca salda la fattura',
+      'Back office: cambia un prezzo o le scorte, crea un codice sconto → il negozio lo mostra subito',
       'Pagare online → pagamento TWINT/carta simulato, confermato via webhook',
       'Caffè (2,6 %) e tazzina (8,1 %) insieme → IVA per aliquota, spedizione ripartita',
       'Comprare l’ultima tazzina → avviso di scorte al negozio',
@@ -522,17 +502,9 @@ const it: Copy = {
     order: 'Ordine',
     myOrders: 'Ordini',
     backoffice: {
-      orders: 'Ordini',
-      none: 'Ancora nessun ordine.',
-      markPaid: 'Registra pagamento',
-      ship: 'Spedisci',
-      deliver: 'Consegnato',
-      cancel: 'Annulla',
-      refund: 'Rimborsa',
-      receipt: 'Ricevuta',
-      stock: 'Magazzino',
-      giftCard: 'Emetti buono da CHF 50',
-      issued: 'Buono emesso – il codice è tra le e-mail.',
+      open: 'Back office',
+      lead: 'Il back office è un componente di shopkit (<ShopAdmin />): ordini, prodotti e scorte, codici sconto, buoni regalo e import bancario – si apre nella finestra a sinistra.',
+      openButton: 'Apri il back office',
     },
   },
   sub: {
@@ -662,6 +634,7 @@ const en: Copy = {
       'Discount codes HERBST10, GRATISVERSAND or KAFFEE5 (from CHF 30)',
       'Buy on invoice → receipt with QR-bill, reminder after moving time',
       'Back office → simulate incoming payments: the bank’s camt.054 pays the invoice',
+      'Back office: change a price or the stock, add a discount code → the shop shows it right away',
       'Pay online → simulated TWINT / card payment, confirmed by webhook',
       'Coffee (2.6 %) and cup (8.1 %) together → VAT per rate, shipping split',
       'Buy the last cup → low stock alert to the shop',
@@ -675,17 +648,9 @@ const en: Copy = {
     order: 'Order',
     myOrders: 'Orders',
     backoffice: {
-      orders: 'Orders',
-      none: 'No orders yet.',
-      markPaid: 'Record payment',
-      ship: 'Ship',
-      deliver: 'Delivered',
-      cancel: 'Cancel',
-      refund: 'Refund',
-      receipt: 'Receipt',
-      stock: 'Stock',
-      giftCard: 'Issue CHF 50 gift card',
-      issued: 'Gift card issued – the code is in the emails.',
+      open: 'Back office',
+      lead: 'The back office is a shopkit component (<ShopAdmin />): orders, products and stock, discount codes, gift cards and the bank import – it opens in the window on the left.',
+      openButton: 'Open back office',
     },
   },
   sub: {

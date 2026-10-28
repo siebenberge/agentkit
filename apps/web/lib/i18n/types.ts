@@ -65,6 +65,8 @@ export const ERROR_DOC_KEYS = [
   'shopkit.FULFILLMENT_DATE_REQUIRED',
   'shopkit.FULFILLMENT_DATE_UNAVAILABLE',
   'shopkit.PAYMENT_METHOD_UNAVAILABLE',
+  'shopkit.PAYMENT_METHOD_NOT_FOUND',
+  'shopkit.AMOUNT_CHANGED',
   'shopkit.ORDER_NOT_FOUND',
   'shopkit.INVALID_STATE',
   'shopkit.REFUND_TOO_HIGH',

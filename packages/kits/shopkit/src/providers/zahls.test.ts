@@ -190,4 +190,131 @@ describe('zahlsProvider (shop)', () => {
       },
     ]);
   });
+  it('tokenizes on a charge_and_save page', async () => {
+    const { fetch, calls } = fakeFetch({
+      'POST /v1.0/Gateway/': {
+        status: 200,
+        body: { status: 'success', data: [{ id: 6, link: 'https://pay/6' }] },
+      },
+    });
+    const provider = zahlsProvider({ instance: 'acme', apiKey: 'k', fetch });
+
+    await provider.createHostedPayment({
+      mode: 'charge_and_save',
+      referenceId: 'so_1_1',
+      amount: 3_900,
+      currency: 'CHF',
+      purpose: 'Bestellung 261015-ABCDE',
+      customer: { email: 'anna@example.ch', name: 'Anna Muster' },
+      successUrl: 'https://shop/ok',
+      cancelUrl: 'https://shop/cancel',
+      failedUrl: 'https://shop/failed',
+    });
+
+    expect(calls[0]?.body).toMatchObject({
+      amount: 3_900,
+      preAuthorization: true,
+      chargeOnAuthorization: true,
+    });
+  });
+
+  it('turns an authorized transaction into a saved payment method', async () => {
+    const { fetch } = fakeFetch({
+      'GET /v1.0/Transaction/77/': {
+        status: 200,
+        body: transaction({
+          status: 'authorized',
+          referenceId: 'so_1_1',
+          payment: {
+            wallet: 'TWINT',
+            cardNumber: null,
+            expiry: null,
+          },
+        }),
+      },
+    });
+    const provider = zahlsProvider({ instance: 'acme', apiKey: 'k', fetch });
+
+    const [event] = await provider.parseWebhook(
+      webhook({ transaction: { id: 77, referenceId: 'so_1_1' } }),
+      known,
+    );
+
+    expect(event).toEqual({
+      type: 'payment_method.saved',
+      referenceId: 'so_1_1',
+      token: '77',
+      details: { brand: 'TWINT', last4: null, expiry: null },
+    });
+  });
+
+  it('charges a saved payment method and classifies the result', async () => {
+    const charge = (route: Route | Error) => {
+      const stub = fakeFetch({ 'POST /v1.0/Transaction/tok/': route });
+
+      return zahlsProvider({ instance: 'acme', apiKey: 'k', fetch: stub.fetch })
+        .chargeToken!({
+        token: 'tok',
+        amount: 3_900,
+        currency: 'CHF',
+        referenceId: 'so_1_2',
+        purpose: 'Bestellung 261015-ABCDE',
+      }).then((result) => ({ result, body: stub.calls[0]?.body }));
+    };
+
+    expect(
+      await charge({ status: 200, body: transaction({ status: 'confirmed' }) }),
+    ).toEqual({
+      result: { status: 'succeeded', transactionId: '77' },
+      body: {
+        amount: 3_900,
+        referenceId: 'so_1_2',
+        purpose: 'Bestellung 261015-ABCDE',
+      },
+    });
+    expect(
+      (await charge({ status: 200, body: transaction({ status: 'waiting' }) }))
+        .result,
+    ).toEqual({ status: 'pending', transactionId: '77' });
+    expect(
+      (
+        await charge({
+          status: 400,
+          body: { status: 'error', message: 'token expired' },
+        })
+      ).result,
+    ).toMatchObject({ status: 'failed', retryable: false });
+    // a refused request (amount, reference …): the token stays usable
+    expect(
+      (
+        await charge({
+          status: 422,
+          body: { status: 'error', message: 'amount too small' },
+        })
+      ).result,
+    ).toMatchObject({ status: 'failed', retryable: true });
+    // wrong key or rate limit: refused, nothing charged
+    expect(
+      (await charge({ status: 401, body: { status: 'error', message: 'key' } }))
+        .result,
+    ).toMatchObject({ status: 'error', notCharged: true });
+    // success status without a readable answer: may have been charged
+    expect(
+      (await charge({ status: 200, body: { status: 'success', data: [] } }))
+        .result,
+    ).toEqual({ status: 'error', error: 'HTTP 200' });
+    // no connection at all: never sent
+    expect(
+      (
+        await charge(
+          Object.assign(new TypeError('fetch failed'), {
+            cause: { code: 'ECONNREFUSED' },
+          }),
+        )
+      ).result,
+    ).toMatchObject({ status: 'error', notCharged: true });
+    expect((await charge(new Error('ECONNRESET'))).result).toMatchObject({
+      status: 'error',
+    });
+  });
 });

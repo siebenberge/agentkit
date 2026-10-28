@@ -37,6 +37,10 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   `<OrderHistory />`, `useCart()`. Config: `createShop({ database, provider,
   shipping: { rates }, tax })`; cron `runDue()` releases unpaid orders and
   sends payment reminders; invoice orders are booked from camt.053 / camt.054.
+  Signed-in customers can save their payment method (card, TWINT) while
+  paying (`savePaymentMethod`) and pay later orders with it, no payment page
+  (`payOrderWithSavedMethod`). Orders in one call for agents: `quoteOrder`,
+  `placeOrder`.
   Pickup / delivery day: a rate with `schedule: { leadDays, cutoff, weekdays,
   closedDates, timeWindows }` offers days (`shippingOptions[].schedule`), the
   customer sets `fulfillmentDate` / `fulfillmentWindow`, orders carry them
@@ -49,7 +53,12 @@ scope: `@agentkit.ch` (not `@agentkit`, which belongs to someone else).
   pickup day becomes the WaWiAssist order date; `hssoft.allowFulfillmentDate`
   offers only days every article can be had (delivery days, the shop's own
   periods, optionally WaWiAssist's orderable articles per day).
-  Next: Swiss Post labels and live tariffs, digital downloads.
+  Next: back office components – `<ShopAdmin />` from
+  `@agentkit.ch/shopkit/react/admin` (orders, products and stock, discount
+  codes, gift cards, bank import; your auth decides access through
+  `createShopAdminHandler({ authorize })`) are in the repo and reach npm
+  with the next release; Swiss Post labels and live tariffs, digital
+  downloads.
 
 ## Test sites
 
@@ -143,6 +152,16 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   Mounted as a POST route, your `authorize` on every request (`'read-only'`
   hides the tools that change data). Payment and guest-link tokens never
   reach the model.
+- MCP for your shop's customers: `createShopCustomerMcpHandler` from
+  `@agentkit.ch/shopkit/mcp` – the customer's agent searches products, quotes
+  and places orders and gets a zahls.ch payment link back; with a saved
+  payment method it pays directly, only for the amount the customer
+  confirmed (`expectedAmount`). Your `identify` returns the signed-in
+  customer on every request – or an OAuth wrapper passes it in
+  (`handler(request, { customer })`, recipe with Better Auth `requireMcpAuth`
+  in the shopkit README); tools: `search_products`, `get_product`,
+  `quote_order`, `place_order`, `pay_order`, `list_my_orders`,
+  `get_my_order`, `list_payment_methods`, `remove_payment_method`.
 
 ## Website languages
 

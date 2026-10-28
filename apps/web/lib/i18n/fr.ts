@@ -254,7 +254,7 @@ export const fr: Dict = {
       {
         title: 'core + CLI',
         when: 'ensuite',
-        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
+        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : un back-office à intégrer (commandes, produits, stock, codes de réduction, bons cadeaux, import bancaire – dans le dépôt, sur npm avec la prochaine version), étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
       },
       {
         title: 'Relances et adaptateurs',
@@ -269,7 +269,7 @@ export const fr: Dict = {
     button: 'Voir la feuille de route',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Fabriqué en Suisse',
   },
   errors: {
@@ -474,6 +474,16 @@ export const fr: Dict = {
           'Le mode de paiement (en ligne ou facture) n’est pas proposé pour cette boutique ou cette commande, ou aucun prestataire n’est configuré.',
         fix: 'Configurez le prestataire et les modes de paiement dans `createShop()`, ou choisissez un autre mode.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'Le client n’a pas (ce) mode de paiement enregistré : aucun enregistré, supprimé, refusé par le prestataire et désactivé, ou il appartient à un autre client.',
+        fix: 'Commandez sans `useSavedPaymentMethod` (lien de paiement) et laissez le client en enregistrer un avec `savePaymentMethod: true`.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'Le montant dû diffère de celui confirmé par le client (`expectedAmount`), par exemple parce qu’un prix, un rabais ou la livraison a changé. Rien n’a été débité.',
+        fix: 'Recalculez la commande (`quoteOrder` / `quote_order`), montrez le nouveau montant au client et commandez à nouveau avec le montant confirmé.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'Aucune commande avec cet identifiant, ou le jeton du lien de commande ne correspond pas.',
@@ -603,7 +613,7 @@ export const fr: Dict = {
         'Puis nous avons constaté que chaque produit suisse reconstruit exactement cela. Les outils de facturation génériques pensent en Stripe, en cents et en anglais – la Suisse arrive, au mieux, sous forme de plugin.',
         'C’est pourquoi nous extrayons ce code de la production pour en faire des kits que toute application TypeScript peut utiliser. Gratuitement, et en open source sous licence MIT.',
       ],
-      sign: 'L’équipe de Siebenberge',
+      sign: 'L’équipe de siebenberge',
     },
     mock: {
       code: 'Votre code',

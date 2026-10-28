@@ -250,7 +250,7 @@ export const it: Dict = {
       {
         title: 'core + CLI',
         when: 'in seguito',
-        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
+        text: 'Un nucleo comune con suite di test degli adapter, una CLI per schema e route, documentazione in tedesco e inglese. In shopkit: un back office da integrare (ordini, prodotti, scorte, codici sconto, buoni regalo, import bancario – nel repository, su npm con la prossima release), etichette di spedizione della Posta e rimborsi tramite zahls.ch.',
       },
       {
         title: 'Solleciti e adapter',
@@ -265,7 +265,7 @@ export const it: Dict = {
     button: 'Vedi la roadmap',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -469,6 +469,16 @@ export const it: Dict = {
           'Il metodo di pagamento (online o fattura) non è offerto per questo shop o questo ordine, oppure non è configurato alcun fornitore.',
         fix: 'Configura il fornitore e i metodi di pagamento in `createShop()`, oppure scegli un altro metodo.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'Il cliente non ha (questo) metodo di pagamento salvato: nessuno ancora salvato, rimosso, rifiutato dal fornitore e disattivato, oppure appartiene a un altro cliente.',
+        fix: 'Ordina senza `useSavedPaymentMethod` (link di pagamento) e lascia che il cliente ne salvi uno con `savePaymentMethod: true`.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'L’importo dovuto è diverso da quello confermato dal cliente (`expectedAmount`), ad esempio perché è cambiato un prezzo, uno sconto o la spedizione. Non è stato addebitato nulla.',
+        fix: 'Ricalcola l’ordine (`quoteOrder` / `quote_order`), mostra al cliente il nuovo importo e ordina di nuovo con l’importo confermato.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'Nessun ordine con questo id, oppure il token del link dell’ordine non corrisponde.',
@@ -597,7 +607,7 @@ export const it: Dict = {
         'Poi ci siamo accorti che ogni prodotto svizzero ricostruisce esattamente questo. Gli strumenti di fatturazione generici ragionano in Stripe, centesimi e inglese – la Svizzera arriva, se va bene, come plugin.',
         'Per questo estraiamo il codice dalla produzione e ne facciamo kit che ogni app TypeScript può usare. Gratis e open source con licenza MIT.',
       ],
-      sign: 'Il team di Siebenberge',
+      sign: 'Il team di siebenberge',
     },
     mock: {
       code: 'Il tuo codice',
