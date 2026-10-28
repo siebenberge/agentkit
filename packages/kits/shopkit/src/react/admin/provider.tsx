@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo } from 'react';
 
 import { formatDate, formatMoney, resolveLocale } from '../../i18n';
+import type { SwissPostServiceId } from '../../swisspost/services';
 import { ShopApiError } from '../client';
 import { type ShopAdminClient, createShopAdminClient } from './client';
 import {
@@ -30,6 +31,10 @@ export type ShopAdminContextValue = {
   openHtml: (load: () => Promise<string>) => void;
   /** The HS-Soft (WaWiAssist) plugin is on: its section, order and product parts show. */
   hssoft: boolean;
+  /** The Swiss Post plugin is on: the label part of an order shows. */
+  swisspost: boolean;
+  /** Services offered in the label part (default all). */
+  swisspostServices: SwissPostServiceId[] | null;
 };
 
 const ShopAdminContext = createContext<ShopAdminContextValue | null>(null);
@@ -48,6 +53,12 @@ export type ShopAdminProviderProps = {
    * `createShopAdminHandler`. Without it nothing of HS-Soft is shown.
    */
   hssoft?: boolean;
+  /**
+   * Swiss Post plugin – set it when you pass `swisspost` to
+   * `createShopAdminHandler`: labels from the order. `{ services }` limits
+   * the services offered there (e.g. `['ECO', 'PRI', 'APLUS']`).
+   */
+  swisspost?: boolean | { services?: SwissPostServiceId[] };
   /** Hook into your app's toasts (the components also show messages inline). */
   onNotify?: (type: 'success' | 'error', message: string) => void;
   children: React.ReactNode;
@@ -79,6 +90,14 @@ export function ShopAdminProvider(props: ShopAdminProviderProps) {
 
   const currency = props.currency ?? 'CHF';
   const hssoft = props.hssoft === true;
+  const swisspost =
+    props.swisspost === true || typeof props.swisspost === 'object';
+  const services =
+    typeof props.swisspost === 'object'
+      ? (props.swisspost.services ?? null)
+      : null;
+  // a new array each render must not rebuild the context
+  const servicesKey = services ? services.join(',') : '';
   const onNotify = props.onNotify;
 
   const value = useMemo<ShopAdminContextValue>(() => {
@@ -130,8 +149,12 @@ export function ShopAdminProvider(props: ShopAdminProviderProps) {
         );
       },
       hssoft,
+      swisspost,
+      swisspostServices: servicesKey
+        ? (servicesKey.split(',') as SwissPostServiceId[])
+        : null,
     };
-  }, [client, currency, hssoft, locale, m, onNotify]);
+  }, [client, currency, hssoft, swisspost, servicesKey, locale, m, onNotify]);
 
   return (
     <ShopAdminContext.Provider value={value}>

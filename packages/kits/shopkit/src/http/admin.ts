@@ -9,6 +9,7 @@ import type { HsSoftSync } from '../hssoft';
 import { LOCALES, type MessageOverrides, resolveLocale } from '../i18n';
 import type { PaymentSlip } from '../receipt/payment-slip';
 import { type ReceiptSeller, renderReceiptHtml } from '../receipt/render';
+import type { SwissPost, SwissPostLabelInput } from '../swisspost';
 import type {
   DiscountType,
   FulfillmentStatus,
@@ -45,6 +46,8 @@ export type ShopAdminHandlerOptions = {
   };
   /** HS-Soft (WaWiAssist) routes: `createHsSoftSync()` of `/hssoft`. */
   hssoft?: HsSoftSync;
+  /** Swiss Post labels: `createSwissPost()` of `/swisspost`. */
+  swisspost?: SwissPost;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -92,6 +95,10 @@ const FULFILLMENT_STATUSES: FulfillmentStatus[] = [
  *   `POST /hssoft/sync` (due orders), `POST /orders/:id/hssoft` `{ force? }`,
  *   `POST /products/:id/hssoft-availability` `{ from, to, recurring? }`
  *   (`{}` removes the period)
+ * - with `swisspost`: `POST /orders/:id/swisspost-label` `{ service?,
+ *   additionalServices?, deliveryInstructions?, deliveryPlace?, weightGrams?,
+ *   force?, markShipped? }` – answers the label file (PDF, image or ZPL2),
+ *   the tracking number in `x-tracking-number`
  */
 export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
   const { shop } = options;
@@ -397,6 +404,23 @@ export function createShopAdminHandler(options: ShopAdminHandlerOptions) {
                   restock: body.restock === true,
                 }),
               );
+            case 'swisspost-label': {
+              if (!options.swisspost) break;
+
+              const { label } = await options.swisspost.createLabel(
+                id,
+                labelInput(body),
+              );
+
+              return new Response(label.file.slice().buffer, {
+                headers: {
+                  'content-type': label.contentType,
+                  'content-disposition': `attachment; filename="${label.fileName}"`,
+                  'x-tracking-number': label.trackingNumber,
+                  'cache-control': 'private, no-store',
+                },
+              });
+            }
             case 'hssoft':
               if (!options.hssoft) break;
 
@@ -496,6 +520,32 @@ function stringArray(value: unknown) {
   }
 
   return value as string[];
+}
+
+function labelInput(body: Record<string, unknown>): SwissPostLabelInput {
+  const codes = (value: unknown) =>
+    value === undefined || value === null ? undefined : stringArray(value);
+  const weight = optionalNumber(body.weightGrams);
+
+  // the codes themselves are checked by createLabel
+  return {
+    service: (optionalString(body.service, 20) ??
+      undefined) as SwissPostLabelInput['service'],
+    additionalServices: codes(
+      body.additionalServices,
+    ) as SwissPostLabelInput['additionalServices'],
+    deliveryInstructions: codes(
+      body.deliveryInstructions,
+    ) as SwissPostLabelInput['deliveryInstructions'],
+    deliveryPlace:
+      body.deliveryPlace === undefined
+        ? undefined
+        : optionalString(body.deliveryPlace, 35),
+    weightGrams: weight === undefined ? undefined : weight,
+    force: body.force === true,
+    markShipped:
+      typeof body.markShipped === 'boolean' ? body.markShipped : undefined,
+  };
 }
 
 function record(value: unknown) {

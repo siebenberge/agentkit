@@ -1,3 +1,4 @@
+import type { AddressLookup } from '../address';
 import {
   type CartSummary,
   type CheckoutPaymentMethod,
@@ -12,12 +13,16 @@ import type { PaymentSlip } from '../receipt/payment-slip';
 import { type ReceiptSeller, renderReceiptHtml } from '../receipt/render';
 import type { Address, Locale, Order } from '../types';
 import type {
+  AddressCheckDto,
   CartDto,
   CatalogDto,
   CheckoutResultDto,
   GiftCardBalanceDto,
+  HouseNumbersDto,
+  LocalitiesDto,
   OrderDto,
   ProductDto,
+  StreetsDto,
   TotalsDto,
 } from './types';
 import {
@@ -48,11 +53,13 @@ export type ShopCustomer = {
  * - `checkout`, `pay`: each creates a payment page (e.g. per IP / cart)
  * - `gift-card`: balance checks and checkouts with gift card codes guess
  *   secrets (e.g. per IP)
+ * - `address`: each address suggestion or check asks the `addressLookup`
+ *   (Swiss Post API; e.g. per IP)
  */
 export type RateLimitCheck =
   | { route: 'webhook'; request: Request }
   | { route: 'webhook-order'; request: Request; orderId: string }
-  | { route: 'checkout' | 'pay' | 'gift-card'; request: Request };
+  | { route: 'checkout' | 'pay' | 'gift-card' | 'address'; request: Request };
 
 export type ShopHandlerOptions<C extends ShopCustomer = ShopCustomer> = {
   shop: Shop;
@@ -80,6 +87,11 @@ export type ShopHandlerOptions<C extends ShopCustomer = ShopCustomer> = {
    * state in shared storage (database, Redis) when the app runs serverless.
    */
   rateLimit?: (check: RateLimitCheck) => MaybePromise<RateLimitDecision>;
+  /**
+   * Address autocomplete and check for `<Checkout>` (`createSwissPost()` of
+   * `/swisspost`): the `/address/*` routes, `addressLookup: true` in the cart.
+   */
+  addressLookup?: AddressLookup | null;
   onError?: (error: unknown, request: Request) => void;
 };
 
@@ -107,6 +119,10 @@ const CART_HEADER = 'x-cart-token';
  * - `GET  /orders/:id?token=` – own order, or a guest's with its token
  * - `POST /orders/:id/pay?token=` – new payment page for an unpaid order
  * - `GET  /orders/:id/receipt?token=` – printable invoice / receipt (HTML)
+ * - with `addressLookup`: `GET /address/localities?q=`,
+ *   `GET /address/streets?q=&postalCode=`,
+ *   `GET /address/house-numbers?postalCode=&street=&q=`,
+ *   `POST /address/check` `{ address }`
  *
  * Mutations require `content-type: application/json`, which cross-site
  * forms cannot send (CSRF protection for cookie sessions).
@@ -195,6 +211,71 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
             shop.settings.tax.defaultRateBps,
           ),
         );
+      }
+
+      // ---- address autocomplete and check
+      if (segments[0] === 'address' && options.addressLookup) {
+        const lookup = options.addressLookup;
+        const query = (key: string, max = 60) => {
+          const value = url.searchParams.get(key) ?? '';
+
+          if (value.length > max) throw new HttpError(400, 'INVALID_INPUT');
+
+          return value;
+        };
+        // suggestions are public data: let a CDN keep them
+        const cached = { 'cache-control': 'public, max-age=86400' };
+
+        if (request.method === 'GET' && path === '/address/localities') {
+          await limit({ route: 'address', request });
+
+          return json<LocalitiesDto>(
+            { localities: await lookup.localities(query('q')) },
+            200,
+            cached,
+          );
+        }
+
+        if (request.method === 'GET' && path === '/address/streets') {
+          await limit({ route: 'address', request });
+
+          return json<StreetsDto>(
+            {
+              streets: await lookup.streets({
+                name: query('q'),
+                postalCode: query('postalCode', 16) || null,
+              }),
+            },
+            200,
+            cached,
+          );
+        }
+
+        if (request.method === 'GET' && path === '/address/house-numbers') {
+          await limit({ route: 'address', request });
+
+          return json<HouseNumbersDto>(
+            {
+              houseNumbers: await lookup.houseNumbers({
+                postalCode: query('postalCode', 16),
+                street: query('street'),
+                number: query('q', 10) || null,
+              }),
+            },
+            200,
+            cached,
+          );
+        }
+
+        if (request.method === 'POST' && path === '/address/check') {
+          await limit({ route: 'address', request });
+
+          const address = optionalAddress((await readBody(request)).address);
+
+          if (!address) throw new HttpError(400, 'INVALID_INPUT');
+
+          return json<AddressCheckDto>(await lookup.check(address));
+        }
       }
 
       const customer = (await options.identify?.(request)) ?? null;
@@ -529,6 +610,7 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
       invoiceDueDays: shop.settings.invoiceDueDays,
       totals: totalsDto(pricing),
       missing: summary.missing,
+      addressLookup: Boolean(options.addressLookup),
     };
   }
 }

@@ -1,3 +1,4 @@
+import type { AddressCheck, PostalLocality } from '../address';
 import type { CartLineView, CartRequirement, ShippingOption } from '../engine';
 import type { DiscountOutcome } from '../pricing';
 import type {
@@ -81,6 +82,8 @@ export type CartDto = {
   invoiceDueDays: number;
   totals: TotalsDto;
   missing: CartRequirement[];
+  /** The handler suggests and checks addresses (`/address/*`). */
+  addressLookup: boolean;
 };
 
 export type OrderLineDto = {
@@ -138,6 +141,14 @@ export type GiftCardBalanceDto = {
   currency: string;
   expiresAt: string | null;
 };
+
+export type LocalitiesDto = { localities: PostalLocality[] };
+
+export type StreetsDto = { streets: string[] };
+
+export type HouseNumbersDto = { houseNumbers: string[] };
+
+export type AddressCheckDto = AddressCheck;
 
 export type ShopErrorDto = {
   error: string;

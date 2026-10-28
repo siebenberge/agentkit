@@ -89,6 +89,7 @@ export const fr: Dict = {
           'Codes promo',
           'Bons cadeaux',
           'Connexion à HS-Soft (WaWiAssist)',
+          'Étiquettes d’envoi de La Poste & vérification d’adresse',
           'Commande via un agent IA (MCP)',
           'Back-office à intégrer',
           'Jour de retrait et de livraison avec créneau',
@@ -256,7 +257,7 @@ export const fr: Dict = {
       {
         title: 'core + CLI',
         when: 'ensuite',
-        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : étiquettes d’envoi de La Poste et remboursements via zahls.ch.',
+        text: 'Un noyau commun avec suite de tests des adaptateurs, une CLI pour le schéma et la route, documentation en allemand et en anglais. Dans shopkit : tarifs en direct de La Poste et remboursements via zahls.ch.',
       },
       {
         title: 'Relances et adaptateurs',
@@ -539,6 +540,16 @@ export const fr: Dict = {
         cause:
           'Une position ou les frais d’envoi de la commande n’ont pas d’article HS-Soft – le produit ne provient pas de l’import.',
         fix: 'Importez le produit depuis HS-Soft, définissez `orders.articleId` ou `orders.shippingArticleId`, ou excluez la commande avec `orders.filter`.',
+      },
+      'shopkit.SWISSPOST_REJECTED': {
+        cause:
+          'La Poste a refusé la requête : client ou scopes de la Digital Commerce API, licence d’affranchissement, combinaison de prestations impossible pour l’envoi, adresse où La Poste ne peut pas distribuer – ou envoi à l’étranger (les étiquettes sont pour la Suisse et le Liechtenstein). `error.details.errors` donne les codes de La Poste (`E2001` …).',
+        fix: 'Corrigez la cause (vérifiez le client et les scopes auprès de La Poste, la licence, les prestations du mode d’envoi ou l’adresse) et créez l’étiquette à nouveau. Répéter sans changement ne sert à rien.',
+      },
+      'shopkit.SWISSPOST_UNAVAILABLE': {
+        cause:
+          'La Poste n’était pas joignable ou était temporairement en panne (délai dépassé, 5xx, E9999).',
+        fix: 'Créez l’étiquette plus tard. Les propositions et la vérification d’adresse du checkout n’échouent pas pour autant – la commande continue sans elles.',
       },
     },
   },

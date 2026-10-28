@@ -8,6 +8,10 @@ import type {
   HsSoftProductData,
 } from '../../hssoft';
 import type {
+  SwissPostLabelInput,
+  SwissPostLabelRecord,
+} from '../../swisspost';
+import type {
   Discount,
   FulfillmentStatus,
   GiftCard,
@@ -70,6 +74,19 @@ export type AdminHsSoftOrderSync = HsSoftOrderSync;
 export type AdminHsSoftProductData = HsSoftProductData;
 /** Own availability period (`product.metadata.hssoftAvailability`). */
 export type AdminHsSoftAvailabilityPeriod = HsSoftAvailabilityPeriod;
+
+/** Swiss Post plugin: a label of the order (`order.metadata.swisspost`). */
+export type AdminSwissPostLabel = SwissPostLabelRecord;
+/** Service and options of a label (empty: the shipment of the order's rate). */
+export type AdminSwissPostLabelInput = SwissPostLabelInput;
+/** The label file of `POST /orders/:id/swisspost-label`. */
+export type AdminSwissPostLabelFile = {
+  file: Blob;
+  fileName: string;
+  contentType: string;
+  /** `99.60.012345.00000001`. */
+  trackingNumber: string;
+};
 
 /** What a bank file did (`reconcileBankPayments()`). */
 export type AdminBankReconciliation = {

@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { memoryAdapter } from '../adapters/memory';
+import type { AddressLookup } from '../address';
 import { createShop } from '../engine';
 import { createShopHandler } from '../http/handler';
 import type { PaymentProvider } from '../provider';
@@ -28,6 +29,7 @@ async function setup(
     { id: 'post', name: 'PostPac Economy', amount: 900 },
     { id: 'pickup', name: 'Abholung im Laden', amount: 0, pickup: true },
   ],
+  addressLookup?: AddressLookup,
 ) {
   const visits: string[] = [];
   const state = { customer: null as { externalId: string } | null };
@@ -60,6 +62,7 @@ async function setup(
     basePath: '/api/shop',
     identify: () => state.customer,
     orderUrl: (_request, order) => `https://shop.example/o/${order.id}`,
+    addressLookup,
   });
 
   const client = createShopClient({
@@ -359,6 +362,157 @@ describe('shop components', () => {
     await waitFor(() => expect(visits).toEqual(['https://pay.example/1']), {
       timeout: 5_000,
     });
+  });
+
+  it('suggests and checks the shipping address', async () => {
+    const checked: string[] = [];
+    const lookup: AddressLookup = {
+      localities: (query) =>
+        Promise.resolve(
+          query.startsWith('80')
+            ? [{ postalCode: '8001', city: 'Zürich' }]
+            : [],
+        ),
+      streets: () => Promise.resolve(['Bahnhofstrasse', 'Bahnhofplatz']),
+      houseNumbers: () => Promise.resolve(['1', '12']),
+      check: (address) => {
+        checked.push(address.line1);
+
+        return Promise.resolve(
+          address.line1 === 'Bahnhofstrasse 12'
+            ? { status: 'valid', address: null }
+            : {
+                status: 'corrected',
+                address: { ...address, line1: 'Bahnhofstrasse 12' },
+              },
+        );
+      },
+    };
+    const { ui, client, variantId, visits } = await setup(undefined, lookup);
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'post' });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(<Checkout orderHref={() => '/unused'} />);
+
+    fireEvent.change(await screen.findByLabelText('E-Mail'), {
+      target: { value: 'anna@example.ch' },
+    });
+
+    const input = (label: string) =>
+      screen.getAllByLabelText(label)[0] as HTMLInputElement;
+    const options = (field: HTMLInputElement) =>
+      [
+        ...(document.getElementById(field.getAttribute('list')!)?.children ??
+          []),
+      ].map((option) => (option as HTMLOptionElement).value);
+
+    fireEvent.change(input('Vor- und Nachname'), {
+      target: { value: 'Anna Muster' },
+    });
+
+    // postcode → localities; choosing one fills postcode and city
+    fireEvent.focus(input('PLZ'));
+    fireEvent.change(input('PLZ'), { target: { value: '80' } });
+    await waitFor(() => expect(options(input('PLZ'))).toEqual(['8001 Zürich']));
+    fireEvent.change(input('PLZ'), { target: { value: '8001 Zürich' } });
+    expect(input('PLZ').value).toBe('8001');
+    expect(input('Ort').value).toBe('Zürich');
+
+    // street, then its house numbers
+    fireEvent.focus(input('Strasse und Nr.'));
+    fireEvent.change(input('Strasse und Nr.'), {
+      target: { value: 'Bahnhofst' },
+    });
+    await waitFor(() =>
+      expect(options(input('Strasse und Nr.'))).toEqual([
+        'Bahnhofstrasse',
+        'Bahnhofplatz',
+      ]),
+    );
+    fireEvent.change(input('Strasse und Nr.'), {
+      target: { value: 'Bahnhofstrasse 1' },
+    });
+    await waitFor(() =>
+      expect(options(input('Strasse und Nr.'))).toEqual([
+        'Bahnhofstrasse 1',
+        'Bahnhofstrasse 12',
+      ]),
+    );
+
+    // the check suggests the official address before the order
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt bezahlen' }));
+    expect(await screen.findByText('Meintest du diese Adresse?')).toBeTruthy();
+    expect(visits).toEqual([]);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Vorschlag übernehmen' }),
+    );
+    expect(input('Strasse und Nr.').value).toBe('Bahnhofstrasse 12');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt bezahlen' }));
+    await waitFor(() => expect(visits).toEqual(['https://pay.example/1']), {
+      timeout: 5_000,
+    });
+    // the accepted suggestion is not checked again
+    expect(checked).toEqual(['Bahnhofstrasse 1']);
+  });
+
+  it('turns suggestions and the address check off one by one', async () => {
+    const calls: string[] = [];
+    const lookup: AddressLookup = {
+      localities: () => {
+        calls.push('localities');
+        return Promise.resolve([{ postalCode: '8001', city: 'Zürich' }]);
+      },
+      streets: () => Promise.resolve([]),
+      houseNumbers: () => Promise.resolve([]),
+      check: () => {
+        calls.push('check');
+        return Promise.resolve({ status: 'invalid', address: null });
+      },
+    };
+    const { ui, client, variantId, visits } = await setup(undefined, lookup);
+    let cart = await client.addItem(
+      (await client.createCart()).token,
+      variantId,
+    );
+
+    cart = await client.updateDetails(cart.token, { shippingRateId: 'post' });
+    window.localStorage.setItem('shopkit-cart', cart.token);
+    ui(
+      <Checkout
+        orderHref={() => '/unused'}
+        addressSuggestions={false}
+        addressCheck={false}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText('E-Mail'), {
+      target: { value: 'anna@example.ch' },
+    });
+
+    const fill = (label: string, value: string) =>
+      fireEvent.change(screen.getAllByLabelText(label)[0]!, {
+        target: { value },
+      });
+
+    fill('Vor- und Nachname', 'Anna Muster');
+    fill('Strasse und Nr.', 'Weg 1');
+    fireEvent.focus(screen.getAllByLabelText('PLZ')[0]!);
+    fill('PLZ', '80');
+    expect(screen.getAllByLabelText('PLZ')[0]!.getAttribute('list')).toBeNull();
+    fill('PLZ', '8001');
+    fill('Ort', 'Zürich');
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt bezahlen' }));
+
+    await waitFor(() => expect(visits).toEqual(['https://pay.example/1']), {
+      timeout: 5_000,
+    });
+    expect(calls).toEqual([]);
   });
 
   it('shows an order and the customer’s history', async () => {

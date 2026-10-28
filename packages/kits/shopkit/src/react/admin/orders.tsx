@@ -6,6 +6,7 @@ import { interpolate } from '../../i18n';
 import type { Address } from '../../types';
 import { HsSoftOrderHint, HsSoftOrderPanel } from './hssoft';
 import { useShopAdmin } from './provider';
+import { SwissPostOrderPanel } from './swisspost';
 import type { AdminOrder, AdminOrderQuery } from './types';
 import {
   Badge,
@@ -382,12 +383,22 @@ export type AdminOrderDetailProps = {
 
 /** One order: customer, items, totals, payment, shipping and the actions. */
 export function AdminOrderDetail(props: AdminOrderDetailProps) {
-  const { client, m, money, date, dateTime, openHtml, locale, hssoft } =
-    useShopAdmin();
+  const {
+    client,
+    m,
+    money,
+    date,
+    dateTime,
+    openHtml,
+    locale,
+    hssoft,
+    swisspost,
+  } = useShopAdmin();
   const {
     data: order,
     setData,
     error,
+    reload,
   } = useLoad(() => client.order(props.orderId), [client, props.orderId]);
   const { busy, feedback, run } = useAction();
   const [open, setOpen] = useState<Action | null>(null);
@@ -809,6 +820,10 @@ export function AdminOrderDetail(props: AdminOrderDetailProps) {
               })
             }
           />
+        ) : null}
+
+        {swisspost ? (
+          <SwissPostOrderPanel order={order} onCreated={reload} />
         ) : null}
       </div>
 

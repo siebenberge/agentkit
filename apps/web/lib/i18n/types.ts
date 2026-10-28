@@ -78,6 +78,8 @@ export const ERROR_DOC_KEYS = [
   'shopkit.HSSOFT_REJECTED',
   'shopkit.HSSOFT_UNAVAILABLE',
   'shopkit.HSSOFT_UNMAPPED',
+  'shopkit.SWISSPOST_REJECTED',
+  'shopkit.SWISSPOST_UNAVAILABLE',
 ] as const;
 
 export type ErrorDocKey = (typeof ERROR_DOC_KEYS)[number];

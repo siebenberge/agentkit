@@ -663,3 +663,13 @@
   margin: 0;
   padding-left: 1.25rem;
 }
+
+/* address check */
+.sk-address-check {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sk-address-suggestion {
+  font-weight: 600;
+}

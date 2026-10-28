@@ -31,6 +31,8 @@ const STATUS: Record<string, number> = {
   HSSOFT_REJECTED: 502,
   HSSOFT_UNAVAILABLE: 503,
   HSSOFT_UNMAPPED: 422,
+  SWISSPOST_REJECTED: 502,
+  SWISSPOST_UNAVAILABLE: 503,
 };
 
 /** Error → JSON response; unexpected errors are reported, not leaked. */

@@ -1,7 +1,7 @@
 {
   "name": "@agentkit.ch/shopkit",
   "version": "0.3.0",
-  "description": "Shop engine for Swiss products: catalog with variants and stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping, orders and refunds. Storefront API, React hooks and components, emails and receipts included. Database- and framework-agnostic (zahls.ch provider included).",
+  "description": "Shop engine for Swiss products: catalog with variants and stock, cart, checkout with TWINT / card or invoice with QR-bill, VAT per rate, discount codes, gift cards, shipping, orders and refunds. Storefront API, React hooks and components, emails, receipts and Swiss Post labels with address check included. Database- and framework-agnostic (zahls.ch provider included).",
   "keywords": [
     "shop",
     "e-commerce",
@@ -11,6 +11,7 @@
     "twint",
     "zahls",
     "vat",
+    "swiss-post",
     "hs-soft",
     "wawiassist"
   ],
@@ -52,6 +53,10 @@
       "./hssoft": {
         "types": "./dist/hssoft/index.d.ts",
         "default": "./dist/hssoft/index.js"
+      },
+      "./swisspost": {
+        "types": "./dist/swisspost/index.d.ts",
+        "default": "./dist/swisspost/index.js"
       },
       "./http": {
         "types": "./dist/http/index.d.ts",
@@ -108,6 +113,9 @@
         "hssoft": [
           "dist/hssoft/index.d.ts"
         ],
+        "swisspost": [
+          "dist/swisspost/index.d.ts"
+        ],
         "http": [
           "dist/http/index.d.ts"
         ],
@@ -161,6 +169,7 @@
     "./drizzle/schema": "./src/adapters/drizzle/schema.ts",
     "./zahls": "./src/providers/zahls.ts",
     "./hssoft": "./src/hssoft/index.ts",
+    "./swisspost": "./src/swisspost/index.ts",
     "./http": "./src/http/index.ts",
     "./mcp": "./src/mcp/index.ts",
     "./emails": "./src/emails/index.ts",

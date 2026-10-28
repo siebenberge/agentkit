@@ -1,10 +1,14 @@
 import type {
+  AddressCheckDto,
   CartDto,
   CatalogDto,
   CheckoutResultDto,
   GiftCardBalanceDto,
+  HouseNumbersDto,
+  LocalitiesDto,
   OrderDto,
   ProductDto,
+  StreetsDto,
 } from '../http/types';
 import type { Address } from '../types';
 
@@ -125,6 +129,20 @@ export function createShopClient(options: ShopClientOptions) {
 
     giftCardBalance: (code: string) =>
       request<GiftCardBalanceDto>('/gift-cards/balance', { body: { code } }),
+
+    /** Address suggestions and check (handler with `addressLookup`). */
+    localities: (query: string) =>
+      request<LocalitiesDto>('/address/localities', { query: { q: query } }),
+    streets: (query: string, postalCode?: string | null) =>
+      request<StreetsDto>('/address/streets', {
+        query: { q: query, ...(postalCode ? { postalCode } : {}) },
+      }),
+    houseNumbers: (postalCode: string, street: string, query?: string | null) =>
+      request<HouseNumbersDto>('/address/house-numbers', {
+        query: { postalCode, street, ...(query ? { q: query } : {}) },
+      }),
+    checkAddress: (address: Address) =>
+      request<AddressCheckDto>('/address/check', { body: { address } }),
 
     orders: () => request<OrderDto[]>('/orders'),
     order: (orderId: string, token?: string | null) =>
