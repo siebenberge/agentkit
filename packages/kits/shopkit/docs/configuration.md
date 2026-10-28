@@ -168,7 +168,8 @@ pickup or delivery. Days are calendar days in Zurich (`YYYY-MM-DD`).
 
 Invalid values throw at start, e.g.
 `shipping rate "laden": schedule.cutoff must be HH:mm`. How the days are
-computed and checked: [pickup and delivery day](cart-checkout.md#pickup-and-delivery-day).
+computed and checked:
+[pickup and delivery day](cart-checkout.md#pickup-and-delivery-day).
 
 ### allowFulfillmentDate
 
