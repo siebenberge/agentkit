@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { Mark } from '~/components/hero-mock';
-import { themeScript } from '~/components/home';
+import { themeScript } from '~/components/blocks';
 import { LanguageMenu } from '~/components/language-menu';
 import { ERROR_CODES } from '~/lib/content';
 import type { Dict, KitId, Locale } from '~/lib/i18n';

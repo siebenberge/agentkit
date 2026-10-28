@@ -274,6 +274,233 @@ export const de: Dict = {
     company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
+  kitPage: {
+    more: 'Mehr zu {kit}',
+    audience: 'Für wen',
+    install: 'Installieren',
+    otherKit: 'Das zweite Kit',
+  },
+  kitPages: {
+    subkit: {
+      meta: {
+        title: 'subkit – Abos und Rechnungen mit TWINT und QR-Rechnung',
+        description:
+          'Abos, Rechnungen und Self-Service für SaaS, Mitgliedschaften und Vereinsbeiträge: eine Library für TypeScript mit TWINT, QR-Rechnung, MWST, Bankabgleich und vier Sprachen. Kostenlos und Open Source.',
+      },
+      title: 'Abos, die sich selbst abrechnen',
+      lead: 'subkit bringt Pläne, Testphasen, Pro-rata-Abrechnung und Rechnungen in deine TypeScript-App. Deine Kundinnen und Kunden zahlen per **TWINT, Karte oder QR-Rechnung**, subkit verlängert, erinnert und gleicht Zahlungen mit der Bank ab. Die Daten bleiben in **deiner** Datenbank.',
+      prompt:
+        'Füge mit @agentkit.ch/subkit Abos mit QR-Rechnung und TWINT hinzu. Lies zuerst {url}/llms.txt.',
+      proof: [
+        { value: '3', label: 'Zahlungsarten: TWINT, Karte und QR-Rechnung' },
+        { value: '4', label: 'Sprachen für Portal, E-Mails und Rechnungen' },
+        { value: 'CHF 0', label: 'Gebühr pro Transaktion an uns' },
+        { value: 'MIT', label: 'Open Source auf GitHub, Pakete auf npm' },
+      ],
+      audience: {
+        title: 'Für alles, was jeden Monat oder jedes Jahr bezahlt wird.',
+        lead: 'subkit kümmert sich um wiederkehrende Zahlungen – vom SaaS mit Teams und Limiten bis zum Verein, dessen Mitglieder im E-Banking zahlen.',
+        items: [
+          {
+            title: 'SaaS',
+            text: 'Pläne mit Features und Limiten, Testphasen und Upgrades pro rata. hasFeature() und getLimit() entscheiden in deinem Code, was ein Team darf.',
+          },
+          {
+            title: 'Mitgliedschaften',
+            text: 'Monats- oder Jahresabos mit TWINT oder Karte, einmal hinterlegt und automatisch verlängert. Quittungen und Erinnerungen in vier Sprachen.',
+          },
+          {
+            title: 'Vereinsbeiträge',
+            text: 'Rechnung mit QR-Rechnung statt Karte: Mitglieder zahlen im E-Banking, der camt.054 deiner Bank markiert die Rechnung als bezahlt.',
+          },
+        ],
+      },
+      portal: {
+        eyebrow: 'Self-Service',
+        title: 'Die Abrechnungsseite ist schon fertig.',
+        lead: 'Mit <BillingPortal /> wechseln deine Kundinnen und Kunden den Plan, hinterlegen TWINT oder Karte und laden ihre Rechnungen herunter. Jede Zahlung landet als Zeile in deiner Datenbank.',
+      },
+      features: {
+        title: 'Alles, was ein Abo braucht.',
+        lead: 'Aus Code, der bei Membear produktiv läuft: Pläne, Zahlungen, Rechnungen und die Fälle, die erst in Produktion auffallen.',
+        items: [
+          {
+            title: 'Pläne & Testphasen',
+            text: 'Monatlich oder jährlich, mit Testphase und Gratisplan. Versteckte Pläne bleiben bei ihren Abonnenten, werden aber nicht mehr verkauft.',
+          },
+          {
+            title: 'Pro rata auf den Rappen',
+            text: 'Wechselt ein Team mitten im Monat auf einen grösseren Plan, rechnet subkit die Differenz ab und belastet sie sofort.',
+          },
+          {
+            title: 'TWINT, Karte oder Rechnung',
+            text: 'Zahlungsmittel einmal hinterlegen und jede Periode belasten – oder per Rechnung mit QR-Rechnung zahlen lassen.',
+          },
+          {
+            title: 'Erinnerungen & Wiederholungen',
+            text: 'Zahlungsfristen, automatische Wiederholungen und Erinnerungs-E-Mails. Mahnstufen mit Gebühren folgen als Nächstes.',
+          },
+          {
+            title: 'Berechtigungen & Limiten',
+            text: 'hasFeature() und getLimit() lesen den aktuellen Plan – ohne eigene Tabelle für Features.',
+          },
+          {
+            title: 'Bankabgleich',
+            text: 'camt.053 und camt.054 der Bank importieren, QR-Referenzen offenen Rechnungen zuordnen, als bezahlt markieren.',
+          },
+          {
+            title: 'E-Mails & Rechnungen',
+            text: 'Quittungen, Erinnerungen und Verlängerungen als HTML und Text, druckbare Rechnungen mit QR-Zahlteil – in vier Sprachen.',
+          },
+          {
+            title: 'MWST auf jeder Rechnung',
+            text: 'MWST-Zeile und CHE-Nummer auf jeder Rechnung, gerechnet in ganzen Rappen statt mit Gleitkommazahlen.',
+          },
+          {
+            title: 'MCP für dein Team',
+            text: 'Kunden finden, Plan wechseln, kündigen, Rechnungen als bezahlt markieren – aus Claude oder ChatGPT, geschützt durch deine Anmeldung.',
+          },
+        ],
+      },
+      code: {
+        title: 'In fünf Minuten abgerechnet.',
+        lead: 'Pläne, Zahlungsanbieter und MWST in einer Datei, eine Route für API und Webhook, eine Komponente für die Abrechnungsseite.',
+      },
+      faq: [
+        {
+          q: 'Für welche Produkte eignet sich subkit?',
+          a: 'Für alles, was wiederkehrend bezahlt wird: SaaS-Abos, Mitgliedschaften, Vereinsbeiträge, Kurse im Abo. Für den Verkauf von Produkten gibt es shopkit.',
+        },
+        {
+          q: 'Wie zahlen meine Kundinnen und Kunden?',
+          a: 'Per TWINT oder Karte über zahls.ch – das Zahlungsmittel wird einmal hinterlegt und jede Periode belastet – oder per Rechnung mit Schweizer QR-Rechnung. Welche Zahlungsarten du anbietest, legst du mit collectionMethods fest.',
+        },
+        {
+          q: 'Was passiert, wenn eine Zahlung fehlschlägt?',
+          a: 'subkit versucht es automatisch nochmals und schickt eine Erinnerungs-E-Mail. Ist eine Rechnung überfällig, verkauft subkit dem Kunden nichts Neues, bis sie bezahlt ist.',
+        },
+        {
+          q: 'Wo liegen die Daten meiner Kundinnen und Kunden?',
+          a: 'In deiner Datenbank. subkit läuft als Library in deiner App und schreibt über den Drizzle-Adapter in deine Postgres-Tabellen. Es gibt kein agentkit-Backend und keinen zusätzlichen Auftragsbearbeiter.',
+        },
+        {
+          q: 'Was kostet subkit?',
+          a: 'Nichts. subkit ist Open Source unter MIT, ohne Gebühr pro Transaktion. Du bezahlst nur deinen Zahlungsanbieter.',
+        },
+      ],
+      cta: {
+        title: 'Abos in deiner App, noch heute',
+        lead: 'Kopiere den Setup-Prompt in deinen Coding-Agent – oder probiere subkit zuerst im Browser aus.',
+      },
+    },
+    shopkit: {
+      meta: {
+        title: 'shopkit – Online-Shop mit TWINT, QR-Rechnung und Etiketten der Post',
+        description:
+          'Der Online-Shop als Library für TypeScript: Produkte, Warenkorb und Checkout mit TWINT oder auf Rechnung, MWST pro Produkt, Etiketten der Post, Gutscheine und Bestellen per KI-Agent. Kostenlos und Open Source.',
+      },
+      title: 'Verkaufen mit TWINT und QR-Rechnung',
+      lead: 'shopkit bringt Katalog, Warenkorb, Checkout und Backoffice in deine TypeScript-App. Bezahlt wird per **TWINT, Karte oder auf Rechnung**, Lager, Versand und MWST rechnet shopkit, die Etiketten kommen von der **Post**. Die Daten bleiben in **deiner** Datenbank.',
+      prompt:
+        'Füge mit @agentkit.ch/shopkit einen Shop mit TWINT und QR-Rechnung hinzu. Lies zuerst {url}/llms.txt.',
+      proof: [
+        { value: '3', label: 'MWST-Sätze pro Produkt: 8.1, 2.6 und 3.8 %' },
+        { value: '4', label: 'Sprachen für Shop, E-Mails und Quittungen' },
+        { value: 'CHF 0', label: 'Gebühr pro Bestellung an uns' },
+        { value: 'MIT', label: 'Open Source auf GitHub, Pakete auf npm' },
+      ],
+      audience: {
+        title: 'Für Shops, die Schweizer Kundschaft bedienen.',
+        lead: 'Vom Fanshop eines Vereins bis zur Bäckerei mit Abholung: shopkit kennt TWINT, die QR-Rechnung, die Post und die MWST-Sätze der Schweiz.',
+        items: [
+          {
+            title: 'Vereinsshops & Merch',
+            text: 'Trikots in Grössen, Schals und Gutscheine – bezahlt per TWINT oder auf Rechnung, verschickt mit der Post oder abgeholt.',
+          },
+          {
+            title: 'Bäckereien & Hofläden',
+            text: 'Abholtag mit Zeitfenster, Bestellschluss und geschlossenen Tagen. Mit WaWiAssist von HS-Soft kommen die Artikel samt Allergenen aus der Warenwirtschaft.',
+          },
+          {
+            title: 'Röstereien & KMU',
+            text: 'Varianten, Lager, Versand nach Gewicht und das Etikett der Post mit einem Klick. Stammkundinnen bestellen sogar über ihren KI-Agent.',
+          },
+        ],
+      },
+      features: {
+        title: 'Alles, was ein Shop braucht.',
+        lead: 'Katalog, Kasse und Backoffice, mit den Schweizer Details, die generische Shop-Systeme als Plugin nachliefern.',
+        items: [
+          {
+            title: 'Produkte & Varianten',
+            text: 'Physische Produkte und Geschenkkarten, Varianten mit eigenem Preis und Lager, Streichpreise, Bilder und Texte in vier Sprachen.',
+          },
+          {
+            title: 'Lager, das stimmt',
+            text: 'Der Bestand wird beim Checkout reserviert: Den letzten Artikel verkauft shopkit nur einmal, auch unter Last.',
+          },
+          {
+            title: 'TWINT, Karte oder Rechnung',
+            text: 'Online über zahls.ch oder auf Rechnung mit QR-Rechnung. Wer auf Rechnung kaufen darf, entscheidest du.',
+          },
+          {
+            title: 'MWST pro Produkt',
+            text: '8.1, 2.6 oder 3.8 % pro Produkt, der Versand anteilig verteilt, jede Quittung mit allen Sätzen. Auf Wunsch auf 5 Rappen gerundet.',
+          },
+          {
+            title: 'Versand & Abholung',
+            text: 'Pauschal, nach Gewicht, gratis ab einem Betrag oder Abholung. Abhol- und Liefertag mit Zeitfenster und Bestellschluss.',
+          },
+          {
+            title: 'Rabattcodes & Gutscheine',
+            text: 'Prozent, Betrag oder Gratisversand mit Bedingungen. Geschenkkarten verkaufen und über mehrere Bestellungen einlösen.',
+          },
+          {
+            title: 'Bestellungen & Rückerstattungen',
+            text: 'Bestellnummern, Links für Gäste, Status für Zahlung und Versand, Rückerstattungen in Teilen mit Rückbuchung ins Lager.',
+          },
+          {
+            title: 'Backoffice zum Einbauen',
+            text: '<ShopAdmin /> mit Bestellungen, Produkten, Lager, Rabattcodes, Gutscheinen und Bankimport – geschützt durch deine Anmeldung.',
+          },
+          {
+            title: 'E-Mails in deinem Look',
+            text: 'Bestätigung, Zahlung erhalten, versendet, Erinnerung, Gutscheincode – in vier Sprachen, mit deinem Logo und deinen Farben.',
+          },
+        ],
+      },
+      code: {
+        title: 'In zehn Minuten ein Shop.',
+        lead: 'Der Shop in einer Datei, eine Route für Storefront-API und Webhook, fertige Komponenten für Checkout und Backoffice.',
+      },
+      faq: [
+        {
+          q: 'Für wen ist shopkit?',
+          a: 'Für alle, die Produkte in ihrer eigenen App verkaufen: Vereinsshops, Bäckereien mit Abholung, Röstereien, KMU mit Merch oder Gutscheinen. Für wiederkehrende Zahlungen gibt es subkit.',
+        },
+        {
+          q: 'Wie zahlen meine Kundinnen und Kunden?',
+          a: 'Per TWINT oder Karte über zahls.ch oder auf Rechnung mit Schweizer QR-Rechnung. Angemeldete Kundinnen können ihr Zahlungsmittel speichern und die nächste Bestellung ohne Zahlungsseite bezahlen. Rechnungen gleicht shopkit mit dem camt.054 deiner Bank ab.',
+        },
+        {
+          q: 'Erstellt shopkit Versandetiketten der Post?',
+          a: 'Ja, seit shopkit 0.4: das Etikett mit Barcode aus der Bestellung, im Backoffice, per API oder per MCP, dazu die Sendungsnummer mit Track & Trace in der Versand-E-Mail. Im Checkout schlägt die Post Adressen vor und prüft sie. Du brauchst eine Frankierlizenz und einen Zugang zur Digital Commerce API der Post. Etiketten ins Ausland und Live-Tarife sind geplant.',
+        },
+        {
+          q: 'Funktioniert shopkit mit HS-Soft (WaWiAssist)?',
+          a: 'Ja. @agentkit.ch/shopkit/hssoft importiert die Artikel aus WaWiAssist als Produkte und sendet jede Bestellung als Auftrag zurück, mit dem Abholtag als Bestelldatum. Du brauchst nur den API-Key deines WaWiAssist von HS-Soft.',
+        },
+        {
+          q: 'Was kostet shopkit?',
+          a: 'Nichts. shopkit ist Open Source unter MIT, ohne Gebühr pro Bestellung. Du bezahlst nur deinen Zahlungsanbieter und die Post für deine Sendungen.',
+        },
+      ],
+      cta: {
+        title: 'Dein Shop, noch heute',
+        lead: 'Kopiere den Setup-Prompt in deinen Coding-Agent – oder probiere shopkit zuerst im Browser aus.',
+      },
+    },
+  },
   errors: {
     meta: {
       title: 'Fehlercodes – agentkit',

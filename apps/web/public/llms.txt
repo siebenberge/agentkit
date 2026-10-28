@@ -184,7 +184,8 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
 ## Website languages
 
 The site exists in German (/de), French (/fr), Italian (/it) and English
-(/en).
+(/en). Each kit has its own page: /<lang>/subkit and /<lang>/shopkit (e.g.
+https://agentkit.ch/en/subkit).
 
 ## Source
 
