@@ -645,7 +645,11 @@ returns; payment tokens and guest-link tokens never reach the model.
   option's `schedule` in `quote_order`.
 - `place_order` with `payWith: "payment_link"` (default) returns `paymentUrl`.
   `savePaymentMethod: true` (only when the customer asks) saves the card /
-  TWINT used on that page for later orders.
+  TWINT used on that page for later orders. Or decide it in the shop: the
+  handler option `savePaymentMethod: (customer) => boolean` (e.g. the
+  customer ticked it when connecting the agent) saves the payment-page
+  payments of that customer until a payment method is saved – whatever the
+  agent passes.
 - `payWith: "saved_payment_method"` charges the saved payment method at once
   and needs `expectedAmount`, the total the customer confirmed – another
   amount fails with `AMOUNT_CHANGED` before anything is charged. A declined
