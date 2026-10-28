@@ -151,6 +151,267 @@ export function ShopMock({ t }: { t: Dict['home']['bento']['shop'] }) {
   );
 }
 
+/* ---------- shopkit: a customer's agent orders through the shop's MCP ---------- */
+
+function ToolCall({
+  name,
+  arg,
+  busy,
+}: {
+  name: string;
+  arg?: string;
+  busy?: boolean;
+}) {
+  return (
+    <p className="flex items-center gap-2 font-mono text-[11px] text-muted">
+      <span
+        className={`grid size-4 shrink-0 place-items-center rounded ${busy ? 'text-violet' : 'bg-violet/12 text-violet'}`}
+      >
+        {busy ? <Spinner /> : <Check className="size-2.5" />}
+      </span>
+      <span className="text-fg">{name}</span>
+      {arg && <span className="truncate text-faint">{arg}</span>}
+    </p>
+  );
+}
+
+export function AgentOrderMock({
+  t,
+}: {
+  t: Dict['home']['news']['agent'];
+}) {
+  const [ref, step] = useSequence([1400, 1100, 1900, 1500, 1200, 3400], 5);
+  const { shop, prices, total, expectedAmount, order } = MOCK.agentOrder;
+  const show = (from: number) =>
+    `transition-all duration-500 ${step >= from ? '' : 'translate-y-1 opacity-0'}`;
+  return (
+    <div
+      ref={ref}
+      className="float-card w-[380px] max-w-full overflow-hidden rounded-2xl text-sm"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-panel-line px-4 py-2.5">
+        <span className="flex items-center gap-2 text-[13px] font-medium">
+          <span className="grid size-6 place-items-center rounded-md bg-violet/12 text-violet">
+            <svg
+              viewBox="0 0 24 24"
+              className="size-3.5"
+              fill="currentColor"
+              aria-hidden
+            >
+              <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
+            </svg>
+          </span>
+          Agent
+        </span>
+        <span className="flex items-center gap-1.5 truncate rounded-full bg-soft px-2 py-0.5 font-mono text-[10px] text-muted">
+          <span className="size-1.5 shrink-0 rounded-full bg-ok" />
+          MCP · {shop}
+        </span>
+      </div>
+      <div className="space-y-2.5 p-4">
+        <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-fg px-3 py-2 text-[13px] text-bg">
+          {t.ask}
+        </p>
+        <div className={show(1)}>
+          <ToolCall name="search_products" arg="zopf, bauernbrot" />
+        </div>
+        <div className={`space-y-2 ${show(2)}`}>
+          <ToolCall name="quote_order" />
+          <div className="rounded-xl bg-soft px-3 py-2.5 text-xs">
+            {t.items.map((item, i) => (
+              <p key={item} className="flex justify-between gap-3">
+                <span className="truncate">{item}</span>
+                <span className="tabular-nums text-muted">{prices[i]}</span>
+              </p>
+            ))}
+            <p className="mt-1 truncate text-faint">{t.pickup}</p>
+            <p className="mt-1.5 flex justify-between border-t border-panel-line pt-1.5 font-semibold">
+              <span>{t.total}</span>
+              <span className="tabular-nums">CHF {total}</span>
+            </p>
+          </div>
+        </div>
+        <p
+          className={`w-fit max-w-[85%] rounded-2xl rounded-bl-md bg-soft px-3 py-2 text-[13px] ${show(3)}`}
+        >
+          {t.confirm}
+        </p>
+        <p
+          className={`ml-auto w-fit rounded-2xl rounded-br-md bg-fg px-3 py-2 text-[13px] text-bg ${show(4)}`}
+        >
+          {t.yes}
+        </p>
+        <div className={`space-y-2 ${show(4)}`}>
+          <ToolCall
+            name="place_order"
+            arg={`expectedAmount: ${expectedAmount}`}
+            busy={step === 4}
+          />
+          <div
+            className={`flex h-9 items-center justify-center gap-2 rounded-xl text-[13px] font-medium transition-colors duration-500 ${step === 5 ? 'bg-ok/12 text-ok' : 'bg-soft text-faint'}`}
+          >
+            {step === 5 ? (
+              <span className="animate-swap-in flex items-center gap-2">
+                <Check /> {t.paid} · {order}
+              </span>
+            ) : (
+              'TWINT …'
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- shopkit + HS-Soft: articles in, orders out ---------- */
+
+function Lane({
+  label,
+  from,
+  to,
+  left,
+  right,
+  active,
+}: {
+  label: string;
+  from: string;
+  to: string;
+  left: React.ReactNode;
+  right: React.ReactNode;
+  active: boolean;
+}) {
+  return (
+    <div>
+      <p className="float-card mb-2 w-fit rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted">
+        {label}
+      </p>
+      <div className="grid items-center gap-2 sm:grid-cols-[1fr_44px_1fr]">
+        <div className="float-card rounded-2xl p-3">
+          <p className="mb-2 font-mono text-[10px] text-faint">{from}</p>
+          {left}
+        </div>
+        <div className="relative hidden h-px sm:block">
+          <svg
+            className="absolute inset-0 h-px w-full overflow-visible"
+            aria-hidden
+          >
+            <line
+              x1="0"
+              y1="0"
+              x2="100%"
+              y2="0"
+              stroke="currentColor"
+              strokeDasharray="4 6"
+              className="animate-dash text-faint"
+            />
+          </svg>
+          {active && (
+            <span className="animate-travel absolute -top-1 size-2 rounded-full bg-ok shadow-[0_0_0_4px_color-mix(in_srgb,var(--ok)_20%,transparent)]" />
+          )}
+        </div>
+        <div className="float-card rounded-2xl p-3">
+          <p className="mb-2 font-mono text-[10px] text-faint">{to}</p>
+          {right}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HsSoftMock({ t }: { t: Dict['home']['news']['hssoft'] }) {
+  const [ref, step] = useSequence([1000, 900, 900, 1300, 1700, 3200], 5);
+  const { articles, order, orderNumber } = MOCK.hssoft;
+  const wawi = 'WaWiAssist';
+  const synced = step === 5;
+  return (
+    <div ref={ref} className="w-full max-w-[560px] space-y-4 text-[13px]">
+      <Lane
+        label={t.import}
+        from={wawi}
+        to="shopkit"
+        active={step < 4}
+        left={
+          <ul className="space-y-1.5">
+            {articles.map((a, i) => (
+              <li key={a.number} className="flex items-center gap-2">
+                <span className="w-8 shrink-0 rounded bg-soft px-1 py-0.5 text-center font-mono text-[10px] text-muted">
+                  {a.number}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  {t.articles[i]}
+                </span>
+                <span className="tabular-nums text-muted">{a.price}</span>
+              </li>
+            ))}
+          </ul>
+        }
+        right={
+          <ul className="space-y-1.5">
+            {articles.map((a, i) => (
+              <li
+                key={a.number}
+                className={`flex items-center gap-2 transition-all duration-500 ${step > i ? '' : 'translate-x-1 opacity-0'}`}
+              >
+                <span className="grid size-4 shrink-0 place-items-center rounded-full bg-ok text-white">
+                  <Check className="size-2.5" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  {t.articles[i]}
+                </span>
+                <span className="truncate text-[11px] text-faint">
+                  {i === articles.length - 1 ? t.from : t.imported}
+                </span>
+              </li>
+            ))}
+          </ul>
+        }
+      />
+      <Lane
+        label={t.orders}
+        from="shopkit"
+        to={wawi}
+        active={step === 4}
+        left={
+          <div>
+            <p className="font-medium">
+              {order} · CHF {MOCK.agentOrder.total}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-faint">{t.pickup}</p>
+          </div>
+        }
+        right={
+          <div
+            className={`transition-opacity duration-500 ${step >= 4 ? '' : 'opacity-35'}`}
+          >
+            <p className="flex items-center gap-2 font-medium">
+              {synced ? (
+                <span className="animate-swap-in">
+                  {t.synced} {orderNumber}
+                </span>
+              ) : (
+                <span className="text-muted">
+                  {step === 4 ? t.sending : '—'}
+                </span>
+              )}
+            </p>
+            {/* order.metadata.hssoft.state */}
+            <p className="mt-1 h-5 font-mono text-[11px]">
+              {step >= 4 && (
+                <span
+                  className={`rounded px-1.5 py-0.5 ${synced ? 'bg-ok/12 text-ok' : 'bg-soft text-faint'}`}
+                >
+                  {synced ? 'synced' : 'sending'}
+                </span>
+              )}
+            </p>
+          </div>
+        }
+      />
+    </div>
+  );
+}
+
 /* ---------- Your database: rows arrive ---------- */
 
 const DB_ROWS = [

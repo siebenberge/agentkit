@@ -5,8 +5,10 @@ import { CodeWindow, CopyButton, ThemeSwitch } from '~/components/client';
 import { HeroMock, Mark } from '~/components/hero-mock';
 import { LanguageMenu } from '~/components/language-menu';
 import {
+  AgentOrderMock,
   DbMock,
   FlowMock,
+  HsSoftMock,
   MailMock,
   PlanMock,
   ShopMock,
@@ -36,6 +38,9 @@ const SHOP_DEMO = KITS.find((k) => k.id === 'shopkit')!.demo!;
 
 const WRAP = 'mx-auto w-full max-w-[1360px] px-4 sm:px-8 lg:px-10';
 
+/** README sections of the features in the «new» section. */
+const SHOPKIT_README = `${REPO_URL}/tree/main/packages/kits/shopkit`;
+
 export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
   const h = t.home;
   const tabs = (await heroTabs()).filter((tab) =>
@@ -51,6 +56,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
   const nav = [
     { href: '#subkit', label: 'subkit' },
     { href: '#shopkit', label: 'shopkit' },
+    { href: '#new', label: h.nav.news },
     { href: '#switzerland', label: t.nav.switzerland },
     { href: '#developers', label: h.dev.eyebrow },
     { href: '#open-source', label: h.nav.openSource },
@@ -149,16 +155,28 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
             <Scene name="alpine" priority pan position="center 30%" />
             <div className="absolute inset-0 bg-gradient-to-br from-[#0b1e44]/70 via-[#0b1e44]/25 to-transparent" />
             <div className="relative mx-auto flex max-w-[1300px] flex-col items-start px-5 pt-16 text-left text-white sm:px-8 sm:pt-24 lg:px-12">
-              <a
-                href={REPO_URL}
-                className="animate-hero-in inline-flex max-w-full border border-white/30 bg-white/15 backdrop-blur-md items-center gap-2 rounded-full p-1 pr-3.5 text-[13px] transition hover:bg-white/25"
-              >
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
-                  MIT
-                </span>
-                <span className="truncate">{t.hero.eyebrow}</span>
-                <Arrow className="size-3 -rotate-45" />
-              </a>
+              <div className="animate-hero-in flex max-w-full flex-wrap gap-2">
+                <a
+                  href="#new"
+                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-white/15 p-1 pr-3.5 text-[13px] backdrop-blur-md transition hover:bg-white/25"
+                >
+                  <span className="rounded-full bg-signal px-2.5 py-0.5 text-xs font-semibold text-white">
+                    {h.nav.news}
+                  </span>
+                  <span className="truncate">{h.news.pill}</span>
+                  <Arrow className="size-3" />
+                </a>
+                <a
+                  href={REPO_URL}
+                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-white/15 p-1 pr-3.5 text-[13px] backdrop-blur-md transition hover:bg-white/25"
+                >
+                  <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
+                    MIT
+                  </span>
+                  <span className="truncate">{t.hero.eyebrow}</span>
+                  <Arrow className="size-3 -rotate-45" />
+                </a>
+              </div>
               <h1
                 className="animate-hero-in mt-7 max-w-[15ch] text-[clamp(2.6rem,7.6vw,6.8rem)] font-semibold leading-[0.93] tracking-[-0.05em] [text-shadow:0_2px_30px_rgb(5_20_60/0.35)]"
                 style={{ ['--d' as string]: '80ms' }}
@@ -292,6 +310,48 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
             >
               <ShopMock t={h.bento.shop} />
             </KitCard>
+          </div>
+        </section>
+
+        {/* New in shopkit: ordering through agents, HS-Soft */}
+        <section id="new" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+          <SplitHead
+            eyebrow={h.news.eyebrow}
+            title={h.news.title}
+            lead={h.news.lead}
+          />
+          <div className="mt-14 grid gap-3 lg:grid-cols-2">
+            <NewsCard
+              icon={<IconChat />}
+              title={h.news.agent.title}
+              text={h.news.agent.text}
+              points={h.news.agent.points}
+              code="createShopCustomerMcpHandler"
+              entry="@agentkit.ch/shopkit/mcp"
+              docs={{
+                href: `${SHOPKIT_README}#mcp-server-for-your-customers`,
+                label: h.news.docs,
+              }}
+              scene="lavender"
+            >
+              <AgentOrderMock t={h.news.agent} />
+            </NewsCard>
+            <NewsCard
+              icon={<IconSync />}
+              title={h.news.hssoft.title}
+              text={h.news.hssoft.text}
+              points={h.news.hssoft.points}
+              code="createHsSoftSync"
+              entry="@agentkit.ch/shopkit/hssoft"
+              docs={{
+                href: `${SHOPKIT_README}#hs-soft-wawiassist`,
+                label: h.news.docs,
+              }}
+              scene="autumn"
+              delay="100ms"
+            >
+              <HsSoftMock t={h.news.hssoft} />
+            </NewsCard>
           </div>
         </section>
 
@@ -1052,6 +1112,82 @@ function KitCard({
   );
 }
 
+function NewsCard({
+  icon,
+  title,
+  text,
+  points,
+  code,
+  entry,
+  docs,
+  scene,
+  delay,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  points: string[];
+  /** Function that sets the feature up, and its entry point. */
+  code: string;
+  entry: string;
+  docs: { href: string; label: string };
+  scene: SceneName;
+  delay?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <article
+      data-reveal
+      style={delay ? { ['--d' as string]: delay } : undefined}
+      className="flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-line p-2"
+    >
+      <div className="px-5 pb-7 pt-5 sm:px-7 sm:pt-7">
+        <div className="flex items-center gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-fg text-bg">
+            {icon}
+          </span>
+          <h3 className="text-xl font-semibold tracking-tight text-balance">
+            {title}
+          </h3>
+        </div>
+        <p className="mt-5 max-w-xl text-pretty leading-relaxed text-muted">
+          {text}
+        </p>
+        <ul className="mt-6 grid gap-y-2.5 text-[15px]">
+          {points.map((p) => (
+            <li key={p} className="flex items-start gap-2.5">
+              <CheckMark />
+              {p}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <code className="min-w-0 truncate rounded-lg border border-line bg-code px-3 py-1.5 font-mono text-xs">
+            <span className="text-violet">import</span> {`{ ${code} }`}{' '}
+            <span className="text-violet">from</span>{' '}
+            <span className="text-ok">&apos;{entry}&apos;</span>
+          </code>
+          <a
+            href={docs.href}
+            className="flex items-center gap-1.5 text-sm font-medium transition hover:opacity-70"
+          >
+            {docs.label}
+            <Arrow className="size-3.5" />
+          </a>
+        </div>
+      </div>
+      <div
+        data-loop
+        className="relative mt-auto flex min-h-[420px] items-center justify-center overflow-hidden rounded-[16px] p-4 sm:min-h-[460px] sm:p-8"
+      >
+        <Scene name={scene} />
+        <div className="relative flex w-full justify-center">{children}</div>
+      </div>
+    </article>
+  );
+}
+
 function CheckMark() {
   return (
     <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-ok/12 text-ok">
@@ -1183,6 +1319,17 @@ function Arrow({ className }: { className?: string }) {
 const IconRepeat = () => (
   <Svg>
     <path d="M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4" />
+  </Svg>
+);
+const IconChat = () => (
+  <Svg>
+    <path d="M20 12.5a7.5 7.5 0 0 1-11 6.6L4 20l1-4.4A7.5 7.5 0 1 1 20 12.5z" />
+    <path d="M9 11h6M9 14h3.5" />
+  </Svg>
+);
+const IconSync = () => (
+  <Svg>
+    <path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4" />
   </Svg>
 );
 const IconSparkle = () => (

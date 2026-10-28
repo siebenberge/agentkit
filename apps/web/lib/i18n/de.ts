@@ -89,6 +89,8 @@ export const de: Dict = {
           'Rabattcodes',
           'Geschenkgutscheine',
           'Anbindung an HS-Soft (WaWiAssist)',
+          'Bestellen per KI-Agent (MCP)',
+          'Backoffice zum Einbauen',
           'Abhol- und Liefertag mit Zeitfenster',
         ],
       },
@@ -202,7 +204,7 @@ export const de: Dict = {
       {
         label: 'Agent-native',
         title: 'Dein Coding-Agent baut es ein.',
-        text: 'llms.txt für Coding-Agents, durchgehend typisierte Optionen und Fehler mit festen Codes. Ein Prompt von null bis zum funktionierenden Checkout. Ein MCP-Server pro Kit folgt.',
+        text: 'llms.txt für Coding-Agents, durchgehend typisierte Optionen und Fehler mit festen Codes. Ein Prompt von null bis zum funktionierenden Checkout. Dazu MCP-Server für dein Team und, in shopkit, für deine Kundschaft.',
       },
       {
         label: 'Korrekt by Design',
@@ -248,12 +250,12 @@ export const de: Dict = {
       {
         title: 'subkit + shopkit',
         when: 'auf npm',
-        text: 'subkit 0.2 und shopkit 0.1 als @agentkit.ch/subkit und @agentkit.ch/shopkit, der Code unter MIT auf GitHub: QR-Rechnung, Bankabgleich (camt.053 / camt.054), MWST, zahls.ch mit TWINT, Drizzle-Adapter für Postgres.',
+        text: 'subkit 0.2 und shopkit 0.2 als @agentkit.ch/subkit und @agentkit.ch/shopkit, der Code unter MIT auf GitHub: QR-Rechnung, Bankabgleich (camt.053 / camt.054), MWST, zahls.ch mit TWINT, Drizzle-Adapter für Postgres. Neu in shopkit 0.2: Bestellen per KI-Agent (MCP), Anbindung an HS-Soft (WaWiAssist) und das Backoffice zum Einbauen.',
       },
       {
         title: 'core + CLI',
         when: 'als Nächstes',
-        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: das Backoffice zum Einbauen (Bestellungen, Produkte, Lager, Rabattcodes, Gutscheine, Bankimport – im Repo, auf npm mit dem nächsten Release), Versandetiketten der Post und Rückerstattungen über zahls.ch.',
+        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: Versandetiketten der Post und Rückerstattungen über zahls.ch.',
       },
       {
         title: 'Mahnwesen & Adapter',
@@ -553,6 +555,7 @@ export const de: Dict = {
   home: {
     nav: {
       menu: 'Menü',
+      news: 'Neu',
       faq: 'Fragen',
       openSource: 'Open Source',
       cta: 'Demo ausprobieren',
@@ -560,6 +563,55 @@ export const de: Dict = {
     hero: {
       lead: 'Zwei Libraries für TypeScript: **subkit** für Abos und Rechnungen, **shopkit** für den Online-Shop. Sie laufen in deiner App, mit QR-Rechnung, MWST und vier Sprachen. Bezahlt wird über **zahls.ch** mit TWINT und Karte, die Daten bleiben in deiner Datenbank.',
       note: 'Keine Gebühr pro Transaktion · Daten in deiner Datenbank',
+    },
+    news: {
+      eyebrow: 'Neu in shopkit 0.2',
+      title: 'Bestellt im Chat, gebucht in WaWiAssist.',
+      lead: 'Deine Kundinnen und Kunden bestellen über ihren eigenen KI-Agent – Claude, ChatGPT oder Cursor – und zahlen mit TWINT. Bäckereien und Konditoreien mit HS-Soft holen ihre Artikel aus WaWiAssist und bekommen jede Bestellung dort als Auftrag.',
+      pill: 'Bestellen per Agent · HS-Soft',
+      docs: 'Anleitung im README',
+      agent: {
+        title: 'Deine Kundschaft bestellt über ihren Agent',
+        text: 'Dein Shop wird zum MCP-Server: Der Agent sucht Produkte, rechnet die Bestellung mit MWST und Abholtag und bestellt. Bezahlt wird über einen zahls.ch-Link oder direkt mit dem gespeicherten TWINT.',
+        points: [
+          'Anmeldung per OAuth – Claude und ChatGPT verbinden sich ohne Token',
+          'Belastet wird nur der Betrag, den die Kundin bestätigt hat',
+          'Abhol- oder Liefertag mit Zeitfenster gleich im Chat',
+          'Zahlungs-Tokens erreichen das Modell nie',
+        ],
+        ask: 'Zwei Zöpfe und ein Bauernbrot, Abholung Samstagmorgen.',
+        items: [
+          '2 × Zopf 500 g',
+          'Bauernbrot',
+        ],
+        pickup: 'Abholung Sa, 31.10. · 07:00–09:00',
+        total: 'Total',
+        confirm: 'CHF 18.80 mit deinem gespeicherten TWINT bezahlen?',
+        yes: 'Ja, bitte.',
+        paid: 'Bestellt und bezahlt',
+      },
+      hssoft: {
+        title: 'HS-Soft (WaWiAssist) angebunden',
+        text: 'Für Bäckereien und Konditoreien: Die Produkte kommen aus WaWiAssist, die Bestellungen gehen als Auftrag zurück – mit dem Abholtag als Bestelldatum.',
+        points: [
+          'Import mit Preiskategorie, Aktionspreis, Bild, Deklaration, Allergenen und Nährwerten',
+          'Nur Abholtage, an denen jeder Artikel im Warenkorb erhältlich ist',
+          'Ist HS-Soft nicht erreichbar, sendet shopkit die Bestellung später nochmals',
+          'Status und erneutes Senden im Backoffice und per MCP',
+        ],
+        articles: [
+          'Zopf 500 g',
+          'Bauernbrot',
+          'Grittibänz',
+        ],
+        from: 'ab 1.11.',
+        import: 'Artikel → Produkte',
+        imported: 'importiert',
+        orders: 'Bestellung → WaWiAssist',
+        pickup: 'Abholung 31.10.2026',
+        sending: 'wird gesendet …',
+        synced: 'Auftrag',
+      },
     },
     diy: {
       eyebrow: 'Nicht vibe-coden',
@@ -737,6 +789,14 @@ export const de: Dict = {
         {
           q: 'Brauche ich beide Kits?',
           a: 'Nein. Jedes Kit funktioniert für sich. Ein Verein mit Mitgliederbeiträgen und Fanshop nimmt beide, ein SaaS meist nur subkit.',
+        },
+        {
+          q: 'Können meine Kundinnen und Kunden per KI-Agent bestellen?',
+          a: 'Ja, seit shopkit 0.2. createShopCustomerMcpHandler macht deinen Shop zum MCP-Server: Der Agent der Kundin – Claude, ChatGPT oder Cursor – sucht Produkte, rechnet die Bestellung mit MWST und Abholtag und bestellt. Bezahlt wird über einen zahls.ch-Link oder mit dem gespeicherten Zahlungsmittel, belastet wird nur der bestätigte Betrag. Wer bestellt, entscheidet deine Anmeldung (OAuth oder API-Key).',
+        },
+        {
+          q: 'Funktioniert shopkit mit HS-Soft (WaWiAssist)?',
+          a: 'Ja. @agentkit.ch/shopkit/hssoft importiert die Artikel aus WaWiAssist als Produkte und sendet jede Bestellung als Auftrag zurück, mit dem Abholtag als Bestelldatum. Du brauchst nur den API-Key deines WaWiAssist von HS-Soft.',
         },
         {
           q: 'Ist agentkit wirklich Open Source?',
