@@ -180,7 +180,13 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
             taxInclusive: shop.settings.tax.inclusive,
             products: products
               .filter((product) => product.variants.length > 0)
-              .map((product) => productDto(product, resolveLocale(locale))),
+              .map((product) =>
+                productDto(
+                  product,
+                  resolveLocale(locale),
+                  shop.settings.tax.defaultRateBps,
+                ),
+              ),
           },
           200,
           { 'cache-control': 'no-store' },
@@ -198,7 +204,13 @@ export function createShopHandler<C extends ShopCustomer = ShopCustomer>(
           throw new HttpError(404, 'PRODUCT_NOT_FOUND');
         }
 
-        return json<ProductDto>(productDto(product, resolveLocale(locale)));
+        return json<ProductDto>(
+          productDto(
+            product,
+            resolveLocale(locale),
+            shop.settings.tax.defaultRateBps,
+          ),
+        );
       }
 
       // ---- address autocomplete and check
@@ -622,7 +634,11 @@ function withState(orderUrl: string) {
   };
 }
 
-function productDto(product: ProductWithVariants, locale: Locale): ProductDto {
+function productDto(
+  product: ProductWithVariants,
+  locale: Locale,
+  defaultRateBps: number,
+): ProductDto {
   const translation = product.translations[locale];
 
   return {
@@ -632,7 +648,8 @@ function productDto(product: ProductWithVariants, locale: Locale): ProductDto {
     description: translation?.description ?? product.description,
     kind: product.kind,
     images: product.images,
-    taxRateBps: product.kind === 'gift_card' ? 0 : (product.taxRateBps ?? 810),
+    taxRateBps:
+      product.kind === 'gift_card' ? 0 : (product.taxRateBps ?? defaultRateBps),
     variants: product.variants.map((variant) => ({
       id: variant.id,
       sku: variant.sku,

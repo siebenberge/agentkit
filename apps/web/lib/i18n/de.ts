@@ -254,7 +254,7 @@ export const de: Dict = {
       {
         title: 'core + CLI',
         when: 'als Nächstes',
-        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: Live-Tarife der Post und Rückerstattungen über zahls.ch.',
+        text: 'Gemeinsamer Kern mit Adapter-Testsuite, CLI für Schema und Route, Doku auf Deutsch und Englisch. In shopkit: das Backoffice zum Einbauen (Bestellungen, Produkte, Lager, Rabattcodes, Gutscheine, Bankimport – im Repo, auf npm mit dem nächsten Release), Live-Tarife der Post und Rückerstattungen über zahls.ch.',
       },
       {
         title: 'Mahnwesen & Adapter',
@@ -269,7 +269,7 @@ export const de: Dict = {
     button: 'Roadmap ansehen',
   },
   footer: {
-    company: '© 2026 Siebenberge GmbH',
+    company: '© 2026 siebenberge gmbh',
     made: 'Made in Switzerland',
   },
   errors: {
@@ -476,6 +476,16 @@ export const de: Dict = {
           'Die Zahlungsart (online oder Rechnung) wird für diesen Shop oder diese Bestellung nicht angeboten, oder es ist kein Anbieter konfiguriert.',
         fix: 'Anbieter und Zahlungsarten in `createShop()` konfigurieren oder eine andere Zahlungsart wählen.',
       },
+      'shopkit.PAYMENT_METHOD_NOT_FOUND': {
+        cause:
+          'Der Kunde hat keine (solche) gespeicherte Zahlungsart: noch keine gespeichert, entfernt, vom Anbieter abgelehnt und deaktiviert, oder sie gehört einem anderen Kunden.',
+        fix: 'Ohne `useSavedPaymentMethod` bestellen (Zahlungslink) und dabei mit `savePaymentMethod: true` eine Zahlungsart speichern lassen.',
+      },
+      'shopkit.AMOUNT_CHANGED': {
+        cause:
+          'Der zu zahlende Betrag weicht vom Betrag ab, den der Kunde bestätigt hat (`expectedAmount`) – etwa weil sich Preis, Rabatt oder Versand geändert hat. Es wurde nichts belastet.',
+        fix: 'Die Bestellung neu berechnen (`quoteOrder` / `quote_order`), dem Kunden den neuen Betrag zeigen und mit dem bestätigten Betrag erneut bestellen.',
+      },
       'shopkit.ORDER_NOT_FOUND': {
         cause:
           'Keine Bestellung mit dieser Id, oder der Token des Bestelllinks passt nicht.',
@@ -613,7 +623,7 @@ export const de: Dict = {
         'Dann haben wir gemerkt, dass jedes Schweizer Produkt genau das wieder selbst baut. Generische Billing-Tools denken in Stripe, Cents und Englisch – die Schweiz kommt, wenn überhaupt, als Plugin.',
         'Darum lösen wir den Code aus der Produktion heraus und machen daraus Kits, die jede TypeScript-App nutzen kann. Kostenlos und Open Source unter MIT.',
       ],
-      sign: 'Das Team von Siebenberge',
+      sign: 'Das Team von siebenberge',
     },
     mock: {
       code: 'Dein Code',

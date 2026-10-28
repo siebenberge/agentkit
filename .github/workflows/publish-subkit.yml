@@ -1,7 +1,11 @@
 name: Publish subkit
-# Publishes @agentkit.ch/subkit to npm: push a tag `subkit@<version>` (the version in
-# packages/kits/subkit/package.json) or run the workflow by hand on main
-# (Actions → Publish subkit → Run workflow).
+# Publishes @agentkit.ch/subkit to npm: publish a GitHub release with the tag
+# `subkit@<version>` (the version in packages/kits/subkit/package.json, target main)
+# or run the workflow by hand on main (Actions → Publish subkit → Run workflow).
+# Actions → Release does both: it creates the release and runs this workflow
+# on its tag.
+# A version that is already on npm is not published again (a release made
+# afterwards only adds the notes).
 #
 # Trusted publishing, no token: on npmjs.com, @agentkit.ch/subkit → Settings →
 # Trusted publisher → GitHub Actions, repository siebenberge/agentkit, workflow
@@ -9,8 +13,8 @@ name: Publish subkit
 # granular token with write access to @agentkit.ch – is used instead; delete
 # it afterwards.
 on:
-  push:
-    tags: ['subkit@*']
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -21,10 +25,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # releases of the other kit start this workflow too
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'subkit@')
     steps:
-      - name: Run by hand only on main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: echo "Publish from main or a subkit@<version> tag" && exit 1
+      - name: Run by hand only on main or a subkit@<version> tag
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/subkit@')
+        run: echo "Publish from main or a subkit@<version> release" && exit 1
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -36,16 +42,27 @@ jobs:
       - run: npm install -g npm@11.21.0
       - run: pnpm install --frozen-lockfile
       - name: Tag matches the package version
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name == 'release' || github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
           version=$(node -p "require('./packages/kits/subkit/package.json').version")
-          test "subkit@$version" = "$GITHUB_REF_NAME" || {
-            echo "Tag $GITHUB_REF_NAME does not match subkit@$version"; exit 1;
+          test "subkit@$version" = "$TAG" || {
+            echo "Tag $TAG does not match subkit@$version"; exit 1;
           }
+      - name: Version already on npm?
+        id: npm
+        run: |
+          version=$(node -p "require('./packages/kits/subkit/package.json').version")
+          if [ "$(npm view "@agentkit.ch/subkit@$version" version 2>/dev/null)" = "$version" ]; then
+            echo "@agentkit.ch/subkit@$version is on npm already, nothing to publish"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
       - run: pnpm --filter @agentkit.ch/subkit lint
       - run: pnpm --filter @agentkit.ch/subkit typecheck
       - run: pnpm --filter @agentkit.ch/subkit test
       # builds dist/, packs it and imports every export with plain Node
       - run: node scripts/check-pack.mjs packages/kits/subkit --out pack
       # the tarball, not the folder: npm ignores publishConfig.exports
-      - run: npm publish ./pack/*.tgz --access public
+      - if: steps.npm.outputs.published != 'true'
+        run: npm publish ./pack/*.tgz --access public --provenance

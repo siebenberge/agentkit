@@ -22,6 +22,10 @@ export type ShopErrorCode =
   /** The chosen day or time window is not offered (any more). */
   | 'FULFILLMENT_DATE_UNAVAILABLE'
   | 'PAYMENT_METHOD_UNAVAILABLE'
+  /** The customer has no (such) saved payment method. */
+  | 'PAYMENT_METHOD_NOT_FOUND'
+  /** The amount to pay differs from the one the customer confirmed. */
+  | 'AMOUNT_CHANGED'
   | 'ORDER_NOT_FOUND'
   /** The order is not in a state that allows this action. */
   | 'INVALID_STATE'

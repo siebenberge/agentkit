@@ -40,9 +40,15 @@ export type McpTool = {
     /** Talks to an outside system (e.g. the payment provider). */
     openWorldHint?: boolean;
   };
-  /** Result as JSON – dates become ISO strings. */
-  run: (args: JsonObject) => Promise<unknown>;
+  /**
+   * Result as JSON – dates become ISO strings. `context.request` is the HTTP
+   * request (headers only, the body is read): tools that act for the caller
+   * identify them with it.
+   */
+  run: (args: JsonObject, context: ToolContext) => Promise<unknown>;
 };
+
+export type ToolContext = { request: Request };
 
 /** A known error of the tool's domain, returned to the model as `isError`. */
 export type ToolErrorDetails = {
@@ -346,7 +352,9 @@ export function createMcpHandler(options: McpServerOptions) {
     }
 
     try {
-      const value = await tool.run(params.arguments ?? {});
+      const value = await tool.run(params.arguments ?? {}, {
+        request: context.request,
+      });
 
       return { ok: true, result: toolResult(value, false) };
     } catch (error) {

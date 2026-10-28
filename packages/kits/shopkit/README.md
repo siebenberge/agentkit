@@ -31,6 +31,7 @@ The package ships ES modules with type declarations; peer dependencies
 | `@agentkit.ch/shopkit/swisspost` | Swiss Post: `createSwissPost()` – address labels with barcode and Track & Trace, address autocomplete and check for the checkout, `swissPostClient()` for the API |
 | `@agentkit.ch/shopkit/http` | Storefront API + webhook (`createShopHandler`) and back office API (`createShopAdminHandler`) as fetch handlers |
 | `@agentkit.ch/shopkit/react` | `<ShopProvider>`, `<AddToCartButton>`, `<Cart>`, `<Checkout>`, `<OrderStatus>`, `<OrderHistory>`, hooks `useCart()`, `useOrder()`, `useOrders()` |
+| `@agentkit.ch/shopkit/react/admin` | Back office: `<ShopAdmin>` (orders, products and stock, discount codes, gift cards, bank import) or each part alone, `createShopAdminClient()` |
 | `@agentkit.ch/shopkit/react/styles.css` | Styles of the components, themed with `--sk-*` CSS variables |
 | `@agentkit.ch/shopkit/emails` | `createEmailNotifier()` – order emails (HTML + text) for any mailer, optional copies for the shop |
 | `@agentkit.ch/shopkit/receipt` | `renderReceiptHtml()` – invoice / receipt with VAT per rate |
@@ -66,6 +67,10 @@ The package ships ES modules with type declarations; peer dependencies
   invoice with QR-bill (payment term, reminders after the due date,
   `invoice.allow` decides who may buy on invoice); orders fully covered by
   gift cards need no payment.
+- **Saved payment methods**: signed-in customers save their card or TWINT
+  while paying (`savePaymentMethod: true`, zahls.ch tokenization) and pay
+  later orders with it, without the payment page
+  (`payOrderWithSavedMethod`); a declined charge falls back to the page.
 - **Orders**: numbers, guest links with access token, statuses for order,
   payment and fulfillment; shipped (tracking), delivered / picked up,
   canceled; refunds in parts (provider first, then gift cards); late
@@ -206,8 +211,88 @@ old carts) and point the zahls.ch webhook ("JSON") to
 instance, add both webhook URLs – each kit ignores the other's references.
 
 Products, stock, discount codes, gift cards and orders are managed through
-the engine (`shop.createProduct()`, `shop.markShipped()`, …) or the back
-office API `createShopAdminHandler({ shop, basePath, authorize })`.
+the engine (`shop.createProduct()`, `shop.markShipped()`, …), the back
+office API `createShopAdminHandler({ shop, basePath, authorize })` or the
+back office components below.
+
+### Back office for your staff
+
+Orders, products, stock, discount codes, gift cards and the bank import in
+one component. shopkit builds no login: `authorize` is the staff check of
+your auth (better-auth, Auth.js, Clerk, …) and runs on every request – the
+components only call the API.
+
+```ts
+// app/api/shop-admin/[...path]/route.ts
+import { createShopAdminHandler, toNextJsHandler } from '@agentkit.ch/shopkit/http';
+import { swissQrBill } from '@agentkit.ch/shopkit/swiss-qr-bill';
+import { auth } from '@/lib/auth'; // better-auth
+import { shop } from '@/lib/shop';
+
+export const { GET, POST } = toNextJsHandler(
+  createShopAdminHandler({
+    shop,
+    basePath: '/api/shop-admin',
+    authorize: async (request) => {
+      const session = await auth.api.getSession({ headers: request.headers });
+      return session?.user.role === 'admin';
+    },
+    // receipts in the back office, bank import (QR reference)
+    receipts: {
+      seller: { name: 'Rösterei AG', vatNumber: 'CHE-123.456.789 MWST' },
+      paymentSlip: swissQrBill({ name: 'Rösterei AG' /* address, IBAN */ }),
+    },
+  }),
+);
+```
+
+```tsx
+// app/admin/shop/page.tsx – a page only staff can open (check the session here too)
+'use client';
+import { ShopAdmin, ShopAdminProvider } from '@agentkit.ch/shopkit/react/admin';
+import '@agentkit.ch/shopkit/react/styles.css';
+
+export default function ShopBackOffice() {
+  return (
+    <ShopAdminProvider baseUrl="/api/shop-admin" locale="de">
+      <ShopAdmin />
+    </ShopAdminProvider>
+  );
+}
+```
+
+- **Orders**: filters (payment open, to ship, on the way, canceled), search
+  by order number or email; detail with customer, addresses, items, VAT
+  per rate, payment, shipping, refunds; receipt, record payment, ship with
+  tracking number / ready for pickup, delivered / picked up, cancel,
+  refund in parts with restock.
+- **Products**: create and edit name, slug, type, status, VAT rate,
+  description, images and translations; variants with SKU, price,
+  struck-through price, weight, options, stock (set the counted number),
+  backorders, archive.
+- **Discount codes**: percent, amount or free shipping, minimum order
+  value, products, validity, usage limit; activate / deactivate.
+- **Gift cards**: issue by hand (code shown once to copy), balances,
+  disable.
+- **Bank import**: upload the camt.054 / camt.053 of your bank, see what was
+  marked paid, overpaid, underpaid or not matched.
+
+Each part works alone: `<AdminOrders>`, `<AdminOrderDetail orderId>`,
+`<AdminProducts>`, `<AdminDiscounts>`, `<AdminGiftCards>`,
+`<AdminBankImport>`; `<ShopAdmin sections={['orders', 'products']}
+initialOrderId={…} />` (e.g. from the link in the merchant email). Texts in
+de / fr / it / en (`messages` overrides them), `onNotify` for your toasts,
+`headers` on the provider for a bearer token instead of a cookie session.
+`createShopAdminClient({ baseUrl })` is the typed client for your own
+screens.
+
+With the [HS-Soft plugin](#hs-soft-wawiassist) pass `hssoft` to
+`createShopAdminHandler` and set `<ShopAdminProvider hssoft>`: a
+WaWiAssist section (import products, send due orders), the WaWiAssist state
+of each order (order number, notes, errors; send or send again – a refused or
+unanswered order only on purpose) and, per product, the article data and
+the own availability period (e.g. Grittibänz 1.11.–6.12. every year).
+Without `hssoft` nothing of it is shown.
 
 Invoice orders paid by QR-bill: import the camt.054 / camt.053 of your bank
 with `shop.reconcileBankPayments({ payments: parseCamt(xml), reference:
@@ -370,7 +455,8 @@ await hssoft.importProducts(); // e.g. daily at 03:00
   `hssoft.syncOrder(orderId, { force: true })`, or pass `hssoft` to
   `createShopAdminHandler` (`POST /orders/:id/hssoft`, `POST /hssoft/import`,
   `POST /hssoft/sync`) and `createShopMcpHandler` (tools `hssoft_sync_order`,
-  `hssoft_import_products`).
+  `hssoft_import_products`); the back office components show all of it
+  with `<ShopAdminProvider hssoft>`.
 - Not possible with the API: categories from the marketing groups (it has
   no names for them), the availability periods of the articles, stock.
 
@@ -499,6 +585,103 @@ Tools: `list_orders`, `get_order`, `mark_order_paid`, `ship_order`,
 `swisspost`: `swisspost_create_label`, `swisspost_check_address`). Guest-link tokens are removed from
 orders; listed gift card codes show only their last 4 characters.
 
+### MCP server for your customers
+
+Let your customers order through their own agent: it finds products, prices
+the order, places it and gets a zahls.ch payment link back. A customer who
+saved a payment method pays directly – only the amount they confirmed.
+
+```ts
+// app/api/shop-agent/route.ts
+import { createShopCustomerMcpHandler } from '@agentkit.ch/shopkit/mcp';
+import { shop } from '@/lib/shop';
+
+export const POST = createShopCustomerMcpHandler({
+  shop,
+  // the signed-in customer of the request (OAuth access token, personal
+  // API key of their account …); null → 401
+  identify: async (request) => {
+    const user = await userFromBearerToken(request.headers.get('authorization'));
+    return user ? { externalId: user.id, email: user.email, name: user.name } : null;
+  },
+  orderUrl: (order) => `https://acme.ch/bestellung/${order.id}?token=${order.accessToken}`,
+  locale: 'de',
+});
+```
+
+Tools: `search_products`, `get_product`, `quote_order` (lines, VAT, total,
+shipping / pickup options, the saved payment method), `place_order`,
+`pay_order`, `list_my_orders`, `get_my_order`, `list_payment_methods`,
+`remove_payment_method`. Every tool acts only for the customer `identify`
+returns; payment tokens and guest-link tokens never reach the model.
+
+- A pickup / delivery option with a `schedule` needs a day: the agent asks
+  the customer and passes `fulfillmentDate` (and `fulfillmentWindow`) from the
+  option's `schedule` in `quote_order`.
+- `place_order` with `payWith: "payment_link"` (default) returns `paymentUrl`.
+  `savePaymentMethod: true` (only when the customer asks) saves the card /
+  TWINT used on that page for later orders.
+- `payWith: "saved_payment_method"` charges the saved payment method at once
+  and needs `expectedAmount`, the total the customer confirmed – another
+  amount fails with `AMOUNT_CHANGED` before anything is charged. A declined
+  charge returns a `paymentUrl` instead. When the provider does not answer
+  (timeout, outage), the result is `uncertain`: the charge may have gone
+  through, so no other payment of the order starts until the webhook
+  settles it or 30 minutes pass.
+- The same works without MCP: `shop.quoteOrder()`, `shop.placeOrder()`,
+  `shop.payOrderWithSavedMethod()`, `shop.listPaymentMethods()`.
+
+#### Sign-in for agents: OAuth with Better Auth
+
+Claude, ChatGPT and other MCP clients sign the customer in with OAuth on their
+own: the customer adds your endpoint, logs in on your site and allows the
+connection – no token to copy. With [Better Auth](https://www.better-auth.com)
+(`better-auth`, `@better-auth/mcp`, `@better-auth/cimd`, 1.7+) your app is the
+authorization server; wrap the handler with `requireMcpAuth` and pass the
+customer in, `identify` is then not needed:
+
+```ts
+// lib/auth.ts (excerpt)
+plugins: [
+  jwt(),
+  mcp({
+    loginPage: '/login', // your sign-in page, receives the signed OAuth query
+    consentPage: '/connect', // «Allow» posts { accept, oauth_query } to /api/auth/oauth2/consent
+    resource: 'https://acme.ch/api/shop-agent',
+    allowDynamicClientRegistration: true, // clients without CIMD (ChatGPT, Cursor …)
+    allowUnauthenticatedClientRegistration: true,
+  }),
+  cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }), // Claude
+],
+
+// app/api/shop-agent/route.ts
+import { requireMcpAuth } from '@better-auth/mcp';
+
+const shopAgent = createShopCustomerMcpHandler({ shop, orderUrl, locale: 'de' });
+
+export const POST = requireMcpAuth(
+  auth,
+  async (request, claims) => {
+    const user = await userById(claims.sub);
+    if (!user) return new Response(null, { status: 401 });
+    return shopAgent(request, { customer: { externalId: user.id, email: user.email, name: user.name } });
+  },
+  { resource: 'https://acme.ch/api/shop-agent' },
+);
+```
+
+Serve `/.well-known/*` with `auth.handler` too (protected resource and
+authorization server metadata). A «Connect with Claude» button can open
+Claude's add-connector dialog prefilled:
+`https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Acme&connectorUrl=<encoded endpoint>`.
+Prefer a one-time code over a magic link on the login page: a link opened
+from a mail app on the phone often lands in another browser, and the
+redirect back to the client fails.
+
+Saved payment methods need a provider with `chargeToken` (`zahlsProvider`
+has it) and the new table `shop_payment_methods` – generate a migration
+from `@agentkit.ch/shopkit/drizzle/schema` when you upgrade (additive).
+
 ## Development
 
 ```bash
@@ -510,8 +693,9 @@ pnpm --filter @agentkit.ch/shopkit test       # now with the Postgres concurrenc
 ```
 
 Release: bump `version` in `package.json` and `src/version.ts` (a test
-checks both), merge, then push the tag
-`shopkit@<version>` or run *Actions → Publish shopkit* on `main` –
+checks both), merge, then run *Actions → Release* with `shopkit` on `main`
+(creates the release `shopkit@<version>` with notes; a release made by hand
+with that tag works too) –
 `.github/workflows/publish-shopkit.yml` builds `dist/` (tsdown), checks the
 tarball with `scripts/check-pack.mjs` and publishes it to npm. Locally:
 `pnpm build` (dist/), `pnpm check:pack` in the repo root. The workspace
