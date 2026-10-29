@@ -38,6 +38,7 @@ export const de: Dict = {
       },
     ],
   },
+  customers: { title: 'Im Einsatz bei' },
   install: {
     prompt:
       'Füge mit @agentkit.ch/subkit Abos mit QR-Rechnung und TWINT hinzu. Lies zuerst {url}/llms.txt.',

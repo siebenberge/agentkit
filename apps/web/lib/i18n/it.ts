@@ -35,6 +35,7 @@ export const it: Dict = {
       },
     ],
   },
+  customers: { title: 'In uso presso' },
   install: {
     prompt:
       'Aggiungi abbonamenti con fattura QR e TWINT usando @agentkit.ch/subkit. Leggi prima {url}/llms.txt.',
