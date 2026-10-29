@@ -127,6 +127,8 @@ export type Dict = {
     roadmap: string;
     language: string;
     theme: string;
+    /** Accessible name of the section bar under the header (kit pages, error codes). */
+    onPage: string;
   };
   hero: {
     eyebrow: string;
@@ -391,7 +393,6 @@ export type Dict = {
     footer: {
       tagline: string;
       kits: string;
-      switzerland: string;
       developers: string;
       /** Footer link to the reference docs of a kit: «Docs · subkit». */
       docs: string;

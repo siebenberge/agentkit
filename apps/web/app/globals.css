@@ -71,6 +71,14 @@ html {
   scroll-behavior: smooth;
   color-scheme: light;
 }
+/* Anchors land below the sticky header and the section bar, if any.
+   (scroll-padding on html would also move the page when focus lands in the header.) */
+[id] {
+  scroll-margin-top: 5rem;
+}
+html:has([data-subnav]) [id] {
+  scroll-margin-top: 8rem;
+}
 html.dark {
   color-scheme: dark;
 }

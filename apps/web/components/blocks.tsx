@@ -2,7 +2,7 @@
 // section heads, cards and icons.
 import Link from 'next/link';
 
-import { ThemeSwitch } from '~/components/client';
+import { MenuCloser, ThemeSwitch } from '~/components/client';
 import { Mark } from '~/components/hero-mock';
 import { LanguageMenu } from '~/components/language-menu';
 import {
@@ -28,80 +28,82 @@ const SHOPKIT_README = `${REPO_URL}/tree/main/packages/kits/shopkit`;
 
 type NavLink = { href: string; label: string };
 
+const MENU_PANEL =
+  'absolute right-0 z-50 mt-2 rounded-xl border border-line bg-bg p-1 text-sm shadow-xl';
+const MENU_ITEM =
+  'flex items-center gap-3 rounded-lg px-3 py-2 text-muted transition hover:bg-card hover:text-fg';
+const MENU_LABEL =
+  'px-3 pb-1 pt-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-faint';
+const SUMMARY = 'cursor-pointer list-none [&::-webkit-details-marker]:hidden';
+
+/**
+ * The same header on every page: the pages of the site (the two kits and the
+ * docs), language, GitHub and the demo. Sections of a page are not in here –
+ * kit pages and the error codes list them in a `SubNav` under the header.
+ */
 export function SiteHeader({
   t,
   locale,
   path,
-  nav,
   cta,
 }: {
   t: Dict;
   locale: Locale;
-  /** Path after the locale, for the language menu ('' on the home page). */
+  /** Path after the locale ('' on the home page): language menu, active link. */
   path: string;
-  nav: NavLink[];
   /** Dark button on the right (and last item of the mobile menu). */
   cta: NavLink;
 }) {
+  const docs = docLinks(t, locale);
+  const docsActive = path === '/errors';
+
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-xl">
-      <div className={`${WRAP} flex h-15 items-center gap-8`}>
+      <MenuCloser />
+      <div className={`${WRAP} flex h-15 items-center gap-6 lg:gap-8`}>
         <Link
           href={`/${locale}`}
-          className="flex items-center gap-2 text-[19px] font-semibold tracking-[-0.03em]"
+          aria-current={path === '' ? 'page' : undefined}
+          className="flex shrink-0 items-center gap-2 text-[19px] font-semibold tracking-[-0.03em]"
         >
           <Mark className="size-6" />
           agentkit
         </Link>
-        <nav className="hidden items-center gap-7 text-[15px] text-muted lg:flex">
-          {nav.map((n) => (
-            <a key={n.href} href={n.href} className="transition hover:text-fg">
-              {n.label}
-            </a>
+        <nav
+          aria-label="agentkit"
+          className="hidden items-center gap-1 text-[15px] md:flex"
+        >
+          {KITS.map((k) => (
+            <Link
+              key={k.id}
+              href={`/${locale}/${k.id}`}
+              aria-current={path === `/${k.id}` ? 'page' : undefined}
+              className="rounded-lg px-3 py-1.5 text-muted transition hover:text-fg aria-[current]:bg-soft aria-[current]:text-fg"
+            >
+              {k.id}
+            </Link>
           ))}
+          <details data-menu className="relative">
+            <summary
+              className={`${SUMMARY} flex items-center gap-1 rounded-lg px-3 py-1.5 transition hover:text-fg ${docsActive ? 'bg-soft text-fg' : 'text-muted'}`}
+            >
+              {t.home.footer.docs}
+              <Chevron />
+            </summary>
+            <div className={`${MENU_PANEL} left-0 right-auto w-72`}>
+              <DocLinks docs={docs} current={`/${locale}${path}`} />
+            </div>
+          </details>
         </nav>
-        <div className="ml-auto flex items-center gap-2 sm:gap-4">
+        <div className="ml-auto flex items-center gap-1 sm:gap-3">
           <LanguageMenu
             locale={locale}
             path={path}
             label={t.nav.language}
             className="h-9 rounded-lg px-2.5 font-mono text-xs uppercase text-muted transition hover:bg-card hover:text-fg"
-            panelClassName="absolute right-0 z-50 mt-1 min-w-40 rounded-xl border border-line bg-bg p-1 text-sm shadow-xl"
+            panelClassName={`${MENU_PANEL} min-w-40`}
             itemClassName="block rounded-lg px-3 py-2 text-muted hover:bg-card hover:text-fg"
           />
-          <details className="relative lg:hidden">
-            <summary
-              aria-label={t.home.nav.menu}
-              className="grid size-9 cursor-pointer list-none place-items-center rounded-lg text-muted transition hover:bg-card hover:text-fg [&::-webkit-details-marker]:hidden"
-            >
-              <Svg>
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </Svg>
-            </summary>
-            <div className="absolute right-0 z-50 mt-1 min-w-48 rounded-xl border border-line bg-bg p-1 text-sm shadow-xl">
-              {nav.map((n) => (
-                <a
-                  key={n.href}
-                  href={n.href}
-                  className="block rounded-lg px-3 py-2 text-muted hover:bg-card hover:text-fg"
-                >
-                  {n.label}
-                </a>
-              ))}
-              <a
-                href={REPO_URL}
-                className="block rounded-lg px-3 py-2 text-muted hover:bg-card hover:text-fg sm:hidden"
-              >
-                GitHub
-              </a>
-              <a
-                href={cta.href}
-                className="mt-1 block rounded-lg bg-fg px-3 py-2 font-medium text-bg sm:hidden"
-              >
-                {cta.label}
-              </a>
-            </div>
-          </details>
           <a
             href={REPO_URL}
             className="hidden h-9 items-center rounded-lg px-2.5 text-sm text-muted transition hover:bg-card hover:text-fg sm:flex"
@@ -115,9 +117,119 @@ export function SiteHeader({
           >
             {cta.label}
           </a>
+
+          {/* Small screens: everything in one menu */}
+          <details data-menu className="md:hidden">
+            <summary
+              aria-label={t.home.nav.menu}
+              className={`${SUMMARY} grid size-9 place-items-center rounded-lg text-muted transition hover:bg-card hover:text-fg [[open]>&]:bg-card [[open]>&]:text-fg`}
+            >
+              <Svg className="size-5 [[open]_&]:hidden">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </Svg>
+              <Svg className="hidden size-5 [[open]_&]:block">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </Svg>
+            </summary>
+            <div className="absolute inset-x-2 top-full z-50 mt-1 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-line bg-bg p-1.5 text-[15px] shadow-xl">
+              <p className={MENU_LABEL}>{t.nav.kits}</p>
+              {KITS.map((k) => {
+                const Icon = k.id === 'subkit' ? IconRepeat : IconCart;
+                return (
+                  <Link
+                    key={k.id}
+                    href={`/${locale}/${k.id}`}
+                    aria-current={path === `/${k.id}` ? 'page' : undefined}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-card aria-[current]:bg-soft"
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-fg text-bg">
+                      <Icon />
+                    </span>
+                    <span>
+                      <span className="block font-mono font-semibold">
+                        {k.id}
+                      </span>
+                      <span className="block text-sm text-muted">
+                        {t.kits.items[k.id].tagline}
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
+              <div className="my-1.5 h-px bg-line" />
+              <p className={MENU_LABEL}>{t.home.footer.docs}</p>
+              <DocLinks docs={docs} current={`/${locale}${path}`} />
+              <div className="my-1.5 h-px bg-line" />
+              <a href={REPO_URL} className={MENU_ITEM}>
+                GitHub
+                <Arrow className="ml-auto size-3.5 -rotate-45" />
+              </a>
+              <a
+                href={cta.href}
+                className="mt-1.5 flex h-11 items-center justify-center gap-2 rounded-xl bg-fg font-medium text-bg"
+              >
+                {cta.label}
+                <Arrow className="size-4" />
+              </a>
+            </div>
+          </details>
         </div>
       </div>
     </header>
+  );
+}
+
+type DocLink = NavLink & { hint?: string; external?: boolean };
+
+/** Docs menu: reference of each kit, error codes and the endpoints for agents. */
+function docLinks(t: Dict, locale: Locale): DocLink[][] {
+  return [
+    KITS.map((k) => ({
+      href: k.docs,
+      label: k.id,
+      hint: t.kits.items[k.id].tagline,
+      external: true,
+    })),
+    [
+      { href: `/${locale}/errors`, label: t.errors.title },
+      { href: '/mcp', label: 'MCP', hint: 'agentkit.ch/mcp' },
+      { href: '/llms.txt', label: 'llms.txt', hint: 'agentkit.ch/llms.txt' },
+    ],
+  ];
+}
+
+function DocLinks({ docs, current }: { docs: DocLink[][]; current: string }) {
+  return docs.map((group, i) => (
+    <div key={i} className={i ? 'mt-1 border-t border-line pt-1' : ''}>
+      {group.map((d) => (
+        <a
+          key={d.href}
+          href={d.href}
+          aria-current={d.href === current ? 'page' : undefined}
+          className={`${MENU_ITEM} aria-[current]:text-fg`}
+        >
+          <span className="min-w-0">
+            <span
+              className={`block text-fg ${d.external ? 'font-mono font-medium' : ''}`}
+            >
+              {d.label}
+            </span>
+            {d.hint && (
+              <span className="block truncate text-xs text-faint">{d.hint}</span>
+            )}
+          </span>
+          {d.external && <Arrow className="ml-auto size-3.5 -rotate-45" />}
+        </a>
+      ))}
+    </div>
+  ));
+}
+
+function Chevron() {
+  return (
+    <Svg className="size-3.5 transition [[open]>summary>&]:rotate-180">
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
   );
 }
 
@@ -132,15 +244,14 @@ export function SiteFooter({
   path: string;
 }) {
   const h = t.home;
-  // anchors of the home page; from another page they lead back to it
+  // sections of the home page; from another page they lead back to it
   const home = path === '' ? '' : `/${locale}`;
-  const live = t.swiss.features.filter((f) => f.status === 'live');
 
   return (
     <footer className={`${WRAP} relative pt-24`}>
       <Topo className="pointer-events-none absolute inset-x-0 top-0 h-full w-full text-faint opacity-35 [mask-image:linear-gradient(to_bottom,transparent,#000_30%,#000_70%,transparent)]" />
-      <div className="relative grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
-        <div className="flex flex-col gap-5">
+      <div className="relative grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
+        <div className="col-span-2 flex flex-col gap-5 sm:col-span-4 lg:col-span-1">
           <Link
             href={`/${locale}`}
             className="flex items-center gap-2 text-[19px] font-semibold tracking-[-0.03em]"
@@ -170,24 +281,24 @@ export function SiteFooter({
           ]}
         />
         <FooterCol
-          title={h.footer.switzerland}
-          links={live.map((f) => ({
-            href: `${home}#switzerland`,
-            label: f.title,
-          }))}
-        />
-        <FooterCol
           title={h.footer.developers}
           links={[
-            { href: REPO_URL, label: 'GitHub' },
-            ...KITS.map((k) => ({ href: k.npm, label: `npm · ${k.id}` })),
             ...KITS.map((k) => ({
               href: k.docs,
               label: `${h.footer.docs} · ${k.id}`,
             })),
-            { href: '/llms.txt', label: 'llms.txt' },
-            { href: '/mcp', label: 'MCP' },
             { href: `/${locale}/errors`, label: t.errors.title },
+            { href: '/mcp', label: 'MCP' },
+            { href: '/llms.txt', label: 'llms.txt' },
+            ...KITS.map((k) => ({ href: k.npm, label: `npm · ${k.id}` })),
+            { href: REPO_URL, label: 'GitHub' },
+          ]}
+        />
+        <FooterCol
+          title="agentkit"
+          links={[
+            { href: `${home}#agents`, label: h.nav.news },
+            { href: `${home}#switzerland`, label: t.nav.switzerland },
             { href: `${home}#open-source`, label: h.nav.openSource },
             { href: `${home}#roadmap`, label: t.nav.roadmap },
             { href: `${home}#faq`, label: h.nav.faq },
@@ -220,7 +331,7 @@ export function SwissSection({ t }: { t: Dict }) {
   return (
     <section
       id="switzerland"
-      className={`${WRAP} relative scroll-mt-20 pt-32 sm:pt-44`}
+      className={`${WRAP} relative pt-32 sm:pt-44`}
     >
       <Topo className="pointer-events-none absolute inset-x-0 top-0 h-[520px] w-full text-faint [mask-image:radial-gradient(60%_70%_at_50%_45%,#000,transparent)]" />
       <div
@@ -271,7 +382,7 @@ export function ShopNews({ t }: { t: Dict }) {
   return (
     <>
       {/* Customers order through their agent (any shop) */}
-      <section id="agents" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+      <section id="agents" className={`${WRAP} pt-32 sm:pt-44`}>
         <SplitHead
           eyebrow={n.agent.eyebrow}
           title={n.agent.title}
@@ -293,7 +404,7 @@ export function ShopNews({ t }: { t: Dict }) {
       </section>
 
       {/* HS-Soft (WaWiAssist) for bakeries */}
-      <section id="hs-soft" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+      <section id="hs-soft" className={`${WRAP} pt-32 sm:pt-44`}>
         <SplitHead
           eyebrow={n.hssoft.eyebrow}
           title={n.hssoft.title}
@@ -315,7 +426,7 @@ export function ShopNews({ t }: { t: Dict }) {
       {/* Swiss Post labels and address check */}
       <section
         id="swiss-post"
-        className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+        className={`${WRAP} pt-32 sm:pt-44`}
       >
         <SplitHead
           eyebrow={n.swisspost.eyebrow}
