@@ -201,6 +201,40 @@ export const KITS: {
 ];
 
 /**
+ * Companies that use agentkit in production, shown on the home page. Logos live
+ * in `public/logos/`; `width` and `height` are the logo's aspect ratio.
+ */
+export const CUSTOMERS: {
+  name: string;
+  url: string;
+  logo: string;
+  width: number;
+  height: number;
+}[] = [
+  {
+    name: 'Thurbeck',
+    url: 'https://www.thurbeck.ch',
+    logo: '/logos/thurbeck.webp',
+    width: 640,
+    height: 106,
+  },
+  {
+    name: 'Brauerei St. Johann',
+    url: 'https://www.brauereistjohann.ch',
+    logo: '/logos/brauerei-st-johann.svg',
+    width: 510,
+    height: 357,
+  },
+  {
+    name: 'Membear',
+    url: 'https://www.membear.ch',
+    logo: '/logos/membear.svg',
+    width: 1743,
+    height: 278,
+  },
+];
+
+/**
  * Coding agents that open with the setup prompt filled in. Only tools with a
  * prompt link (Cursor and Lovable document theirs); terminal agents such as
  * Claude Code or Codex take the copied prompt.

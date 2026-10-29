@@ -33,6 +33,7 @@ export const en: Dict = {
       { value: 'MIT', label: 'open source, no per-transaction fee' },
     ],
   },
+  customers: { title: 'In use at' },
   install: {
     prompt:
       'Add subscriptions with QR-bill and TWINT using @agentkit.ch/subkit. Read {url}/llms.txt first.',

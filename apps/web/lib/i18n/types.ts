@@ -140,6 +140,8 @@ export type Dict = {
   };
   /** Facts shown right under the hero (only things that are true today). */
   proof: { items: { value: string; label: string }[] };
+  /** Label of the logo row of companies that use agentkit (`CUSTOMERS`). */
+  customers: { title: string };
   install: {
     /** Setup prompt for a coding agent; `{url}` is replaced with the site URL. */
     prompt: string;

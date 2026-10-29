@@ -40,7 +40,7 @@ import { Motion } from '~/components/motion';
 import { Scene } from '~/components/scene';
 import { Topo } from '~/components/topo';
 import { heroTabs } from '~/lib/code-tabs';
-import { KITS, REPO_URL, type SceneName } from '~/lib/content';
+import { CUSTOMERS, KITS, REPO_URL, type SceneName } from '~/lib/content';
 import type { Dict, Locale } from '~/lib/i18n';
 import type { KitId } from '~/lib/i18n/types';
 import { Rich } from '~/lib/rich';
@@ -207,6 +207,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
               </div>
             ))}
           </dl>
+          <Customers title={t.customers.title} />
         </section>
 
         {/* The two kits */}
@@ -694,6 +695,44 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
       </main>
 
       <SiteFooter t={t} locale={locale} path="" />
+    </div>
+  );
+}
+
+/** Logos of companies that use agentkit, on white so they keep their colours. */
+function Customers({ title }: { title: string }) {
+  return (
+    <div
+      className="flex flex-col gap-5 pt-10 sm:flex-row sm:items-center sm:gap-10"
+      data-reveal
+    >
+      <Eyebrow className="shrink-0">{title}</Eyebrow>
+      <ul className="grid flex-1 grid-cols-3 gap-2 sm:gap-3 lg:max-w-3xl">
+        {CUSTOMERS.map((c) => (
+          <li key={c.name}>
+            <a
+              href={c.url}
+              target="_blank"
+              rel="noopener"
+              title={c.name}
+              className="flex h-16 items-center justify-center rounded-2xl border border-line bg-white px-3 transition hover:-translate-y-0.5 hover:shadow-md sm:h-24 sm:px-6"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={c.logo}
+                alt={c.name}
+                width={c.width}
+                height={c.height}
+                loading="lazy"
+                decoding="async"
+                // wide wordmarks lower, the square brewery seal taller
+                style={{ height: `${90 / Math.sqrt(c.width / c.height)}%` }}
+                className="w-auto max-w-full object-contain"
+              />
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
