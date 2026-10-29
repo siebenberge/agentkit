@@ -2,7 +2,10 @@ import Link from 'next/link';
 
 import { LOCALES, LOCALE_NAMES, type Locale } from '~/lib/i18n/types';
 
-/** Links to the same page in every language. No JavaScript (<details>). */
+/**
+ * Links to the same page in every language. No JavaScript (<details>);
+ * `MenuCloser` closes it on a click outside.
+ */
 export function LanguageMenu({
   locale,
   path,
@@ -22,7 +25,7 @@ export function LanguageMenu({
   activeClassName?: string;
 }) {
   return (
-    <details className="relative">
+    <details data-menu className="relative">
       <summary
         aria-label={label}
         className={`flex cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden ${className ?? ''}`}

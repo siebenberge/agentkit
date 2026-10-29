@@ -30,6 +30,7 @@ import {
 } from '~/components/mocks';
 import { Motion } from '~/components/motion';
 import { Scene } from '~/components/scene';
+import { SubNav, type SubNavItem } from '~/components/sub-nav';
 import { codeTabs } from '~/lib/code-tabs';
 import {
   HERO_CODE,
@@ -78,15 +79,15 @@ export async function KitPage({
   const readme = `${REPO_URL}/tree/main/packages/kits/${kit}`;
   const copy = { copy: t.install.copy, copied: t.install.copied };
 
-  const nav = [
-    { href: '#features', label: t.features.eyebrow },
+  // in the order of the page
+  const sections: SubNavItem[] = [
     kit === 'subkit'
-      ? { href: '#portal', label: t.kitPages.subkit.portal.eyebrow }
-      : { href: '#agents', label: h.nav.news },
-    { href: '#switzerland', label: t.nav.switzerland },
-    { href: '#developers', label: h.dev.eyebrow },
-    { href: '#faq', label: h.nav.faq },
-    { href: `/${locale}/${other}`, label: other },
+      ? { id: 'portal', label: t.kitPages.subkit.portal.eyebrow }
+      : { id: 'agents', label: h.nav.news, also: ['hs-soft', 'swiss-post'] },
+    { id: 'features', label: t.features.eyebrow },
+    { id: 'switzerland', label: t.nav.switzerland },
+    { id: 'developers', label: h.dev.eyebrow },
+    { id: 'faq', label: h.nav.faq },
   ];
 
   return (
@@ -98,8 +99,19 @@ export async function KitPage({
         t={t}
         locale={locale}
         path={`/${kit}`}
-        nav={nav}
         cta={{ href: demo!, label: h.nav.cta }}
+      />
+      <SubNav
+        label={t.nav.onPage}
+        items={sections}
+        title={
+          <>
+            <span className="grid size-6 place-items-center rounded-md bg-fg text-bg [&_svg]:size-3.5">
+              <Icon />
+            </span>
+            <span className="font-mono">{kit}</span>
+          </>
+        }
       />
 
       <main>
@@ -269,7 +281,7 @@ export async function KitPage({
         {kit === 'subkit' ? (
           <section
             id="portal"
-            className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+            className={`${WRAP} pt-32 sm:pt-44`}
           >
             <SplitHead
               eyebrow={t.kitPages.subkit.portal.eyebrow}
@@ -293,7 +305,7 @@ export async function KitPage({
         {/* Features */}
         <section
           id="features"
-          className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+          className={`${WRAP} pt-32 sm:pt-44`}
         >
           <SplitHead
             eyebrow={t.features.eyebrow}
@@ -357,7 +369,7 @@ export async function KitPage({
         {/* Developers */}
         <section
           id="developers"
-          className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+          className={`${WRAP} pt-32 sm:pt-44`}
         >
           <SplitHead
             eyebrow={h.dev.eyebrow}
@@ -501,7 +513,7 @@ export async function KitPage({
         </section>
 
         {/* FAQ */}
-        <section id="faq" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+        <section id="faq" className={`${WRAP} pt-32 sm:pt-44`}>
           <div className="grid gap-10 lg:grid-cols-[1fr_1.45fr]">
             <div data-reveal>
               <Eyebrow>{h.faq.eyebrow}</Eyebrow>

@@ -13,6 +13,7 @@ export const it: Dict = {
     roadmap: 'Roadmap',
     language: 'Lingua',
     theme: 'Cambia tema',
+    onPage: 'In questa pagina',
   },
   hero: {
     eyebrow: 'Open source su GitHub · sviluppato in Svizzera',
@@ -1086,7 +1087,6 @@ export const it: Dict = {
       tagline:
         'Il framework di fatturazione per il software svizzero. Gira nella tua app, salva nel tuo database.',
       kits: 'Kit',
-      switzerland: 'Svizzera',
       developers: 'Sviluppatori',
       docs: 'Doc',
       demos: 'Demo',

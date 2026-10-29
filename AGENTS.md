@@ -45,6 +45,9 @@ Guide for contributors and coding agents. Human-oriented setup is in
   (`/[locale]/subkit`, `/[locale]/shopkit`, copy in `kitPages`); header, footer and
   sections they share in `components/blocks.tsx`. Every page gets an
   `opengraph-image.tsx` (`lib/og.tsx`, one image per language) – a new page too.
+  Navigation: the header is the same on every page and links pages only (kits, docs
+  menu); sections of a page go in its `SubNav` (`components/sub-nav.tsx`) in page
+  order, never into the header. A new page uses `SiteHeader` and `SiteFooter`.
   Animated mocks: `components/hero-mock.tsx`, `components/mocks.tsx` – they show real column names
   and options of the kits, keep them in sync. Background photos live in
   `apps/web/public/bg/<scene>.webp` (`SceneName` in `lib/content.ts`). The one Swiss

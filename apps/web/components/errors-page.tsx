@@ -1,14 +1,15 @@
 import Link from 'next/link';
 
-import { Mark } from '~/components/hero-mock';
-import { themeScript } from '~/components/blocks';
-import { LanguageMenu } from '~/components/language-menu';
-import { ERROR_CODES } from '~/lib/content';
+import { SiteFooter, SiteHeader, themeScript } from '~/components/blocks';
+import { SubNav } from '~/components/sub-nav';
+import { ERROR_CODES, KITS } from '~/lib/content';
 import type { Dict, KitId, Locale } from '~/lib/i18n';
 import { Rich } from '~/lib/rich';
 import { SITE_URL } from '~/lib/site';
 
 const KIT_IDS: KitId[] = ['subkit', 'shopkit'];
+
+const SUB_DEMO = KITS.find((k) => k.id === 'subkit')!.demo!;
 
 const CODE = 'rounded bg-card px-1 py-0.5 font-mono text-[0.88em] text-fg';
 
@@ -23,38 +24,17 @@ export function ErrorsPage({ t, locale }: { t: Dict; locale: Locale }) {
     <div className="min-h-dvh bg-bg font-sans text-fg">
       <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-15 w-full max-w-4xl items-center gap-6 px-4 sm:px-8">
-          <Link
-            href={`/${locale}`}
-            className="flex items-center gap-2 text-[19px] font-semibold tracking-[-0.03em]"
-          >
-            <Mark className="size-6" />
-            agentkit
-          </Link>
-          <nav className="flex items-center gap-5 text-[15px] text-muted">
-            {KIT_IDS.map((kit) => (
-              <a
-                key={kit}
-                href={`#${kit}`}
-                className="transition hover:text-fg"
-              >
-                {kit}
-              </a>
-            ))}
-          </nav>
-          <div className="ml-auto">
-            <LanguageMenu
-              locale={locale}
-              path="/errors"
-              label={t.nav.language}
-              className="h-9 rounded-lg px-2.5 font-mono text-xs uppercase text-muted transition hover:bg-card hover:text-fg"
-              panelClassName="absolute right-0 z-50 mt-1 min-w-40 rounded-xl border border-line bg-bg p-1 text-sm shadow-xl"
-              itemClassName="block rounded-lg px-3 py-2 text-muted hover:bg-card hover:text-fg"
-            />
-          </div>
-        </div>
-      </header>
+      <SiteHeader
+        t={t}
+        locale={locale}
+        path="/errors"
+        cta={{ href: SUB_DEMO, label: t.home.nav.cta }}
+      />
+      <SubNav
+        label={t.nav.onPage}
+        title={e.title}
+        items={KIT_IDS.map((kit) => ({ id: kit, label: kit }))}
+      />
 
       <main className="mx-auto w-full max-w-4xl px-4 pt-14 pb-24 sm:px-8 sm:pt-20">
         <h1 className="text-[clamp(2.2rem,5vw,3.4rem)] font-semibold leading-[1] tracking-[-0.04em]">
@@ -72,7 +52,7 @@ export function ErrorsPage({ t, locale }: { t: Dict; locale: Locale }) {
         </p>
 
         {KIT_IDS.map((kit) => (
-          <section key={kit} id={kit} className="mt-16 scroll-mt-20">
+          <section key={kit} id={kit} className="mt-16">
             <h2 className="font-mono text-2xl font-medium tracking-tight">
               {kit}
             </h2>
@@ -86,7 +66,7 @@ export function ErrorsPage({ t, locale }: { t: Dict; locale: Locale }) {
                   <div
                     key={code}
                     id={`${kit}-${code}`}
-                    className="scroll-mt-20 py-5 target:bg-card sm:grid sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-6"
+                    className="py-5 target:bg-card sm:grid sm:grid-cols-[minmax(0,15rem)_1fr] sm:gap-6"
                   >
                     <dt className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <a
@@ -122,6 +102,8 @@ export function ErrorsPage({ t, locale }: { t: Dict; locale: Locale }) {
           </Link>
         </p>
       </main>
+
+      <SiteFooter t={t} locale={locale} path="/errors" />
     </div>
   );
 }

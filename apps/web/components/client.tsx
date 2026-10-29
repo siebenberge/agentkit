@@ -183,3 +183,42 @@ export function ThemeSwitch({
     </div>
   );
 }
+
+/**
+ * The header menus are `<details data-menu>` (they work without JavaScript).
+ * This closes them like real menus: on a click outside or on one of their
+ * links, on Escape, and when another menu opens.
+ */
+export function MenuCloser() {
+  useEffect(() => {
+    const menus = () =>
+      document.querySelectorAll<HTMLDetailsElement>('details[data-menu][open]');
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as Element;
+      for (const m of menus())
+        if (!m.contains(target) || target.closest('a')) m.open = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      for (const m of menus()) {
+        m.open = false;
+        m.querySelector('summary')?.focus();
+      }
+    };
+    // `toggle` does not bubble – listen in the capture phase.
+    const onToggle = (e: Event) => {
+      const opened = e.target as HTMLDetailsElement;
+      if (!opened.matches('details[data-menu][open]')) return;
+      for (const m of menus()) if (m !== opened) m.open = false;
+    };
+    document.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('toggle', onToggle, true);
+    return () => {
+      document.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('toggle', onToggle, true);
+    };
+  }, []);
+  return null;
+}

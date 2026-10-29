@@ -60,15 +60,6 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
   const copy = { copy: t.install.copy, copied: t.install.copied };
   const prompt = t.install.prompt.replace('{url}', SITE_URL);
 
-  const nav = [
-    { href: `/${locale}/subkit`, label: 'subkit' },
-    { href: `/${locale}/shopkit`, label: 'shopkit' },
-    { href: '#agents', label: h.nav.news },
-    { href: '#switzerland', label: t.nav.switzerland },
-    { href: '#developers', label: h.dev.eyebrow },
-    { href: '#open-source', label: h.nav.openSource },
-    { href: '#faq', label: h.nav.faq },
-  ];
 
   return (
     <div className="min-h-dvh overflow-x-clip bg-bg font-sans text-fg">
@@ -79,7 +70,6 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         t={t}
         locale={locale}
         path=""
-        nav={nav}
         cta={{ href: SUB_DEMO, label: h.nav.cta }}
       />
 
@@ -220,7 +210,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         </section>
 
         {/* The two kits */}
-        <section id="kits" className={`${WRAP} scroll-mt-20 pt-20 sm:pt-28`}>
+        <section id="kits" className={`${WRAP} pt-20 sm:pt-28`}>
           <SplitHead
             eyebrow={t.kits.eyebrow}
             title={t.kits.title}
@@ -347,7 +337,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         {/* Features of both kits – bento */}
         <section
           id="features"
-          className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+          className={`${WRAP} pt-32 sm:pt-44`}
         >
           <SplitHead
             eyebrow={t.features.eyebrow}
@@ -411,7 +401,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         {/* Developers */}
         <section
           id="developers"
-          className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+          className={`${WRAP} pt-32 sm:pt-44`}
         >
           <SplitHead
             eyebrow={h.dev.eyebrow}
@@ -510,7 +500,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         {/* Open source */}
         <section
           id="open-source"
-          className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}
+          className={`${WRAP} pt-32 sm:pt-44`}
         >
           <SplitHead
             eyebrow={h.nav.openSource}
@@ -557,7 +547,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         </section>
 
         {/* Roadmap */}
-        <section id="roadmap" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+        <section id="roadmap" className={`${WRAP} pt-32 sm:pt-44`}>
           <SplitHead
             eyebrow={t.roadmap.eyebrow}
             title={t.roadmap.title}
@@ -599,7 +589,7 @@ export async function Home({ t, locale }: { t: Dict; locale: Locale }) {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className={`${WRAP} scroll-mt-20 pt-32 sm:pt-44`}>
+        <section id="faq" className={`${WRAP} pt-32 sm:pt-44`}>
           <div className="grid gap-10 lg:grid-cols-[1fr_1.45fr]">
             <div data-reveal>
               <Eyebrow>{h.faq.eyebrow}</Eyebrow>
@@ -731,7 +721,7 @@ function KitCard({
     <article
       id={id}
       data-reveal
-      className="flex min-w-0 scroll-mt-20 flex-col overflow-hidden rounded-[22px] border border-line p-2"
+      className="flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-line p-2"
     >
       <div className="px-5 pb-7 pt-5 sm:px-7 sm:pt-7">
         <div className="flex items-center gap-3">
