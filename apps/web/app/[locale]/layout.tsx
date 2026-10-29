@@ -52,6 +52,14 @@ export default async function LocaleLayout({
       className={`${GeistSans.variable} ${GeistMono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Plausible, self-hosted: no cookies, no personal data */}
+        <script
+          defer
+          data-domain="agentkit.ch"
+          src="https://analytics.siebenberge.com/js/script.js"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
