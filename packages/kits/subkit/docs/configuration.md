@@ -179,6 +179,10 @@ throws a plain `Error` for a coupon without one (or with both), a
 `percentOff` outside 1–100, `periods` below 1, an unknown plan in `planIds`
 or two coupons with the same id.
 
+Without coupons, promotion codes are never looked up: `subscribe` with a
+code throws `PROMOTION_CODE_INVALID` and the database needs no
+`billing_promotion_codes` table.
+
 Coupons are configuration like plans: change or remove one and running
 subscriptions keep the terms they started with (the subscription stores a
 snapshot, `subscription.discount`). Customers redeem a coupon with a

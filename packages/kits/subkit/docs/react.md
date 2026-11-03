@@ -62,7 +62,7 @@ newer.
   yearly prices, trial badge, limits and features. Choosing a plan opens the
   subscribe dialog (card or invoice, as offered; with coupons configured a
   promotion code field that shows what the code gives before the customer
-  subscribes) or the change dialog (upgrade now or at the period end, as
+  subscribes; a code typed but not applied is checked when they continue) or the change dialog (upgrade now or at the period end, as
   the engine decides).
 - Payment method: card / TWINT with last 4 digits and expiry, or invoice
   with the payment term; change payment method, switch to card or to

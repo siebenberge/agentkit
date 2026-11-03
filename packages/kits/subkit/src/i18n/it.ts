@@ -70,6 +70,7 @@ export const it: Messages = {
       amount: '−{{amount}}',
       forever: 'finché dura l’abbonamento',
       periodsLeft: 'ancora {{count}} fatturazioni',
+      onePeriodLeft: 'ancora una fatturazione',
       lastPeriod: 'fino al {{date}}',
     },
     status: {

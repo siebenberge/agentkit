@@ -38,6 +38,8 @@ export type BillingSubscriptionDto = {
   scheduledPlanId: string | null;
   scheduledInterval: BillingInterval | null;
   discount: BillingDiscountDto | null;
+  /** Price of the next period of this plan, with the coupon if it still applies. */
+  nextAmount: number;
 };
 
 export type BillingInvoiceDto = {

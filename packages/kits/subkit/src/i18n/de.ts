@@ -71,6 +71,7 @@ export const de = {
       amount: '−{{amount}}',
       forever: 'solange das Abo läuft',
       periodsLeft: 'noch {{count}} weitere Abrechnungen',
+      onePeriodLeft: 'noch eine weitere Abrechnung',
       lastPeriod: 'bis am {{date}}',
     },
     status: {

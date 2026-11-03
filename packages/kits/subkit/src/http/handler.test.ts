@@ -635,6 +635,8 @@ describe('createSubscriptionsHandler', () => {
       currentPeriod: true,
     });
     expect(overview.invoices[0]?.total).toBe(1000);
+    // the next period is discounted too (2 of 3 periods left)
+    expect(overview.subscription?.nextAmount).toBe(1000);
     expect(checks).toEqual([
       'promotion-code',
       'promotion-code',

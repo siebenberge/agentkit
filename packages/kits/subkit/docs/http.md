@@ -226,6 +226,7 @@ type BillingSubscriptionDto = {
   cancelAtPeriodEnd: boolean;
   scheduledPlanId: string | null; scheduledInterval: 'month' | 'year' | null;
   discount: BillingDiscountDto | null;
+  nextAmount: number;         // next period of this plan, with the coupon if it still applies
 };
 
 type BillingDiscountDto = {

@@ -270,7 +270,7 @@ export function BillingPortal(props: BillingPortalProps) {
                 {
                   date: date(subscription.currentPeriodEnd),
                   amount: money(
-                    gross(nextPeriodAmount(subscription)),
+                    gross(subscription.nextAmount),
                     subscription.currency,
                   ),
                   interval: t.interval[subscription.interval],
@@ -278,9 +278,17 @@ export function BillingPortal(props: BillingPortalProps) {
               )
             : t.current.freeDescription}
         </p>
-        {subscription?.discount ? (
+        {subscription?.discount &&
+        (subscription.discount.currentPeriod ||
+          subscription.discount.periodsLeft !== 0) ? (
           <p className="sb-muted">
-            {discountText(subscription.discount, subscription, m, locale)}
+            {discountText(
+              subscription.discount,
+              subscription,
+              m,
+              locale,
+              gross,
+            )}
           </p>
         ) : null}
         {subscription?.scheduledPlanId ? (
@@ -712,37 +720,14 @@ export function BillingPortal(props: BillingPortalProps) {
   );
 }
 
-/**
- * What the next period costs: with the coupon while it has periods left
- * and the plan stays (a scheduled change may not be covered by it).
- */
-function nextPeriodAmount(subscription: BillingSubscriptionDto) {
-  const discount = subscription.discount;
-  const unit = subscription.unitAmount;
-
-  if (
-    !discount ||
-    !discount.currentPeriod ||
-    discount.periodsLeft === 0 ||
-    subscription.scheduledPlanId
-  ) {
-    return unit;
-  }
-
-  const off =
-    discount.percentOff !== null
-      ? Math.round((unit * discount.percentOff) / 100)
-      : Math.min(unit, discount.amountOff ?? 0);
-
-  return unit - off;
-}
-
 /** «Promotion "Welcome": −50 %, 2 more billing periods.» */
 function discountText(
   discount: BillingDiscountDto,
   subscription: BillingSubscriptionDto,
   messages: Messages,
   locale: string | undefined,
+  /** Amounts as the customer pays them (VAT added to net prices). */
+  gross: (amount: number) => number,
 ) {
   const t = messages.ui;
   const off =
@@ -750,7 +735,7 @@ function discountText(
       ? interpolate(t.discount.percent, { percent: discount.percentOff })
       : interpolate(t.discount.amount, {
           amount: formatMoney(
-            discount.amountOff ?? 0,
+            gross(discount.amountOff ?? 0),
             discount.currency ?? subscription.currency,
             locale,
           ),
@@ -758,11 +743,13 @@ function discountText(
   const duration =
     discount.periodsLeft === null
       ? t.discount.forever
-      : discount.periodsLeft > 0
+      : discount.periodsLeft > 1
         ? interpolate(t.discount.periodsLeft, { count: discount.periodsLeft })
-        : interpolate(t.discount.lastPeriod, {
-            date: formatDate(subscription.currentPeriodEnd, locale),
-          });
+        : discount.periodsLeft === 1
+          ? t.discount.onePeriodLeft
+          : interpolate(t.discount.lastPeriod, {
+              date: formatDate(subscription.currentPeriodEnd, locale),
+            });
 
   return interpolate(t.current.discount, {
     name: discount.name,
@@ -800,19 +787,20 @@ function SubscribeDialog(props: {
   const [checking, setChecking] = useState(false);
 
   const checkCode = async (value: string) => {
-    if (!value.trim()) return;
+    if (!value.trim()) return null;
 
     setChecking(true);
     setCodeError(null);
 
     try {
-      setPromotion(
-        await props.client.previewPromotionCode({
-          code: value,
-          planId: props.plan.id,
-          interval: props.interval,
-        }),
-      );
+      const preview = await props.client.previewPromotionCode({
+        code: value,
+        planId: props.plan.id,
+        interval: props.interval,
+      });
+
+      setPromotion(preview);
+      return preview;
     } catch (error) {
       const errors = t.errors as Record<string, string>;
       const errorCode =
@@ -820,9 +808,27 @@ function SubscribeDialog(props: {
 
       setPromotion(null);
       setCodeError(errors[errorCode] ?? t.errors.generic);
+      return null;
     } finally {
       setChecking(false);
     }
+  };
+
+  // a code typed but not applied yet is checked before subscribing – never
+  // silently dropped
+  const confirm = async () => {
+    const typed = code.trim().toUpperCase();
+
+    if (codeOpen && typed && typed !== promotion?.code) {
+      const preview = await checkCode(typed);
+
+      if (!preview) return;
+
+      props.onConfirm(method, preview.code);
+      return;
+    }
+
+    props.onConfirm(method, promotion?.code ?? null);
   };
 
   // a code passed in (offer link) is checked right away
@@ -892,7 +898,7 @@ function SubscribeDialog(props: {
             type="button"
             className="sb-button sb-button-primary"
             disabled={props.pending || checking}
-            onClick={() => props.onConfirm(method, promotion?.code ?? null)}
+            onClick={() => void confirm()}
           >
             {method === 'charge_automatically'
               ? t.subscribeDialog.continueToPayment

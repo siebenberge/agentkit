@@ -387,7 +387,10 @@ export function createSubscriptionsHandler<
       ),
       defaultPlanId: subscriptions.settings.defaultPlanId,
       subscription: data.subscription
-        ? subscriptionDto(data.subscription)
+        ? subscriptionDto(
+            data.subscription,
+            subscriptions.nextPeriodAmount(data.subscription),
+          )
         : null,
       paymentMethod: data.paymentMethod
         ? {
@@ -543,8 +546,12 @@ function iso(date: Date | null) {
   return date ? date.toISOString() : null;
 }
 
-function subscriptionDto(subscription: Subscription): BillingSubscriptionDto {
+function subscriptionDto(
+  subscription: Subscription,
+  nextAmount: number,
+): BillingSubscriptionDto {
   return {
+    nextAmount,
     id: subscription.id,
     planId: subscription.planId,
     interval: subscription.interval,

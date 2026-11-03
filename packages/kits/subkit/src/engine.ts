@@ -594,6 +594,32 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     };
   }
 
+  /**
+   * What the next period of the current plan and interval will cost: the
+   * subscription's price, with its coupon while periods are left and the
+   * coupon is for the plan (also right after a trial).
+   */
+  function nextPeriodAmount(subscription: Subscription) {
+    const discount = subscription.discount ?? null;
+
+    if (
+      !discount ||
+      discount.periodsLeft === 0 ||
+      !discountAppliesTo(
+        discount,
+        subscription.planId,
+        subscription.interval,
+        subscription.currency,
+      )
+    ) {
+      return subscription.unitAmount;
+    }
+
+    return (
+      subscription.unitAmount - discountOff(discount, subscription.unitAmount)
+    );
+  }
+
   /** `invoice.created`, and `invoice.paid` for one settled on creation. */
   function invoiceCreatedEvents(
     invoice: Invoice,
@@ -870,7 +896,11 @@ export function createSubscriptions(options: SubscriptionsOptions) {
   async function findPromotionCode(code: string) {
     const normalized = normalizeCode(code);
 
-    if (!PROMOTION_CODE_PATTERN.test(normalized)) return null;
+    // without coupons there are no codes – and the adapter may have no
+    // table for them (set up before 0.3)
+    if (coupons.length === 0 || !PROMOTION_CODE_PATTERN.test(normalized)) {
+      return null;
+    }
 
     return db.findOne('promotionCode', [{ field: 'code', value: normalized }]);
   }
@@ -1096,6 +1126,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       limit?: number;
     } = {},
   ) {
+    if (coupons.length === 0) return [];
+
     return db.findMany('promotionCode', {
       where: [
         ...(params.couponId !== undefined
@@ -3240,6 +3272,24 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     }
 
     events.push({ type: 'subscription.activated', subscription: activated });
+
+    // a free first period (100 % coupon) was settled on creation: its
+    // receipt goes out now that the subscription started
+    const [first] = await db.findMany('invoice', {
+      where: [
+        { field: 'subscriptionId', value: subscription.id },
+        { field: 'reason', value: 'subscription_create' },
+        { field: 'status', value: 'paid' },
+        { field: 'total', value: 0 },
+      ],
+      limit: 1,
+    });
+
+    if (first) {
+      events.push(
+        ...invoiceCreatedEvents(first, await getCustomerById(first.customerId)),
+      );
+    }
   }
 
   /**
@@ -3871,6 +3921,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     },
     getPlan: (planId: string) => plansById.get(planId) ?? null,
     getCoupon: (couponId: string) => couponsById.get(couponId) ?? null,
+    nextPeriodAmount,
     /** The engine's clock (`options.now`). */
     now,
     upsertCustomer,

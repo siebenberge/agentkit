@@ -71,6 +71,7 @@ export const en: Messages = {
       amount: '−{{amount}}',
       forever: 'for as long as the subscription runs',
       periodsLeft: '{{count}} more billing periods',
+      onePeriodLeft: 'one more billing period',
       lastPeriod: 'until {{date}}',
     },
     status: {

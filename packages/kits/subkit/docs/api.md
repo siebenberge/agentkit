@@ -12,7 +12,7 @@ import { createSubscriptions, type Subscriptions } from '@agentkit.ch/subkit';
 const subscriptions: Subscriptions = createSubscriptions({ … });
 ```
 
-Every method is `async` except `getPlan` and `getCoupon`. `externalId` is your id of the
+Every method is `async` except `getPlan`, `getCoupon` and `nextPeriodAmount`. `externalId` is your id of the
 billed customer ([concepts](concepts.md#customers-and-externalid)).
 
 ## Plans and settings
@@ -24,6 +24,7 @@ subscriptions.plans: Plan[]
 subscriptions.getPlan(planId: string): Plan | null
 subscriptions.coupons: Coupon[]
 subscriptions.getCoupon(couponId: string): Coupon | null
+subscriptions.nextPeriodAmount(subscription: Subscription): number
 subscriptions.now(): Date // the clock (`options.now`)
 subscriptions.settings: {
   defaultPlanId: string;
@@ -32,7 +33,10 @@ subscriptions.settings: {
 }
 ```
 
-What `createSubscriptions` was configured with. `invoiceDueDays` is
+What `createSubscriptions` was configured with. `nextPeriodAmount` is the
+price of the subscription's next period on its current plan and interval,
+with its coupon while periods are left and the coupon is for the plan (also
+for the first paid period after a trial). `invoiceDueDays` is
 `invoices.dueDays` (default 30).
 
 ## Customers

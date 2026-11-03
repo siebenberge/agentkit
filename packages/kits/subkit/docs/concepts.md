@@ -250,7 +250,9 @@ Example: Basic CHF 10.00 → Pro CHF 30.00 after half of a period with 50 %:
 ### Nothing to pay
 
 An invoice whose total is zero (a 100 % coupon) is `paid` when it is
-created and never charged; it is still issued as a receipt. A card
+created and never charged; it is still issued as a receipt
+(`invoice.created` and `invoice.paid` – for the first invoice of a card
+checkout when the checkout completes). A card
 checkout for such a first invoice only saves the payment method (`save`
 mode with `checkout.verificationAmount`). If that checkout expires, the
 free invoice is voided like any first invoice.
