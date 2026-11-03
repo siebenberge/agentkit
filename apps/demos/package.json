@@ -11,7 +11,7 @@
     "@agentkit.ch/shopkit": "workspace:*",
     "@agentkit.ch/subkit": "workspace:*",
     "geist": "1.7.2",
-    "next": "16.3.8",
+    "next": "16.4.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "swissqrbill": "4.4.1"
