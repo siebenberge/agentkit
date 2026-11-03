@@ -22,21 +22,25 @@ interface StorageAdapter {
 ```
 
 Models (`ModelName`): `customer`, `paymentMethod`, `subscription`,
-`invoice`, `checkout` – the types `Customer`, `PaymentMethod`,
-`Subscription`, `Invoice`, `Checkout` of `@agentkit.ch/subkit`. There is no
+`invoice`, `checkout`, `promotionCode` – the types `Customer`,
+`PaymentMethod`, `Subscription`, `Invoice`, `Checkout`, `PromotionCode` of
+`@agentkit.ch/subkit`. `promotionCode` is only used with coupons
+configured; an adapter written before 0.3 works without it until then. There is no
 delete: the engine never deletes rows.
 
 | Method | Must |
 |---|---|
 | `id` | Name of the adapter (`drizzle-pg`, `memory`) |
-| `create` | Store the row as given (ids come from the engine) and return it. Reject a duplicate `customer.externalId`, `paymentMethod.token`, `invoice.billingKey` or `invoice.number` (throw) |
+| `create` | Store the row as given (ids come from the engine) and return it. Reject a duplicate `customer.externalId`, `paymentMethod.token`, `invoice.billingKey`, `invoice.number` or `promotionCode.code` (throw) |
 | `findOne` | Return the first row matching all conditions, or `null` |
 | `findMany` | Return the matching rows, sorted and limited as asked |
 | `update` | Apply `patch` to every row matching `where`, atomically per row; return the first updated row (after the update) or `null` when nothing matched |
 | `transaction` | Optional. Run `fn` with an adapter bound to one transaction; commit when it resolves, roll back when it throws |
 
 Rows come back with `Date` objects for dates, `null` (not `undefined`) for
-empty fields, and `address` / `lines` as plain objects and arrays.
+empty fields, and `address` / `lines` / `discount` as plain objects and
+arrays. A subscription row stored without `discount` (before 0.3) is read
+as no discount.
 
 ### `Where` and operators
 
@@ -106,7 +110,7 @@ drizzleAdapter(db: PgDatabase, tables?: typeof subscriptionTables): StorageAdapt
 | Parameter | Description |
 |---|---|
 | `db` | Your Drizzle Postgres database (any Postgres driver of Drizzle). Its `db.transaction()` is used for `transaction` |
-| `tables` | The table objects (default `subscriptionTables` from `/drizzle/schema`) |
+| `tables` | The table objects (default `subscriptionTables` from `/drizzle/schema`). `promotionCode` may be missing in tables you put together yourself before 0.3; the adapter throws when it is needed |
 
 PostgreSQL only. Peer dependency `drizzle-orm` (0.36 or newer). The driver
 must support transactions. The adapter also exports `subscriptionTables`.
@@ -125,6 +129,7 @@ export {
   billing_subscriptions,
   billing_invoices,
   billing_checkouts,
+  billing_promotion_codes,
 } from '@agentkit.ch/subkit/drizzle/schema';
 
 export const teams = pgTable('teams', { /* your tables */ });
@@ -203,6 +208,7 @@ All ids are `text` (the engine's ids), dates `timestamptz`, amounts
 | `cancel_at_period_end` | boolean | |
 | `canceled_at`, `ended_at`, `locked_at` | timestamptz, null | Cancellation, end, dunning lock |
 | `scheduled_plan_id`, `scheduled_interval` | text, null | Change at the period end |
+| `discount` | jsonb, null | `SubscriptionDiscount`: snapshot of the coupon, periods left (0.3) |
 | `created_at`, `updated_at` | timestamptz | `updated_at` is the compare-and-set version |
 
 ### `billing_invoices` (invoice)
@@ -244,6 +250,22 @@ All ids are `text` (the engine's ids), dates `timestamptz`, amounts
 | `provider_reference` | text, null | The provider's id of the payment page |
 | `url` | text | Payment page |
 | `expires_at` | timestamptz | |
+| `created_at`, `updated_at` | timestamptz | |
+
+### `billing_promotion_codes` (promotionCode)
+
+New in 0.3.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | text, PK | |
+| `code` | text, unique | Upper case |
+| `coupon_id` | text, indexed | Id of a coupon in your config |
+| `email` | text, null, indexed | Only this (lower case) email may redeem it |
+| `max_redemptions` | integer, null | `null` = unlimited |
+| `times_redeemed` | integer | Subscriptions that went live with it; compare-and-set counter |
+| `expires_at` | timestamptz, null | Not redeemable from then on |
+| `active` | boolean | `false` once deactivated |
 | `created_at`, `updated_at` | timestamptz | |
 
 ## In memory

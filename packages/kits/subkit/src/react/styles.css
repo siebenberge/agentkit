@@ -343,6 +343,63 @@
   background: var(--sb-success-bg);
 }
 
+.sb-promotion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.sb-promotion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.sb-promotion-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sb-promotion-applied {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  color: var(--sb-success);
+  background: var(--sb-success-bg);
+  border-radius: var(--sb-radius);
+}
+
+.sb-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  text-transform: uppercase;
+  color: var(--sb-fg);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius);
+}
+
+.sb-input:focus-visible {
+  outline: 2px solid var(--sb-primary);
+  outline-offset: 1px;
+}
+
+.sb-input[aria-invalid='true'] {
+  border-color: var(--sb-danger);
+}
+
+.sb-error {
+  margin: 0;
+  color: var(--sb-danger);
+}
+
 .sb-dialog {
   /* resets like Tailwind's preflight remove the browser's centering */
   margin: auto;

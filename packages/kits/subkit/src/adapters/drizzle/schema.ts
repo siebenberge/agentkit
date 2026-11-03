@@ -19,6 +19,7 @@ import type {
   InvoiceReason,
   InvoiceStatus,
   PaymentMethod,
+  SubscriptionDiscount,
   SubscriptionStatus,
 } from '../../types';
 
@@ -98,6 +99,7 @@ export const billing_subscriptions = pgTable(
     lockedAt: timestamptz('locked_at'),
     scheduledPlanId: text('scheduled_plan_id'),
     scheduledInterval: text('scheduled_interval').$type<BillingInterval>(),
+    discount: jsonb('discount').$type<SubscriptionDiscount | null>(),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
@@ -213,10 +215,32 @@ export const billing_checkouts = pgTable(
   ],
 );
 
+export const billing_promotion_codes = pgTable(
+  'billing_promotion_codes',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    couponId: text('coupon_id').notNull(),
+    email: text('email'),
+    maxRedemptions: integer('max_redemptions'),
+    timesRedeemed: integer('times_redeemed').notNull(),
+    expiresAt: timestamptz('expires_at'),
+    active: boolean('active').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+    updatedAt: timestamptz('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('billing_promotion_codes_code_key').on(table.code),
+    index('ix_billing_promotion_codes_coupon_id').on(table.couponId),
+    index('ix_billing_promotion_codes_email').on(table.email),
+  ],
+);
+
 export const subscriptionTables = {
   customer: billing_subscribers,
   paymentMethod: billing_payment_methods,
   subscription: billing_subscriptions,
   invoice: billing_invoices,
   checkout: billing_checkouts,
+  promotionCode: billing_promotion_codes,
 };

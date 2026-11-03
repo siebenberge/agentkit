@@ -25,6 +25,11 @@ export const it: Messages = {
         'Una fattura precedente è scaduta. Pagala prima – poi potrai abbonarti di nuovo.',
       RATE_LIMITED:
         'Troppi tentativi in poco tempo. Attendi un momento e riprova.',
+      PROMOTION_CODE_INVALID: 'Questo codice promozionale non è valido.',
+      PROMOTION_CODE_EXPIRED:
+        'Questo codice promozionale è scaduto o è già stato utilizzato.',
+      PROMOTION_CODE_NOT_APPLICABLE:
+        'Questo codice promozionale non vale per questo piano.',
     },
     toasts: {
       changeUndone: 'Il cambio previsto è stato annullato.',
@@ -58,6 +63,15 @@ export const it: Messages = {
       trialEndsOn: 'Prova fino al {{date}}, poi {{amount}} {{interval}}.',
       endsOn: 'Disdetto – il tuo piano resta attivo fino al {{date}}.',
       scheduledChange: 'Dal {{date}} passi a {{plan}} ({{interval}}).',
+      discount: 'Codice promozionale «{{name}}»: {{discount}}, {{duration}}.',
+    },
+    discount: {
+      percent: '−{{percent}} %',
+      amount: '−{{amount}}',
+      forever: 'finché dura l’abbonamento',
+      periodsLeft: 'ancora {{count}} fatturazioni',
+      onePeriodLeft: 'ancora una fatturazione',
+      lastPeriod: 'fino al {{date}}',
     },
     status: {
       free: 'Gratuito',
@@ -142,6 +156,16 @@ export const it: Messages = {
         'L’abbonamento si rinnova automaticamente e può essere disdetto in ogni momento per la fine del periodo.',
       continueToPayment: 'Continua al pagamento',
       subscribeWithInvoice: 'Sottoscrivi con obbligo di pagamento',
+      promotionCode: 'Codice promozionale',
+      addPromotionCode: 'Inserisci un codice promozionale',
+      applyPromotionCode: 'Applica',
+      removePromotionCode: 'Rimuovi',
+      promotionApplied:
+        '{{name}}: {{amount}} invece di {{price}} {{interval}}, {{duration}}.',
+      promotionOnce: 'per la prima fatturazione',
+      promotionPeriods: 'per le prime {{count}} fatturazioni',
+      promotionForever: 'finché dura l’abbonamento',
+      promotionAfterTrial: 'Lo sconto inizia dopo il periodo di prova.',
     },
     changeDialog: {
       title: 'Passa a {{plan}}',

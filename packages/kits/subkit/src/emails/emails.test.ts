@@ -149,6 +149,32 @@ describe('emails', () => {
     expect(sent[0]?.text).not.toContain('pausiert');
   });
 
+  it('sends a receipt, not a payment request, for an invoice with nothing to pay', async () => {
+    const sent: BillingEmailMessage[] = [];
+    const notify = createEmailNotifier({
+      productName: 'Membear',
+      send: (message) => {
+        sent.push(message);
+      },
+      locale: 'en',
+      links: { billing: () => 'https://app.example/billing' },
+    });
+    const free: Invoice = {
+      ...invoice,
+      status: 'paid',
+      paidAt: new Date('2026-01-01'),
+      subtotal: 0,
+      tax: 0,
+      total: 0,
+    };
+
+    await notify({ type: 'invoice.created', invoice: free, customer });
+    await notify({ type: 'invoice.paid', invoice: free, customer });
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toMatch(/We received CHF.0\.00/);
+  });
+
   it('skips emails when the app returns no link', async () => {
     const sent: BillingEmailMessage[] = [];
     const notify = createEmailNotifier({

@@ -123,14 +123,17 @@ A new invoice:
 
 Not fired for the first invoice of a card checkout or the invoice of a
 charged upgrade – those are paid at once (`invoice.paid`).
-`createEmailNotifier` sends an email only for `send_invoice` invoices; card
-invoices get the receipt instead.
+`createEmailNotifier` sends an email only for open `send_invoice` invoices;
+card invoices get the receipt instead.
+
+An invoice with nothing to pay (100 % coupon) is created `paid`:
+`invoice.created` is followed by `invoice.paid` right away.
 
 ### `invoice.paid`
 
 An invoice was paid: by a checkout, a token charge, a pending charge that
 went through, an online payment link, `markInvoicePaid()` or
-`reconcileBankPayments()`. `invoice.paidAt` and `providerTransactionId` are
+`reconcileBankPayments()` – or it had nothing to pay (100 % coupon). `invoice.paidAt` and `providerTransactionId` are
 set. Fires once per invoice. May be followed by `subscription.updated` when
 it settled the last overdue invoice.
 

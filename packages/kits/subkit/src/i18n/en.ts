@@ -25,6 +25,11 @@ export const en: Messages = {
         'An earlier invoice is overdue. Please pay it first – then you can subscribe again.',
       RATE_LIMITED:
         'Too many attempts in a short time. Please wait a moment and try again.',
+      PROMOTION_CODE_INVALID: 'This promotion code is not valid.',
+      PROMOTION_CODE_EXPIRED:
+        'This promotion code has expired or was used already.',
+      PROMOTION_CODE_NOT_APPLICABLE:
+        'This promotion code does not apply to this plan.',
     },
     toasts: {
       changeUndone: 'The scheduled change was withdrawn.',
@@ -59,6 +64,15 @@ export const en: Messages = {
       trialEndsOn: 'Trial until {{date}}, then {{amount}} {{interval}}.',
       endsOn: 'Canceled – your plan stays active until {{date}}.',
       scheduledChange: 'From {{date}} you switch to {{plan}} ({{interval}}).',
+      discount: 'Promotion “{{name}}”: {{discount}}, {{duration}}.',
+    },
+    discount: {
+      percent: '−{{percent}} %',
+      amount: '−{{amount}}',
+      forever: 'for as long as the subscription runs',
+      periodsLeft: '{{count}} more billing periods',
+      onePeriodLeft: 'one more billing period',
+      lastPeriod: 'until {{date}}',
     },
     status: {
       free: 'Free',
@@ -142,6 +156,16 @@ export const en: Messages = {
         'The subscription renews automatically and can be canceled anytime to the end of the term.',
       continueToPayment: 'Continue to payment',
       subscribeWithInvoice: 'Book with obligation to pay',
+      promotionCode: 'Promotion code',
+      addPromotionCode: 'Add a promotion code',
+      applyPromotionCode: 'Apply',
+      removePromotionCode: 'Remove',
+      promotionApplied:
+        '{{name}}: {{amount}} instead of {{price}} {{interval}}, {{duration}}.',
+      promotionOnce: 'for the first billing period',
+      promotionPeriods: 'for the first {{count}} billing periods',
+      promotionForever: 'for as long as the subscription runs',
+      promotionAfterTrial: 'The discount starts after the trial.',
     },
     changeDialog: {
       title: 'Switch to {{plan}}',

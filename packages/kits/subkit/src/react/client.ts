@@ -1,6 +1,7 @@
 import type {
   BillingOverviewDto,
   ChangePlanResultDto,
+  PromotionPreviewDto,
   SubscribeResultDto,
 } from '../http/types';
 import type { BillingInterval, CollectionMethod } from '../types';
@@ -67,7 +68,14 @@ export function createBillingClient(options: BillingClientOptions) {
       planId: string;
       interval: BillingInterval;
       collectionMethod: CollectionMethod;
+      promotionCode?: string;
     }) => request<SubscribeResultDto>('/subscribe', input),
+    /** What a promotion code gives on a plan (throws its error code). */
+    previewPromotionCode: (input: {
+      code: string;
+      planId: string;
+      interval: BillingInterval;
+    }) => request<PromotionPreviewDto>('/promotion-code', input),
     changePlan: (input: { planId: string; interval: BillingInterval }) =>
       request<ChangePlanResultDto>('/change-plan', input),
     cancel: () => request<{ success: true }>('/cancel', {}),

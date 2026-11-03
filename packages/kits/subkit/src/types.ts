@@ -59,6 +59,82 @@ export type Plan = {
   hidden?: boolean;
 };
 
+/**
+ * How many invoiced periods a coupon discounts. A period is the
+ * subscription's own: a yearly period counts as one.
+ */
+export type CouponDuration =
+  /** The first invoiced period only. */
+  | 'once'
+  /** Every period, as long as the subscription runs. */
+  | 'forever'
+  /** The first `periods` invoiced periods. */
+  | { periods: number };
+
+/**
+ * A discount, configured like the plans. Customers redeem it with a
+ * `PromotionCode` (or the app applies it with `subscribe({ couponId })`).
+ */
+export type Coupon = {
+  id: string;
+  /** Shown on invoice lines and in the billing portal, e.g. "Launch offer". */
+  name: string;
+  /** Percent off every discounted period, 1–100. Set this or `amountOff`. */
+  percentOff?: number;
+  /** Fixed amount off every discounted period (never below zero). */
+  amountOff?: PlanPrice;
+  duration: CouponDuration;
+  /** Only for these plans (default: every plan). */
+  planIds?: string[];
+  /** Only for these intervals (default: both). */
+  intervals?: BillingInterval[];
+  /** Only for the customer's first subscription (like a trial). */
+  firstSubscriptionOnly?: boolean;
+};
+
+/** A code customers type to redeem a coupon. */
+export type PromotionCode = {
+  id: string;
+  /** Stored in upper case; unique. Redeeming ignores case and spaces around it. */
+  code: string;
+  couponId: string;
+  /** Only redeemable by a customer with this email (lower case); `null` = anyone. */
+  email: string | null;
+  /** `null` = unlimited. */
+  maxRedemptions: number | null;
+  /** Subscriptions that went live with this code. */
+  timesRedeemed: number;
+  /** Not redeemable from this moment on; `null` = no end. */
+  expiresAt: Date | null;
+  /** `false` once deactivated. */
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/**
+ * The coupon a subscription was started with (snapshot: later changes of the
+ * coupon's configuration do not touch it).
+ */
+export type SubscriptionDiscount = {
+  couponId: string;
+  promotionCodeId: string | null;
+  name: string;
+  percentOff: number | null;
+  /** Off every discounted period, in minor units of `currency`. */
+  amountOff: number | null;
+  /** Currency of `amountOff`; `null` for a percentage. */
+  currency: string | null;
+  /** `null` = every plan. */
+  planIds: string[] | null;
+  /** `null` = both intervals. */
+  intervals: BillingInterval[] | null;
+  /** Discounted periods still to be invoiced; `null` = forever. */
+  periodsLeft: number | null;
+  /** The current period was invoiced with the discount (a plan change in it is prorated with it). */
+  currentPeriod: boolean;
+};
+
 export type Address = {
   line1?: string;
   line2?: string;
@@ -118,6 +194,11 @@ export type Subscription = {
   /** Downgrades / interval changes that apply at the end of the period. */
   scheduledPlanId: string | null;
   scheduledInterval: BillingInterval | null;
+  /**
+   * Coupon of the subscription while it discounts periods; `null` (or
+   * missing in rows written before 0.3) otherwise.
+   */
+  discount: SubscriptionDiscount | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -130,6 +211,8 @@ export type InvoiceLine = {
   interval?: BillingInterval;
   periodStart?: string;
   periodEnd?: string;
+  /** Set on the discount line of a coupon. */
+  couponId?: string;
 };
 
 export type Invoice = {
@@ -189,6 +272,7 @@ export type ModelMap = {
   subscription: Subscription;
   invoice: Invoice;
   checkout: Checkout;
+  promotionCode: PromotionCode;
 };
 
 export type ModelName = keyof ModelMap;

@@ -81,6 +81,15 @@ function setup(
     defaultPlanId: 'free',
     tax: options.tax ?? { rateBps: 810 },
     now: () => new Date(clock.now),
+    coupons: [
+      {
+        id: 'welcome',
+        name: 'Welcome',
+        percentOff: 50,
+        duration: { periods: 3 },
+        intervals: ['month'],
+      },
+    ],
   });
 
   const handler = createSubscriptionsHandler({
@@ -554,5 +563,109 @@ describe('createSubscriptionsHandler', () => {
 
     expect(response.status).toBe(200);
     expect((await client.overview()).subscription?.status).toBe('active');
+  });
+
+  it('previews a promotion code and subscribes with it', async () => {
+    const checks: string[] = [];
+    const { client, subscriptions } = setup({
+      rateLimit: (check) => {
+        checks.push(check.route);
+        return { allowed: true };
+      },
+    });
+
+    await subscriptions.createPromotionCode({
+      couponId: 'welcome',
+      code: 'WELCOME',
+      email: 'kasse@verein.ch',
+    });
+
+    expect((await client.overview()).promotionCodes).toBe(true);
+
+    await expect(
+      client.previewPromotionCode({
+        code: ' welcome ',
+        planId: 'pro',
+        interval: 'month',
+      }),
+    ).resolves.toEqual({
+      code: 'WELCOME',
+      name: 'Welcome',
+      percentOff: 50,
+      amountOff: null,
+      price: { amount: 2000, currency: 'CHF' },
+      discountAmount: 1000,
+      discountedAmount: 1000,
+      periods: 3,
+      trial: false,
+    });
+    await expect(
+      client.previewPromotionCode({
+        code: 'WELCOME',
+        planId: 'pro',
+        interval: 'year',
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROMOTION_CODE_NOT_APPLICABLE',
+      status: 400,
+    });
+    await expect(
+      client.previewPromotionCode({
+        code: 'OTHER',
+        planId: 'pro',
+        interval: 'month',
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_INVALID' });
+
+    await client.subscribe({
+      planId: 'pro',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+      promotionCode: 'welcome',
+    });
+
+    const overview = await client.overview();
+
+    expect(overview.subscription?.discount).toEqual({
+      name: 'Welcome',
+      percentOff: 50,
+      amountOff: null,
+      currency: null,
+      periodsLeft: 2,
+      currentPeriod: true,
+    });
+    expect(overview.invoices[0]?.total).toBe(1000);
+    // the next period is discounted too (2 of 3 periods left)
+    expect(overview.subscription?.nextAmount).toBe(1000);
+    expect(checks).toEqual([
+      'promotion-code',
+      'promotion-code',
+      'promotion-code',
+      'subscribe',
+      'promotion-code',
+    ]);
+  });
+
+  it('ignores a blank promotion code and limits code checks', async () => {
+    const { client } = setup({
+      rateLimit: (check) => ({ allowed: check.route !== 'promotion-code' }),
+    });
+
+    await expect(
+      client.previewPromotionCode({
+        code: 'GUESS',
+        planId: 'pro',
+        interval: 'month',
+      }),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+
+    await expect(
+      client.subscribe({
+        planId: 'pro',
+        interval: 'month',
+        collectionMethod: 'send_invoice',
+        promotionCode: '  ',
+      }),
+    ).resolves.toEqual({ type: 'subscribed' });
   });
 });

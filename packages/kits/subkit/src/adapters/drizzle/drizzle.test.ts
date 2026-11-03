@@ -69,6 +69,15 @@ describe.skipIf(!url)('drizzleAdapter (postgres)', () => {
     defaultPlanId: 'free',
     tax: { rateBps: 810 },
     now: () => new Date(clock.now),
+    coupons: [
+      {
+        id: 'welcome',
+        name: 'Welcome',
+        percentOff: 50,
+        duration: { periods: 3 },
+        intervals: ['month'],
+      },
+    ],
   });
 
   beforeEach(async () => {
@@ -77,6 +86,7 @@ describe.skipIf(!url)('drizzleAdapter (postgres)', () => {
     await client`delete from billing_subscriptions`;
     await client`delete from billing_payment_methods`;
     await client`delete from billing_subscribers`;
+    await client`delete from billing_promotion_codes`;
     charges = 0;
     chargeDelay = 0;
     clock.now = new Date('2026-03-31T08:00:00.000Z');
@@ -305,5 +315,51 @@ describe.skipIf(!url)('drizzleAdapter (postgres)', () => {
     expect(overview.subscription?.currentPeriodEnd.toISOString()).toBe(
       '2026-05-31T08:00:00.000Z',
     );
+  });
+
+  it('redeems a single-use code once for concurrent subscribes', async () => {
+    await subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'ONLY-ONCE',
+      maxRedemptions: 1,
+    });
+
+    for (const externalId of ['acc_a', 'acc_b', 'acc_c']) {
+      await subs.upsertCustomer({
+        externalId,
+        email: `${externalId}@x.ch`,
+        name: externalId,
+      });
+    }
+
+    const results = await Promise.allSettled(
+      ['acc_a', 'acc_b', 'acc_c'].map((externalId) =>
+        subs.subscribe({
+          externalId,
+          planId: 'basic',
+          interval: 'month',
+          collectionMethod: 'send_invoice',
+          urls,
+          promotionCode: 'only-once',
+        }),
+      ),
+    );
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      results
+        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        .map((r) => (r.reason as { code: string }).code),
+    ).toEqual(['PROMOTION_CODE_EXPIRED', 'PROMOTION_CODE_EXPIRED']);
+    expect((await subs.getPromotionCode('ONLY-ONCE'))?.timesRedeemed).toBe(1);
+
+    const [subscribed] = await client`
+      select discount from billing_subscriptions where status = 'active'`;
+
+    expect(subscribed?.discount).toMatchObject({
+      couponId: 'welcome',
+      periodsLeft: 2,
+      currentPeriod: true,
+    });
   });
 });

@@ -222,8 +222,14 @@ function toEmail(
       };
 
     case 'invoice.created':
-      // automatic charges get a receipt instead
-      if (event.invoice.collectionMethod !== 'send_invoice') return null;
+      // automatic charges get a receipt instead, and so does an invoice
+      // settled on creation (nothing to pay, 100 % coupon)
+      if (
+        event.invoice.collectionMethod !== 'send_invoice' ||
+        event.invoice.status !== 'open'
+      ) {
+        return null;
+      }
 
       return {
         kind: 'invoiceCreated',

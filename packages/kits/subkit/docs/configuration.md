@@ -14,6 +14,7 @@ export const subscriptions = createSubscriptions({
   provider,       // PaymentProvider
   plans,          // Plan[]
   defaultPlanId: 'free',
+  coupons,        // Coupon[] (optional)
   tax: { rateBps: 810 },
   invoices: { dueDays: 30 },
   dunning: { retryDays: [1, 3, 5], invoiceGraceDays: 14, finalAction: 'unpaid' },
@@ -29,6 +30,7 @@ export const subscriptions = createSubscriptions({
 | `provider` | `PaymentProvider` | required | Hosted payment pages, token charges, webhooks – `zahlsProvider()` or your own ([providers](providers.md)) |
 | `plans` | `Plan[]` | required | Everything a customer can be on, free plan included |
 | `defaultPlanId` | `string` | required | Plan for customers without an entitled subscription |
+| `coupons` | `Coupon[]` | `[]` | Discounts customers redeem with promotion codes ([coupons](#coupons)) |
 | `tax` | `TaxConfig` | none (no VAT) | VAT rate and whether plan prices include it |
 | `invoices` | object | see below | Payment term, invoice numbers, line texts |
 | `dunning` | object | see below | Card retries, grace days, what happens when dunning is over |
@@ -39,10 +41,12 @@ export const subscriptions = createSubscriptions({
 | `generateId` | `() => string` | `crypto.randomUUID()` | Ids of all rows |
 
 `createSubscriptions` throws a plain `Error` when `defaultPlanId` is not the
-id of one of `plans`.
+id of one of `plans`, or when a coupon is configured wrong (see
+[coupons](#coupons)).
 
 The returned object exposes what it was configured with:
-`subscriptions.plans`, `subscriptions.getPlan(id)` (`Plan | null`) and
+`subscriptions.plans`, `subscriptions.getPlan(id)` (`Plan | null`),
+`subscriptions.coupons`, `subscriptions.getCoupon(id)` (`Coupon | null`) and
 `subscriptions.settings` (`{ defaultPlanId, invoiceDueDays, tax }`, `tax` is
 `null` without VAT); `subscriptions.now()` is its clock.
 
@@ -141,6 +145,51 @@ back to the default plan.
 subscription, or with a subscription that is not entitled (`unpaid`,
 `canceled`, `incomplete`). Usually the free plan. It may have prices.
 
+## Coupons
+
+### Coupon fields
+
+```ts
+coupons: [
+  {
+    id: 'welcome',
+    name: 'Welcome offer',          // on invoice lines and in the portal
+    percentOff: 50,                // or amountOff: { amount: 500, currency: 'CHF' }
+    duration: { periods: 3 },      // 'once' | 'forever' | { periods: n }
+    planIds: ['basic', 'pro'],     // optional: only these plans
+    intervals: ['month'],          // optional: only these intervals
+    firstSubscriptionOnly: true,   // optional: like a trial
+  },
+],
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Your id; promotion codes refer to it. Unique among the coupons |
+| `name` | `string` | Text of the discount line on invoices and in the portal, in your app's language |
+| `percentOff` | `number` | Whole percent off every discounted period, 1–100 |
+| `amountOff` | `PlanPrice` | Fixed amount off every discounted period (minor units); never below zero. Only for subscriptions in its currency |
+| `duration` | `'once' \| 'forever' \| { periods: number }` | How many invoiced periods are discounted |
+| `planIds` | `string[]` | Only for these plans (default every plan) |
+| `intervals` | `('month' \| 'year')[]` | Only for these intervals (default both) |
+| `firstSubscriptionOnly` | `boolean` | Only when the customer never had a subscription |
+
+Set exactly one of `percentOff` and `amountOff`. `createSubscriptions`
+throws a plain `Error` for a coupon without one (or with both), a
+`percentOff` outside 1–100, `periods` below 1, an unknown plan in `planIds`
+or two coupons with the same id.
+
+Without coupons, promotion codes are never looked up: `subscribe` with a
+code throws `PROMOTION_CODE_INVALID` and the database needs no
+`billing_promotion_codes` table.
+
+Coupons are configuration like plans: change or remove one and running
+subscriptions keep the terms they started with (the subscription stores a
+snapshot, `subscription.discount`). Customers redeem a coupon with a
+promotion code (`createPromotionCode()`, [api](api.md#coupons-and-promotion-codes));
+your app can also apply one itself with `subscribe({ couponId })`. How the
+discount is invoiced: [concepts](concepts.md#coupons).
+
 ## Tax
 
 ### `tax` (VAT)
@@ -202,7 +251,9 @@ is derived from the number ([emails and invoices](emails-invoices.md)).
 | `remaining_time` | `Remaining time on Pro (monthly)` | Rest of the period after an upgrade |
 
 The defaults are English whatever the locale. The text is stored on the
-invoice when it is created. The payment purpose sent to the provider is
+invoice when it is created. The discount line of a coupon is not formatted
+here: its text is the coupon's `name`, followed by `(−50 %)` for a
+percentage. The payment purpose sent to the provider is
 `<number> – <text of the first line>`.
 
 ```ts

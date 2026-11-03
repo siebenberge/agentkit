@@ -15,7 +15,17 @@ export type SubscriptionErrorCode =
   | 'OVERDUE_INVOICE'
   | 'WEBHOOK_INVALID'
   /** Refused by the app's rate limit (HTTP 429). */
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  /** No coupon with this id in `coupons`. */
+  | 'COUPON_NOT_FOUND'
+  /** Unknown or deactivated code, or one for another email address. */
+  | 'PROMOTION_CODE_INVALID'
+  /** The code's end date passed or it was redeemed as often as allowed. */
+  | 'PROMOTION_CODE_EXPIRED'
+  /** The coupon is not for this plan, interval or currency, or only for a first subscription. */
+  | 'PROMOTION_CODE_NOT_APPLICABLE'
+  /** `createPromotionCode` with a code that exists already. */
+  | 'PROMOTION_CODE_EXISTS';
 
 /** Every error code with its cause and fix, in de / fr / it / en. */
 export const ERRORS_URL = 'https://agentkit.ch/errors';

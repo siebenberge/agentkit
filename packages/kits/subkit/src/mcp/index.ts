@@ -4,8 +4,10 @@ import type { BillingInterval, PaymentMethod } from '../types';
 import { VERSION } from '../version';
 import {
   type McpTool,
+  ToolInputError,
   createMcpHandler,
   optionalBoolean,
+  optionalInteger,
   optionalString,
   requiredOneOf,
   requiredString,
@@ -53,7 +55,8 @@ const INSTRUCTIONS = `Billing of this app (subkit): plans, subscriptions and inv
  *
  * Tools: list_plans, find_customers, get_billing, get_invoice, change_plan,
  * cancel_subscription, resume_subscription, switch_to_invoice,
- * mark_invoice_paid, void_invoice.
+ * mark_invoice_paid, void_invoice, list_coupons, list_promotion_codes,
+ * create_promotion_code, deactivate_promotion_code.
  */
 export function createSubscriptionsMcpHandler(
   options: SubscriptionsMcpOptions,
@@ -324,6 +327,109 @@ export function subscriptionTools(subscriptions: Subscriptions): McpTool[] {
               note: 'No open or written-off invoice with this id',
             };
       },
+    },
+    {
+      name: 'list_coupons',
+      title: 'List coupons',
+      description:
+        'The configured coupons: percent or amount off (minor units), duration in invoiced periods, plans and intervals they are for, first subscription only.',
+      inputSchema: { type: 'object', additionalProperties: false },
+      annotations: { readOnlyHint: true },
+      run: () => Promise.resolve({ coupons: subscriptions.coupons }),
+    },
+    {
+      name: 'list_promotion_codes',
+      title: 'List promotion codes',
+      description:
+        'Promotion codes, newest first: code, coupon, email it is bound to, redemptions so far and allowed, end date, active. Filter by coupon or email.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          couponId: { type: 'string', description: 'Id from list_coupons.' },
+          email: { type: 'string', description: 'Email the code is for.' },
+        },
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true },
+      run: async (args) => ({
+        promotionCodes: await subscriptions.listPromotionCodes({
+          couponId: optionalString(args, 'couponId') ?? undefined,
+          email: optionalString(args, 'email', 320) ?? undefined,
+        }),
+      }),
+    },
+    {
+      name: 'create_promotion_code',
+      title: 'Create promotion code',
+      description:
+        'A code customers type at checkout to redeem a coupon. Without code one is generated. Optionally bound to one email, limited in redemptions and with an end date. Confirm with the user first.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          couponId: { type: 'string', description: 'Id from list_coupons.' },
+          code: {
+            type: 'string',
+            description: '3–40 letters, digits, - or _ (stored in upper case).',
+          },
+          email: {
+            type: 'string',
+            description: 'Only this customer email may redeem it.',
+          },
+          maxRedemptions: { type: 'integer', minimum: 1 },
+          expiresAt: {
+            type: 'string',
+            description: 'ISO 8601 date-time from which it is not valid.',
+          },
+        },
+        required: ['couponId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false },
+      run: async (args) => {
+        const expiresAt = optionalString(args, 'expiresAt', 40);
+        const end = expiresAt === null ? null : new Date(expiresAt);
+
+        if (end && Number.isNaN(end.getTime())) {
+          throw new ToolInputError('"expiresAt" must be an ISO 8601 date');
+        }
+
+        const code = optionalString(args, 'code', 40);
+
+        return {
+          promotionCode: await subscriptions.createPromotionCode({
+            couponId: requiredString(args, 'couponId'),
+            ...(code !== null ? { code } : {}),
+            email: optionalString(args, 'email', 320),
+            maxRedemptions: optionalInteger(args, 'maxRedemptions', {
+              min: 1,
+              max: 1_000_000,
+            }),
+            expiresAt: end,
+          }),
+        };
+      },
+    },
+    {
+      name: 'deactivate_promotion_code',
+      title: 'Deactivate promotion code',
+      description:
+        'The code cannot be redeemed any more; subscriptions that used it keep their discount. Cannot be undone. Confirm with the user first.',
+      inputSchema: {
+        type: 'object',
+        properties: { code: { type: 'string' } },
+        required: ['code'],
+        additionalProperties: false,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      run: async (args) => ({
+        promotionCode: await subscriptions.deactivatePromotionCode({
+          code: requiredString(args, 'code', 40),
+        }),
+      }),
     },
   ];
 }

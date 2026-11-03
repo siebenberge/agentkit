@@ -15,7 +15,7 @@ import type {
   ProviderEvent,
 } from './provider';
 import { computeTotals, grossAmount } from './tax';
-import type { Plan, SubscriptionEvent } from './types';
+import type { Coupon, Plan, SubscriptionEvent } from './types';
 
 const plans: Plan[] = [
   {
@@ -2113,5 +2113,627 @@ describe('subscribing again with an overdue invoice', () => {
     expect((await subscribe(ctx, 'charge_automatically')).type).toBe(
       'redirect',
     );
+  });
+});
+
+describe('coupons', () => {
+  const coupons: Coupon[] = [
+    {
+      id: 'welcome',
+      name: 'Welcome',
+      percentOff: 50,
+      duration: { periods: 3 },
+      intervals: ['month'],
+      firstSubscriptionOnly: true,
+    },
+    { id: 'free-month', name: 'Free month', percentOff: 100, duration: 'once' },
+    {
+      id: 'partner',
+      name: 'Partner',
+      amountOff: { amount: 300, currency: 'CHF' },
+      duration: 'forever',
+      planIds: ['basic'],
+    },
+  ];
+
+  let ctx: ReturnType<typeof setup>;
+
+  beforeEach(async () => {
+    ctx = setup({ coupons });
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'Kasse@Verein.ch',
+      name: 'FC Test',
+    });
+  });
+
+  /** Subscribes by card with a code and completes the hosted checkout. */
+  async function subscribeCard(
+    params: {
+      planId?: string;
+      interval?: 'month' | 'year';
+      promotionCode?: string;
+      couponId?: string;
+    } = {},
+  ) {
+    const result = await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: params.planId ?? 'basic',
+      interval: params.interval ?? 'month',
+      collectionMethod: 'charge_automatically',
+      urls,
+      ...(params.promotionCode !== undefined
+        ? { promotionCode: params.promotionCode }
+        : {}),
+      ...(params.couponId !== undefined ? { couponId: params.couponId } : {}),
+    });
+
+    expect(result.type).toBe('redirect');
+
+    const payment = ctx.hosted.at(-1)!;
+
+    await ctx.webhook([
+      {
+        type: 'payment_method.saved',
+        referenceId: payment.referenceId,
+        token: 'tok_1',
+        details: { brand: 'visa', last4: '4242', expiry: '12/30' },
+      },
+      ...(payment.mode === 'charge_and_save'
+        ? [
+            {
+              type: 'payment.succeeded' as const,
+              referenceId: payment.referenceId,
+              transactionId: 'tx_first',
+              amount: payment.amount,
+              currency: payment.currency,
+            },
+          ]
+        : []),
+    ]);
+
+    return payment;
+  }
+
+  it('rejects coupons that are configured wrong', () => {
+    const invalid: Coupon[] = [
+      { id: 'a', name: 'A', duration: 'once' },
+      {
+        id: 'b',
+        name: 'B',
+        percentOff: 10,
+        amountOff: { amount: 1, currency: 'CHF' },
+        duration: 'once',
+      },
+      { id: 'c', name: 'C', percentOff: 120, duration: 'once' },
+      { id: 'd', name: 'D', percentOff: 10, duration: { periods: 0 } },
+      { id: 'e', name: 'E', percentOff: 10, duration: 'once', planIds: ['x'] },
+    ];
+
+    for (const coupon of invalid) {
+      expect(() => setup({ coupons: [coupon] })).toThrow(/coupon "/);
+    }
+
+    expect(() => setup({ coupons: [coupons[0]!, { ...coupons[0]! }] })).toThrow(
+      /own id/,
+    );
+  });
+
+  it('discounts the first periods of a code and counts the redemption', async () => {
+    const code = await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'welcome50',
+    });
+
+    expect(code).toMatchObject({ code: 'WELCOME50', timesRedeemed: 0 });
+
+    const payment = await subscribeCard({ promotionCode: '  Welcome50 ' });
+
+    expect(payment).toMatchObject({ mode: 'charge_and_save', amount: 500 });
+    expect((await ctx.subs.getPromotionCode('welcome50'))?.timesRedeemed).toBe(
+      1,
+    );
+
+    const [first] = ctx.database.tables.invoice;
+
+    expect(first?.lines).toEqual([
+      expect.objectContaining({ amount: 1000, planId: 'basic' }),
+      expect.objectContaining({
+        amount: -500,
+        couponId: 'welcome',
+        description: 'Welcome (−50 %)',
+      }),
+    ]);
+    expect(first).toMatchObject({ status: 'paid', total: 500 });
+
+    // periods 2 and 3 discounted, period 4 at the full price
+    for (const days of [28, 31, 30]) {
+      ctx.advance(days);
+      await ctx.subs.runDue();
+    }
+
+    expect(ctx.charges.map((charge) => charge.amount)).toEqual([
+      500, 500, 1000,
+    ]);
+
+    const overview = await ctx.subs.getOverview('acc_1');
+
+    expect(overview.subscription?.discount).toBeNull();
+    expect(ctx.database.tables.invoice).toHaveLength(4);
+  });
+
+  it('refuses codes that are unknown, for someone else, expired or used up', async () => {
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'PERSONAL',
+      email: 'other@verein.ch',
+    });
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'OLD',
+      expiresAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'OFF',
+    });
+    await ctx.subs.deactivatePromotionCode({ code: 'off' });
+
+    const attempt = (promotionCode: string) =>
+      ctx.subs.subscribe({
+        externalId: 'acc_1',
+        planId: 'basic',
+        interval: 'month',
+        collectionMethod: 'charge_automatically',
+        urls,
+        promotionCode,
+      });
+
+    await expect(attempt('NOPE')).rejects.toMatchObject({
+      code: 'PROMOTION_CODE_INVALID',
+    });
+    await expect(attempt('x')).rejects.toMatchObject({
+      code: 'PROMOTION_CODE_INVALID',
+    });
+    await expect(attempt('PERSONAL')).rejects.toMatchObject({
+      code: 'PROMOTION_CODE_INVALID',
+    });
+    await expect(attempt('OFF')).rejects.toMatchObject({
+      code: 'PROMOTION_CODE_INVALID',
+    });
+    await expect(attempt('OLD')).rejects.toMatchObject({
+      code: 'PROMOTION_CODE_EXPIRED',
+    });
+    expect(ctx.database.tables.subscription).toHaveLength(0);
+  });
+
+  it('binds a personal code to the customer email, ignoring case', async () => {
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'MINE',
+      email: 'kasse@verein.ch',
+      maxRedemptions: 1,
+    });
+
+    await subscribeCard({ promotionCode: 'mine' });
+
+    expect(ctx.hosted[0]?.amount).toBe(500);
+  });
+
+  it('refuses a code once it was redeemed as often as allowed', async () => {
+    await ctx.subs.createPromotionCode({
+      couponId: 'partner',
+      code: 'ONCE',
+      maxRedemptions: 1,
+    });
+    await subscribeCard({ promotionCode: 'ONCE' });
+
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_2',
+      email: 'b@verein.ch',
+      name: 'B',
+    });
+
+    await expect(
+      ctx.subs.subscribe({
+        externalId: 'acc_2',
+        planId: 'basic',
+        interval: 'month',
+        collectionMethod: 'send_invoice',
+        urls,
+        promotionCode: 'ONCE',
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_EXPIRED' });
+  });
+
+  it('refuses a coupon for another plan, interval or a second subscription', async () => {
+    await ctx.subs.createPromotionCode({ couponId: 'welcome', code: 'WEL' });
+    await ctx.subs.createPromotionCode({ couponId: 'partner', code: 'PAR' });
+
+    await expect(
+      ctx.subs.previewPromotionCode({
+        externalId: 'acc_1',
+        code: 'WEL',
+        planId: 'basic',
+        interval: 'year',
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_NOT_APPLICABLE' });
+    await expect(
+      ctx.subs.previewPromotionCode({
+        externalId: 'acc_1',
+        code: 'PAR',
+        planId: 'pro',
+        interval: 'month',
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_NOT_APPLICABLE' });
+
+    await subscribeCard();
+    await ctx.subs.cancel({ externalId: 'acc_1', immediately: true });
+
+    await expect(
+      ctx.subs.previewPromotionCode({
+        externalId: 'acc_1',
+        code: 'WEL',
+        planId: 'basic',
+        interval: 'month',
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_NOT_APPLICABLE' });
+  });
+
+  it('previews a code for a customer that has not subscribed yet', async () => {
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'PREVIEW',
+      email: 'new@verein.ch',
+    });
+
+    await expect(
+      ctx.subs.previewPromotionCode({
+        email: 'NEW@verein.ch',
+        code: 'preview',
+        planId: 'basic',
+        interval: 'month',
+      }),
+    ).resolves.toMatchObject({
+      code: 'PREVIEW',
+      price: { amount: 1000, currency: 'CHF' },
+      discountAmount: 500,
+      discountedAmount: 500,
+      periods: 3,
+      trial: false,
+    });
+  });
+
+  it('starts the discount after a trial', async () => {
+    await ctx.subs.createPromotionCode({ couponId: 'welcome', code: 'TRY' });
+
+    const preview = await ctx.subs.previewPromotionCode({
+      externalId: 'acc_1',
+      code: 'TRY',
+      planId: 'trial',
+      interval: 'month',
+    });
+
+    expect(preview).toMatchObject({ trial: true, discountedAmount: 1000 });
+
+    const payment = await subscribeCard({
+      planId: 'trial',
+      promotionCode: 'TRY',
+    });
+
+    expect(payment).toMatchObject({ mode: 'save', amount: 100 });
+
+    ctx.advance(14);
+    await ctx.subs.runDue();
+
+    expect(ctx.charges[0]).toMatchObject({ amount: 1000 });
+    expect(
+      (await ctx.subs.getOverview('acc_1')).subscription?.discount,
+    ).toMatchObject({ periodsLeft: 2, currentPeriod: true });
+  });
+
+  it('settles a free period without charging and charges the next one', async () => {
+    const payment = await subscribeCard({ couponId: 'free-month' });
+
+    // nothing to pay: the checkout only saves the card
+    expect(payment).toMatchObject({ mode: 'save', amount: 100 });
+
+    const overview = await ctx.subs.getOverview('acc_1');
+
+    expect(overview.subscription?.status).toBe('active');
+    expect(overview.invoices[0]).toMatchObject({ status: 'paid', total: 0 });
+
+    ctx.advance(28);
+    await ctx.subs.runDue();
+
+    expect(ctx.charges).toEqual([expect.objectContaining({ amount: 1000 })]);
+    expect(
+      (await ctx.subs.getOverview('acc_1')).subscription?.discount,
+    ).toBeNull();
+  });
+
+  it('voids a free first invoice when its checkout expires', async () => {
+    await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'basic',
+      interval: 'month',
+      collectionMethod: 'charge_automatically',
+      urls,
+      couponId: 'free-month',
+    });
+
+    expect(ctx.database.tables.invoice[0]).toMatchObject({
+      status: 'paid',
+      total: 0,
+    });
+
+    ctx.advance(2);
+    await ctx.subs.runDue();
+
+    expect(ctx.database.tables.invoice[0]?.status).toBe('void');
+  });
+
+  it('counts a code only when the subscription goes live', async () => {
+    await ctx.subs.createPromotionCode({ couponId: 'welcome', code: 'LATE' });
+    await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'basic',
+      interval: 'month',
+      collectionMethod: 'charge_automatically',
+      urls,
+      promotionCode: 'LATE',
+    });
+
+    ctx.advance(2);
+    await ctx.subs.runDue();
+
+    expect((await ctx.subs.getPromotionCode('LATE'))?.timesRedeemed).toBe(0);
+
+    // paid after the checkout expired: still activates, now it counts
+    const payment = ctx.hosted[0]!;
+
+    await ctx.webhook([
+      {
+        type: 'payment.succeeded',
+        referenceId: payment.referenceId,
+        transactionId: 'tx_late',
+        amount: payment.amount,
+        currency: 'CHF',
+      },
+    ]);
+
+    expect((await ctx.subs.getOverview('acc_1')).subscription?.status).toBe(
+      'active',
+    );
+    expect((await ctx.subs.getPromotionCode('LATE'))?.timesRedeemed).toBe(1);
+  });
+
+  it('takes a fixed amount off every invoice, by invoice too', async () => {
+    await ctx.subs.createPromotionCode({
+      couponId: 'partner',
+      code: 'PARTNER',
+      maxRedemptions: 5,
+    });
+
+    const result = await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'basic',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+      urls,
+      promotionCode: 'PARTNER',
+    });
+
+    expect(result).toMatchObject({
+      type: 'subscribed',
+      invoice: { total: 700 },
+    });
+    // live at once by invoice: counted on subscribe
+    expect((await ctx.subs.getPromotionCode('PARTNER'))?.timesRedeemed).toBe(1);
+
+    ctx.advance(28);
+    await ctx.subs.runDue();
+
+    const totals = (await ctx.subs.listInvoices('acc_1')).map(
+      (invoice) => invoice.total,
+    );
+
+    expect(totals).toEqual([700, 700]);
+    expect(
+      (await ctx.subs.getOverview('acc_1')).subscription?.discount,
+    ).toMatchObject({ periodsLeft: null, amountOff: 300, currency: 'CHF' });
+  });
+
+  it('prorates an upgrade with the discount of the period', async () => {
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'UPGRADE',
+    });
+    await subscribeCard({ promotionCode: 'UPGRADE' });
+
+    // half of the 28-day February period: credit −(1000 − 500) / 2,
+    // remaining time 3000 / 2 with −50 %
+    ctx.advance(14);
+    const result = await ctx.subs.changePlan({
+      externalId: 'acc_1',
+      planId: 'pro',
+      interval: 'month',
+    });
+
+    expect(result.type).toBe('changed');
+    expect(ctx.charges.at(-1)).toMatchObject({ amount: 500 });
+
+    const invoice = ctx.database.tables.invoice.at(-1);
+
+    expect(invoice?.lines.map((line) => line.amount)).toEqual([
+      -250, 1500, -750,
+    ]);
+
+    // the renewal discounts the new plan for the periods left
+    ctx.advance(14);
+    await ctx.subs.runDue();
+
+    expect(ctx.charges.at(-1)).toMatchObject({ amount: 1500 });
+  });
+
+  it('counts a period whose interval the coupon is not for', async () => {
+    await ctx.subs.createPromotionCode({ couponId: 'welcome', code: 'YEAR' });
+    await subscribeCard({ promotionCode: 'YEAR' });
+
+    ctx.advance(14);
+    await ctx.subs.changePlan({
+      externalId: 'acc_1',
+      planId: 'pro',
+      interval: 'year',
+    });
+
+    const invoice = ctx.database.tables.invoice.at(-1);
+
+    // a yearly period: no discount line, but it uses up a period
+    expect(invoice?.lines.map((line) => line.amount)).toEqual([-250, 30000]);
+    expect(
+      (await ctx.subs.getOverview('acc_1')).subscription?.discount,
+    ).toMatchObject({ periodsLeft: 1, currentPeriod: false });
+  });
+
+  it('creates, lists and deactivates codes', async () => {
+    const generated = await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      email: ' Lead@Example.ch ',
+      expiresAt: new Date('2026-02-14T00:00:00Z'),
+      maxRedemptions: 1,
+    });
+
+    expect(generated.code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+    expect(generated.email).toBe('lead@example.ch');
+
+    await expect(
+      ctx.subs.createPromotionCode({
+        couponId: 'welcome',
+        code: generated.code,
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_EXISTS' });
+    await expect(
+      ctx.subs.createPromotionCode({ couponId: 'nope' }),
+    ).rejects.toMatchObject({ code: 'COUPON_NOT_FOUND' });
+    await expect(
+      ctx.subs.createPromotionCode({ couponId: 'welcome', code: 'ä!' }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_INVALID' });
+
+    expect(
+      await ctx.subs.listPromotionCodes({ email: 'LEAD@example.ch' }),
+    ).toEqual([expect.objectContaining({ code: generated.code })]);
+
+    const deactivated = await ctx.subs.deactivatePromotionCode({
+      code: generated.code.toLowerCase(),
+    });
+
+    expect(deactivated.active).toBe(false);
+  });
+});
+
+describe('coupons – review fixes', () => {
+  const coupons: Coupon[] = [
+    { id: 'free-month', name: 'Free month', percentOff: 100, duration: 'once' },
+    {
+      id: 'welcome',
+      name: 'Welcome',
+      percentOff: 50,
+      duration: { periods: 3 },
+    },
+  ];
+
+  it('sends the receipt of a free first period once the card checkout completes', async () => {
+    const ctx = setup({ coupons });
+
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'a@b.ch',
+      name: 'A',
+    });
+    await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'basic',
+      interval: 'month',
+      collectionMethod: 'charge_automatically',
+      urls,
+      couponId: 'free-month',
+    });
+
+    expect(ctx.events).toEqual([]);
+
+    await ctx.webhook([
+      {
+        type: 'payment_method.saved',
+        referenceId: ctx.hosted[0]!.referenceId,
+        token: 'tok_1',
+        details: { brand: 'visa', last4: '4242', expiry: '12/30' },
+      },
+    ]);
+
+    expect(ctx.events.map((event) => event.type)).toEqual([
+      'payment_method.updated',
+      'subscription.activated',
+      'invoice.created',
+      'invoice.paid',
+    ]);
+  });
+
+  it('never asks the database for codes when no coupons are configured', async () => {
+    const database = memoryAdapter();
+    const guarded = {
+      ...database,
+      findOne: ((model, where) => {
+        if (model === 'promotionCode')
+          throw new Error('no promotion code table');
+        return database.findOne(model, where);
+      }) as typeof database.findOne,
+    };
+    const ctx = setup({ database: guarded });
+
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'a@b.ch',
+      name: 'A',
+    });
+
+    await expect(
+      ctx.subs.subscribe({
+        externalId: 'acc_1',
+        planId: 'basic',
+        interval: 'month',
+        collectionMethod: 'send_invoice',
+        urls,
+        promotionCode: 'ANY-CODE',
+      }),
+    ).rejects.toMatchObject({ code: 'PROMOTION_CODE_INVALID' });
+    expect(await ctx.subs.listPromotionCodes()).toEqual([]);
+  });
+
+  it('prices the period after a trial with the coupon', async () => {
+    const ctx = setup({ coupons });
+
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'a@b.ch',
+      name: 'A',
+    });
+    await ctx.subs.createPromotionCode({
+      couponId: 'welcome',
+      code: 'TRIAL50',
+    });
+    await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'trial',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+      urls,
+      promotionCode: 'TRIAL50',
+    });
+
+    const { subscription } = await ctx.subs.getOverview('acc_1');
+
+    expect(subscription?.status).toBe('trialing');
+    expect(ctx.subs.nextPeriodAmount(subscription!)).toBe(1000);
   });
 });

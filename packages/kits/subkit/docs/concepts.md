@@ -1,7 +1,7 @@
 # Concepts
 
 The model behind `createSubscriptions()`: customers, subscriptions and their
-statuses, periods, plan changes, invoices, dunning and what `runDue()` does.
+statuses, periods, plan changes, coupons, invoices, dunning and what `runDue()` does.
 Options are in [configuration](configuration.md), methods in [api](api.md).
 
 ## Customers
@@ -176,6 +176,87 @@ Switching:
   same checkout; other open invoices are charged to the card on their due
   date.
 
+## Coupons
+
+### Coupons and promotion codes
+
+A coupon (`coupons` option, [configuration](configuration.md#coupons)) is a
+discount: percent or a fixed amount off, for a number of invoiced periods,
+optionally only for some plans and intervals or only for a first
+subscription. Customers redeem it with a promotion code – a row in the
+database that you create with `createPromotionCode()`, open to anyone or
+bound to one email, with an optional end date and maximum number of
+redemptions. Your app can also apply a coupon itself with
+`subscribe({ couponId })`.
+
+`subscribe()` checks the code (and `previewPromotionCode()` the same way,
+before the customer subscribes):
+
+| Check | Error |
+|---|---|
+| The code exists, is active and is for anyone or for the customer's email | `PROMOTION_CODE_INVALID` |
+| `expiresAt` is in the future, `timesRedeemed` below `maxRedemptions` | `PROMOTION_CODE_EXPIRED` |
+| The coupon is for the plan, the interval and (amount off) the currency; a `firstSubscriptionOnly` coupon only without an earlier subscription | `PROMOTION_CODE_NOT_APPLICABLE` |
+
+Unknown, deactivated and other people's codes give the same error, so a
+customer cannot find out which codes exist. Limit the checks per customer
+with the HTTP handler's `rateLimit` (`promotion-code`).
+
+### Redemptions
+
+A code counts as redeemed (`timesRedeemed`) when its subscription goes
+live: by invoice on `subscribe()`, by card when the webhook activates the
+checkout. An abandoned checkout does not use up a single-use code. By
+invoice `maxRedemptions` is enforced in the subscribe transaction; a card
+checkout that is paid is always counted, so card checkouts that run at the
+same time can exceed `maxRedemptions` by their number.
+
+### Discounted periods
+
+The subscription keeps a snapshot of the coupon in `discount`
+(`SubscriptionDiscount`): later changes of the configuration do not touch
+it. Every invoiced period – the first one, each renewal, the new period of
+an interval change – counts down `discount.periodsLeft` (`null` =
+forever), whether the coupon is for that period's plan and interval or
+not. A period the coupon is for gets a discount line on its invoice:
+
+| Line | Amount |
+|---|---|
+| `Basic (monthly)` | 10.00 |
+| `Welcome (−50 %)` | −5.00 |
+
+`couponId` is set on the discount line. An amount off is never more than
+the period's price. A trial is not invoiced, so the discount starts with
+the first paid period. When the periods are used up, the next renewal
+clears `discount`.
+
+Example: 50 % for 3 periods on CHF 10.00 a month → 5.00, 5.00, 5.00,
+then 10.00.
+
+### Plan changes with a discount
+
+The credit of an upgrade gives back what the rest of the period was paid
+at: with the discount when the period was discounted
+(`discount.currentPeriod`).
+
+- Same interval: the remaining time of the new plan is discounted as well,
+  if the period was discounted and the coupon is for the new plan.
+- Other interval: the new period is invoiced like a renewal and counts as
+  one of the discounted periods.
+
+Example: Basic CHF 10.00 → Pro CHF 30.00 after half of a period with 50 %:
+−2.50 (unused time, paid 5.00) + 15.00 − 7.50 = CHF 5.00.
+
+### Nothing to pay
+
+An invoice whose total is zero (a 100 % coupon) is `paid` when it is
+created and never charged; it is still issued as a receipt
+(`invoice.created` and `invoice.paid` – for the first invoice of a card
+checkout when the checkout completes). A card
+checkout for such a first invoice only saves the payment method (`save`
+mode with `checkout.verificationAmount`). If that checkout expires, the
+free invoice is voided like any first invoice.
+
 ## Invoices
 
 ### Invoice fields
@@ -203,7 +284,7 @@ counts charge attempts (card) or dunning steps (invoice);
 | Status | Meaning |
 |---|---|
 | `open` | Owed. Card: waiting for or in its charge. Invoice: within its term or overdue |
-| `paid` | Paid (`paidAt`; `providerTransactionId` is the provider's id, `bank:<id>` for a bank file, your reference or `null` for `markInvoicePaid`) |
+| `paid` | Paid (`paidAt`; `providerTransactionId` is the provider's id, `bank:<id>` for a bank file, your reference or `null` for `markInvoicePaid` and for an invoice with nothing to pay) |
 | `void` | Not owed any more: voided by you, by an expired checkout, by an immediate cancel, or a failed upgrade charge |
 | `uncollectible` | Written off by dunning with `finalAction: 'cancel'`. Still payable |
 

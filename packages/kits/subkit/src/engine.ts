@@ -18,6 +18,7 @@ import type {
   BillingInterval,
   Checkout,
   CollectionMethod,
+  Coupon,
   Customer,
   Entitlements,
   Invoice,
@@ -27,7 +28,9 @@ import type {
   PendingSubscriptionEvent,
   Plan,
   PlanPrice,
+  PromotionCode,
   Subscription,
+  SubscriptionDiscount,
   SubscriptionEvent,
   SubscriptionStatus,
 } from './types';
@@ -53,6 +56,22 @@ export type LineContext = {
   interval: BillingInterval;
 };
 
+/** What a promotion code would give – for the checkout before subscribing. */
+export type PromotionPreview = {
+  code: string;
+  coupon: Coupon;
+  /** List price of one period. */
+  price: PlanPrice;
+  /** Off the first discounted period (after a trial, if there is one). */
+  discountAmount: number;
+  /** Price of a discounted period. */
+  discountedAmount: number;
+  /** Discounted periods; `null` = forever. */
+  periods: number | null;
+  /** The subscription starts with the plan's trial; the discount follows it. */
+  trial: boolean;
+};
+
 export type Logger = {
   info(obj: object, msg: string): void;
   error(obj: object, msg: string): void;
@@ -64,6 +83,8 @@ export type SubscriptionsOptions = {
   plans: Plan[];
   /** Plan used for entitlements when there is no (entitled) subscription. */
   defaultPlanId: string;
+  /** Discounts, redeemed with promotion codes (`createPromotionCode`). */
+  coupons?: Coupon[];
   tax?: TaxConfig;
   invoices?: {
     /** Payment term of `send_invoice` invoices (default 30 days). */
@@ -174,6 +195,94 @@ function invoiceIdFromReference(referenceId: string) {
   return end > 0 ? rest.slice(0, end) : '';
 }
 
+const PROMOTION_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{2,39}$/;
+const GENERATED_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/** What customers type → how it is stored (upper case, no spaces around). */
+function normalizeCode(code: string) {
+  return code.trim().toUpperCase();
+}
+
+/** Discounted periods of a coupon; `null` = forever. */
+function couponPeriods(coupon: Coupon) {
+  if (coupon.duration === 'once') return 1;
+  if (coupon.duration === 'forever') return null;
+
+  return coupon.duration.periods;
+}
+
+function validateCoupon(coupon: Coupon, plans: Map<string, Plan>) {
+  const name = `coupon "${coupon.id}"`;
+  const percent = coupon.percentOff;
+  const amount = coupon.amountOff;
+
+  if ((percent === undefined) === (amount === undefined)) {
+    throw new Error(`${name}: set either percentOff or amountOff`);
+  }
+
+  if (
+    percent !== undefined &&
+    !(Number.isInteger(percent) && percent >= 1 && percent <= 100)
+  ) {
+    throw new Error(`${name}: percentOff is a whole number from 1 to 100`);
+  }
+
+  if (
+    amount !== undefined &&
+    !(Number.isInteger(amount.amount) && amount.amount > 0)
+  ) {
+    throw new Error(`${name}: amountOff.amount is a positive integer`);
+  }
+
+  const periods = couponPeriods(coupon);
+
+  if (periods !== null && !(Number.isInteger(periods) && periods >= 1)) {
+    throw new Error(`${name}: duration.periods is a positive integer`);
+  }
+
+  for (const planId of coupon.planIds ?? []) {
+    if (!plans.has(planId)) {
+      throw new Error(`${name}: planIds contains unknown plan "${planId}"`);
+    }
+  }
+}
+
+function randomCode(length = 8) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+
+  return Array.from(
+    bytes,
+    (byte) =>
+      GENERATED_CODE_ALPHABET[byte % GENERATED_CODE_ALPHABET.length] ?? 'X',
+  ).join('');
+}
+
+/** Off `base` (one period, or its prorated share) by the discount. */
+function discountOff(discount: SubscriptionDiscount, base: number) {
+  if (base <= 0) return 0;
+
+  if (discount.percentOff !== null) {
+    return Math.round((base * discount.percentOff) / 100);
+  }
+
+  return Math.min(base, discount.amountOff ?? 0);
+}
+
+/** The discount is for this plan, interval and currency. */
+function discountAppliesTo(
+  discount: SubscriptionDiscount,
+  planId: string,
+  interval: BillingInterval,
+  currency: string,
+) {
+  return (
+    (discount.planIds === null || discount.planIds.includes(planId)) &&
+    (discount.intervals === null || discount.intervals.includes(interval)) &&
+    (discount.currency === null ||
+      discount.currency.toUpperCase() === currency.toUpperCase())
+  );
+}
+
 export function createSubscriptions(options: SubscriptionsOptions) {
   const db = options.database;
   const provider = options.provider;
@@ -194,6 +303,15 @@ export function createSubscriptions(options: SubscriptionsOptions) {
 
   if (!plansById.has(options.defaultPlanId)) {
     throw new Error(`defaultPlanId "${options.defaultPlanId}" is not a plan`);
+  }
+
+  const coupons = options.coupons ?? [];
+  const couponsById = new Map(coupons.map((coupon) => [coupon.id, coupon]));
+
+  for (const coupon of coupons) validateCoupon(coupon, plansById);
+
+  if (couponsById.size !== coupons.length) {
+    throw new Error('coupons: every coupon needs its own id');
   }
 
   const formatLine =
@@ -358,6 +476,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       params.collectionMethod === 'send_invoice'
         ? endOfZurichDay(date, dueDays)
         : date;
+    // nothing to pay (a 100 % coupon): settled on creation, never charged
+    const free = totals.total === 0;
 
     return store.create('invoice', {
       id,
@@ -366,7 +486,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         (await generateNumber({ now: date, invoiceId: id })),
       customerId: params.customerId,
       subscriptionId: params.subscriptionId,
-      status: 'open',
+      status: free ? 'paid' : 'open',
       reason: params.reason,
       collectionMethod: params.collectionMethod,
       currency: params.currency,
@@ -376,9 +496,9 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       periodStart: params.periodStart,
       periodEnd: params.periodEnd,
       dueAt,
-      paidAt: null,
+      paidAt: free ? date : null,
       attemptCount: 0,
-      nextAttemptAt: params.schedule ? dueAt : null,
+      nextAttemptAt: params.schedule && !free ? dueAt : null,
       lastError: null,
       paymentUrl: null,
       providerTransactionId: null,
@@ -402,6 +522,115 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
     };
+  }
+
+  function discountLine(
+    discount: SubscriptionDiscount,
+    plan: Plan,
+    interval: BillingInterval,
+    amount: number,
+    periodStart: Date,
+    periodEnd: Date,
+  ): InvoiceLine {
+    return {
+      // the coupon's own name (in the app's language), not `formatLine`
+      description:
+        discount.percentOff !== null
+          ? `${discount.name} (−${discount.percentOff} %)`
+          : discount.name,
+      amount: -amount,
+      planId: plan.id,
+      interval,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      couponId: discount.couponId,
+    };
+  }
+
+  /**
+   * Lines of a newly invoiced period and the subscription's discount after
+   * it: every invoiced period counts down `periodsLeft`, whether the coupon
+   * is for the period's plan or not; a used up discount ends with the next
+   * period.
+   */
+  function periodInvoiceLines(
+    discount: SubscriptionDiscount | null | undefined,
+    plan: Plan,
+    interval: BillingInterval,
+    price: PlanPrice,
+    periodStart: Date,
+    periodEnd: Date,
+  ) {
+    const lines = [
+      subscriptionLine(plan, interval, price.amount, periodStart, periodEnd),
+    ];
+
+    if (!discount || discount.periodsLeft === 0) {
+      return { lines, discount: null };
+    }
+
+    const applies = discountAppliesTo(
+      discount,
+      plan.id,
+      interval,
+      price.currency,
+    );
+    const off = applies ? discountOff(discount, price.amount) : 0;
+
+    if (off > 0) {
+      lines.push(
+        discountLine(discount, plan, interval, off, periodStart, periodEnd),
+      );
+    }
+
+    return {
+      lines,
+      discount: {
+        ...discount,
+        periodsLeft:
+          discount.periodsLeft === null ? null : discount.periodsLeft - 1,
+        currentPeriod: applies,
+      },
+    };
+  }
+
+  /**
+   * What the next period of the current plan and interval will cost: the
+   * subscription's price, with its coupon while periods are left and the
+   * coupon is for the plan (also right after a trial).
+   */
+  function nextPeriodAmount(subscription: Subscription) {
+    const discount = subscription.discount ?? null;
+
+    if (
+      !discount ||
+      discount.periodsLeft === 0 ||
+      !discountAppliesTo(
+        discount,
+        subscription.planId,
+        subscription.interval,
+        subscription.currency,
+      )
+    ) {
+      return subscription.unitAmount;
+    }
+
+    return (
+      subscription.unitAmount - discountOff(discount, subscription.unitAmount)
+    );
+  }
+
+  /** `invoice.created`, and `invoice.paid` for one settled on creation. */
+  function invoiceCreatedEvents(
+    invoice: Invoice,
+    customer: Customer,
+  ): PendingSubscriptionEvent[] {
+    return [
+      { type: 'invoice.created', invoice, customer },
+      ...(invoice.status === 'paid'
+        ? [{ type: 'invoice.paid' as const, invoice, customer }]
+        : []),
+    ];
   }
 
   function invoicePurpose(invoice: Invoice) {
@@ -642,6 +871,346 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     return Boolean(previous);
   }
 
+  // ------------------------------------------------------------- coupons
+
+  type Redemption = { coupon: Coupon; promotionCode: PromotionCode | null };
+
+  function couponDiscount(
+    coupon: Coupon,
+    promotionCodeId: string | null,
+  ): SubscriptionDiscount {
+    return {
+      couponId: coupon.id,
+      promotionCodeId,
+      name: coupon.name,
+      percentOff: coupon.percentOff ?? null,
+      amountOff: coupon.amountOff?.amount ?? null,
+      currency: coupon.amountOff?.currency ?? null,
+      planIds: coupon.planIds ?? null,
+      intervals: coupon.intervals ?? null,
+      periodsLeft: couponPeriods(coupon),
+      currentPeriod: false,
+    };
+  }
+
+  async function findPromotionCode(code: string) {
+    const normalized = normalizeCode(code);
+
+    // without coupons there are no codes – and the adapter may have no
+    // table for them (set up before 0.3)
+    if (coupons.length === 0 || !PROMOTION_CODE_PATTERN.test(normalized)) {
+      return null;
+    }
+
+    return db.findOne('promotionCode', [{ field: 'code', value: normalized }]);
+  }
+
+  /**
+   * The coupon a customer may redeem for this plan: from a code they typed,
+   * or one the app applies. Throws why not. Unknown, deactivated and other
+   * people's codes give the same error, so codes cannot be probed.
+   */
+  async function resolveRedemption(params: {
+    promotionCode?: string;
+    couponId?: string;
+    email: string;
+    /** `null`: not a billing customer yet (never subscribed). */
+    customerId: string | null;
+    planId: string;
+    interval: BillingInterval;
+    currency: string;
+  }): Promise<Redemption | null> {
+    if (params.promotionCode !== undefined && params.couponId !== undefined) {
+      throw new Error('Pass either promotionCode or couponId, not both');
+    }
+
+    let promotionCode: PromotionCode | null = null;
+    let coupon: Coupon | undefined;
+
+    if (params.promotionCode !== undefined) {
+      promotionCode = await findPromotionCode(params.promotionCode);
+      coupon = promotionCode
+        ? couponsById.get(promotionCode.couponId)
+        : undefined;
+
+      if (
+        !promotionCode ||
+        !coupon ||
+        !promotionCode.active ||
+        (promotionCode.email !== null &&
+          promotionCode.email !== params.email.trim().toLowerCase())
+      ) {
+        throw new SubscriptionError(
+          'PROMOTION_CODE_INVALID',
+          'This code is not valid',
+        );
+      }
+
+      if (
+        (promotionCode.expiresAt !== null &&
+          promotionCode.expiresAt.getTime() <= now().getTime()) ||
+        (promotionCode.maxRedemptions !== null &&
+          promotionCode.timesRedeemed >= promotionCode.maxRedemptions)
+      ) {
+        throw new SubscriptionError(
+          'PROMOTION_CODE_EXPIRED',
+          'This code has expired',
+        );
+      }
+    } else if (params.couponId !== undefined) {
+      coupon = couponsById.get(params.couponId);
+
+      if (!coupon) {
+        throw new SubscriptionError(
+          'COUPON_NOT_FOUND',
+          `Unknown coupon "${params.couponId}"`,
+        );
+      }
+    } else {
+      return null;
+    }
+
+    const applies = discountAppliesTo(
+      couponDiscount(coupon, null),
+      params.planId,
+      params.interval,
+      params.currency,
+    );
+
+    if (
+      !applies ||
+      (coupon.firstSubscriptionOnly &&
+        params.customerId !== null &&
+        (await hadSubscription(params.customerId)))
+    ) {
+      throw new SubscriptionError(
+        'PROMOTION_CODE_NOT_APPLICABLE',
+        'This code is not valid for this plan',
+      );
+    }
+
+    return { coupon, promotionCode };
+  }
+
+  /**
+   * Counts a redemption of a promotion code: when its subscription goes
+   * live. `enforceLimit` refuses it once `maxRedemptions` is reached (a
+   * checkout that is already paid is always counted).
+   */
+  async function countRedemption(
+    store: StorageAdapter,
+    promotionCodeId: string,
+    enforceLimit: boolean,
+  ) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const code = await store.findOne('promotionCode', [
+        { field: 'id', value: promotionCodeId },
+      ]);
+
+      if (!code) return;
+
+      if (
+        enforceLimit &&
+        code.maxRedemptions !== null &&
+        code.timesRedeemed >= code.maxRedemptions
+      ) {
+        throw new SubscriptionError(
+          'PROMOTION_CODE_EXPIRED',
+          'This code has expired',
+        );
+      }
+
+      const counted = await store.update(
+        'promotionCode',
+        [
+          { field: 'id', value: code.id },
+          { field: 'timesRedeemed', value: code.timesRedeemed },
+        ],
+        { timesRedeemed: code.timesRedeemed + 1, updatedAt: now() },
+      );
+
+      if (counted) return;
+    }
+
+    throw new SubscriptionError(
+      'BUSY',
+      'The code is being redeemed concurrently, try again',
+    );
+  }
+
+  /**
+   * A code that redeems `couponId` (e.g. a personal code for one email
+   * address). Without `code` one is generated (8 characters, no 0/O/1/I).
+   */
+  async function createPromotionCode(params: {
+    couponId: string;
+    code?: string;
+    /** Only this customer email may redeem it. */
+    email?: string | null;
+    maxRedemptions?: number | null;
+    expiresAt?: Date | null;
+  }): Promise<PromotionCode> {
+    if (!couponsById.has(params.couponId)) {
+      throw new SubscriptionError(
+        'COUPON_NOT_FOUND',
+        `Unknown coupon "${params.couponId}"`,
+      );
+    }
+
+    const maxRedemptions = params.maxRedemptions ?? null;
+
+    if (
+      maxRedemptions !== null &&
+      !(Number.isInteger(maxRedemptions) && maxRedemptions >= 1)
+    ) {
+      throw new Error('maxRedemptions is a positive integer or null');
+    }
+
+    const wanted =
+      params.code === undefined ? null : normalizeCode(params.code);
+
+    if (wanted !== null && !PROMOTION_CODE_PATTERN.test(wanted)) {
+      throw new SubscriptionError(
+        'PROMOTION_CODE_INVALID',
+        'A code has 3 to 40 letters, digits, - or _',
+      );
+    }
+
+    const email = params.email ? params.email.trim().toLowerCase() : null;
+
+    // a generated code may collide with an existing one: try a few
+    for (let attempt = 0; attempt < (wanted ? 1 : 5); attempt += 1) {
+      const code = wanted ?? randomCode();
+
+      if (await findPromotionCode(code)) {
+        if (wanted) break;
+        continue;
+      }
+
+      const date = now();
+
+      try {
+        return await db.create('promotionCode', {
+          id: generateId(),
+          code,
+          couponId: params.couponId,
+          email,
+          maxRedemptions,
+          timesRedeemed: 0,
+          expiresAt: params.expiresAt ?? null,
+          active: true,
+          createdAt: date,
+          updatedAt: date,
+        });
+      } catch (error) {
+        // created concurrently (unique code)
+        if (!(await findPromotionCode(code))) throw error;
+        if (wanted) break;
+      }
+    }
+
+    throw new SubscriptionError(
+      'PROMOTION_CODE_EXISTS',
+      'This code exists already',
+    );
+  }
+
+  async function getPromotionCode(code: string) {
+    return findPromotionCode(code);
+  }
+
+  async function listPromotionCodes(
+    params: {
+      couponId?: string;
+      email?: string;
+      limit?: number;
+    } = {},
+  ) {
+    if (coupons.length === 0) return [];
+
+    return db.findMany('promotionCode', {
+      where: [
+        ...(params.couponId !== undefined
+          ? [{ field: 'couponId' as const, value: params.couponId }]
+          : []),
+        ...(params.email !== undefined
+          ? [
+              {
+                field: 'email' as const,
+                value: params.email.trim().toLowerCase(),
+              },
+            ]
+          : []),
+      ],
+      sortBy: { field: 'createdAt', direction: 'desc' },
+      limit: params.limit ?? 50,
+    });
+  }
+
+  /** Not redeemable any more; subscriptions that use it keep their discount. */
+  async function deactivatePromotionCode(params: { code: string }) {
+    const code = await findPromotionCode(params.code);
+
+    if (!code) {
+      throw new SubscriptionError(
+        'PROMOTION_CODE_INVALID',
+        'This code is not valid',
+      );
+    }
+
+    return (
+      (await db.update('promotionCode', [{ field: 'id', value: code.id }], {
+        active: false,
+        updatedAt: now(),
+      })) ?? code
+    );
+  }
+
+  /**
+   * What a code gives on a plan, checked like `subscribe` would – for the
+   * checkout page before the customer subscribes.
+   */
+  async function previewPromotionCode(params: {
+    /** The customer, when known (first-subscription coupons, email binding). */
+    externalId?: string;
+    /** Email the code must be for; defaults to the customer's. */
+    email?: string;
+    code: string;
+    planId: string;
+    interval: BillingInterval;
+  }): Promise<PromotionPreview> {
+    const { plan, price } = requirePrice(params.planId, params.interval);
+    const customer =
+      params.externalId !== undefined
+        ? await getCustomer(params.externalId)
+        : null;
+    const redemption = await resolveRedemption({
+      promotionCode: params.code,
+      email: params.email ?? customer?.email ?? '',
+      customerId: customer?.id ?? null,
+      planId: plan.id,
+      interval: params.interval,
+      currency: price.currency,
+    });
+
+    // `resolveRedemption` returns a coupon for every code it accepts
+    const { coupon, promotionCode } = redemption!;
+    const off = discountOff(couponDiscount(coupon, null), price.amount);
+    const trial =
+      Boolean(plan.trialDays) &&
+      !(customer && (await hadSubscription(customer.id)));
+
+    return {
+      code: promotionCode?.code ?? normalizeCode(params.code),
+      coupon,
+      price,
+      discountAmount: off,
+      discountedAmount: price.amount - off,
+      periods: couponPeriods(coupon),
+      trial,
+    };
+  }
+
   async function getOverview(externalId: string) {
     const customer = await getCustomer(externalId);
     const subscription = customer
@@ -802,6 +1371,19 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       { status: 'void', nextAttemptAt: null, updatedAt: now() },
     );
 
+    // a free first invoice (100 % coupon) was settled on creation – the
+    // subscription never started, so nothing was served
+    await db.update(
+      'invoice',
+      [
+        { field: 'subscriptionId', value: subscription.id },
+        { field: 'reason', value: 'subscription_create' },
+        { field: 'status', value: 'paid' },
+        { field: 'total', value: 0 },
+      ],
+      { status: 'void', paidAt: null, updatedAt: now() },
+    );
+
     await db.update(
       'checkout',
       [
@@ -825,6 +1407,10 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     interval: BillingInterval;
     collectionMethod: CollectionMethod;
     urls: RedirectUrls;
+    /** A code the customer typed (see `createPromotionCode`). */
+    promotionCode?: string;
+    /** A coupon the app applies itself – never customer input. */
+    couponId?: string;
   }): Promise<SubscribeResult> {
     const customer = await requireCustomer(params.externalId);
     const { plan, price } = requirePrice(params.planId, params.interval);
@@ -846,6 +1432,16 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       );
     }
 
+    const redemption = await resolveRedemption({
+      promotionCode: params.promotionCode,
+      couponId: params.couponId,
+      email: customer.email,
+      customerId: customer.id,
+      planId: plan.id,
+      interval: params.interval,
+      currency: price.currency,
+    });
+
     await expireIncompleteSubscriptions(customer.id);
 
     const previous = await hadSubscription(customer.id);
@@ -855,6 +1451,21 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       !previous && plan.trialDays ? addDays(date, plan.trialDays) : null;
     const periodEnd = trialEnd ?? addIntervals(date, params.interval, 1);
     const isInvoice = params.collectionMethod === 'send_invoice';
+
+    const redeemed = redemption
+      ? couponDiscount(redemption.coupon, redemption.promotionCode?.id ?? null)
+      : null;
+    // a trial is not invoiced: the discount starts with the first paid period
+    const first = trialEnd
+      ? null
+      : periodInvoiceLines(
+          redeemed,
+          plan,
+          params.interval,
+          price,
+          date,
+          periodEnd,
+        );
 
     const status: SubscriptionStatus = !isInvoice
       ? 'incomplete'
@@ -878,6 +1489,12 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         );
       }
 
+      // by invoice the subscription is live at once: the code is redeemed
+      // now (a card checkout redeems it when it is paid)
+      if (isInvoice && redemption?.promotionCode) {
+        await countRedemption(tx, redemption.promotionCode.id, true);
+      }
+
       const subscription = await tx.create('subscription', {
         id: generateId(),
         customerId: customer.id,
@@ -899,11 +1516,12 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         lockedAt: null,
         scheduledPlanId: null,
         scheduledInterval: null,
+        discount: first ? first.discount : redeemed,
         createdAt: date,
         updatedAt: date,
       });
 
-      const invoice = trialEnd
+      const invoice = !first
         ? null
         : await createInvoice(
             tx,
@@ -913,15 +1531,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
               reason: 'subscription_create',
               collectionMethod: params.collectionMethod,
               currency: price.currency,
-              lines: [
-                subscriptionLine(
-                  plan,
-                  params.interval,
-                  price.amount,
-                  date,
-                  periodEnd,
-                ),
-              ],
+              lines: first.lines,
               periodStart: date,
               periodEnd,
               billingKey: `${subscription.id}:create`,
@@ -936,9 +1546,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     if (isInvoice) {
       await emit([
         { type: 'subscription.activated', subscription },
-        ...(invoice
-          ? [{ type: 'invoice.created' as const, invoice, customer }]
-          : []),
+        ...(invoice ? invoiceCreatedEvents(invoice, customer) : []),
       ]);
 
       return { type: 'subscribed', subscription, invoice };
@@ -949,7 +1557,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         customer,
         purpose: 'subscribe',
         subscriptionId: subscription.id,
-        invoice,
+        // a free first period (100 % coupon) only saves the payment method
+        invoice: invoice?.status === 'open' ? invoice : null,
         currency: price.currency,
         purposeText: invoice
           ? invoicePurpose(invoice)
@@ -1210,7 +1819,13 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       subscription.currentPeriodEnd,
       date,
     );
-    const credit = Math.round(subscription.unitAmount * fraction);
+    const discount = subscription.discount ?? null;
+    // the credit gives back what the rest of the period was paid at: with
+    // the discount when the period was invoiced with it
+    const paidOff = discount?.currentPeriod
+      ? discountOff(discount, subscription.unitAmount)
+      : 0;
+    const credit = Math.round((subscription.unitAmount - paidOff) * fraction);
     const intervalChanged = subscription.interval !== params.interval;
 
     const periodStart = intervalChanged
@@ -1233,27 +1848,55 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         periodStart: date.toISOString(),
         periodEnd: subscription.currentPeriodEnd.toISOString(),
       },
-      intervalChanged
-        ? subscriptionLine(
-            plan,
-            params.interval,
-            price.amount,
-            periodStart,
-            periodEnd,
-          )
-        : {
-            description: formatLine({
-              kind: 'remaining_time',
-              plan,
-              interval: params.interval,
-            }),
-            amount: Math.round(price.amount * fraction),
-            planId: plan.id,
-            interval: params.interval,
-            periodStart: date.toISOString(),
-            periodEnd: periodEnd.toISOString(),
-          },
     ];
+    let nextDiscount: SubscriptionDiscount | null;
+
+    if (intervalChanged) {
+      // a new period starts now: invoiced (and discounted) like a renewal
+      const period = periodInvoiceLines(
+        discount,
+        plan,
+        params.interval,
+        price,
+        periodStart,
+        periodEnd,
+      );
+
+      lines.push(...period.lines);
+      nextDiscount = period.discount;
+    } else {
+      lines.push({
+        description: formatLine({
+          kind: 'remaining_time',
+          plan,
+          interval: params.interval,
+        }),
+        amount: Math.round(price.amount * fraction),
+        planId: plan.id,
+        interval: params.interval,
+        periodStart: date.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+      });
+
+      // the same period: discounted if it was, and if the coupon is for the
+      // new plan
+      const applies =
+        discount !== null &&
+        discount.currentPeriod &&
+        discountAppliesTo(discount, plan.id, params.interval, price.currency);
+      const off =
+        applies && discount
+          ? Math.round(discountOff(discount, price.amount) * fraction)
+          : 0;
+
+      if (off > 0 && discount) {
+        lines.push(
+          discountLine(discount, plan, params.interval, off, date, periodEnd),
+        );
+      }
+
+      nextDiscount = discount && { ...discount, currentPeriod: applies };
+    }
 
     const changePatch: Partial<Subscription> = {
       ...basePatch,
@@ -1261,6 +1904,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       interval: params.interval,
       unitAmount: price.amount,
       currency: price.currency,
+      discount: nextDiscount,
       ...(intervalChanged
         ? {
             billingAnchor: date,
@@ -2555,6 +3199,12 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         },
       );
 
+      // went live: its promotion code is redeemed (paid already, so even
+      // past `maxRedemptions` – checkouts that ran concurrently)
+      if (activated?.discount?.promotionCodeId) {
+        await countRedemption(tx, activated.discount.promotionCodeId, false);
+      }
+
       // the payment method of the subscription that went live is the
       // customer's active one – a concurrent checkout of the same customer
       // may have saved (and activated) its own card meanwhile
@@ -2597,18 +3247,49 @@ export function createSubscriptions(options: SubscriptionsOptions) {
 
     if (subscription.status === 'incomplete_expired') {
       // the expiry voided the first invoice; the payment settles it after all
-      await db.update(
-        'invoice',
-        [
+      // (a free one – 100 % coupon – is settled at once again)
+      const [voided] = await db.findMany('invoice', {
+        where: [
           { field: 'subscriptionId', value: subscription.id },
           { field: 'reason', value: 'subscription_create' },
           { field: 'status', value: 'void' },
         ],
-        { status: 'open', updatedAt: date },
-      );
+        limit: 1,
+      });
+
+      if (voided) {
+        await db.update(
+          'invoice',
+          [
+            { field: 'id', value: voided.id },
+            { field: 'status', value: 'void' },
+          ],
+          voided.total === 0
+            ? { status: 'paid', paidAt: date, updatedAt: date }
+            : { status: 'open', updatedAt: date },
+        );
+      }
     }
 
     events.push({ type: 'subscription.activated', subscription: activated });
+
+    // a free first period (100 % coupon) was settled on creation: its
+    // receipt goes out now that the subscription started
+    const [first] = await db.findMany('invoice', {
+      where: [
+        { field: 'subscriptionId', value: subscription.id },
+        { field: 'reason', value: 'subscription_create' },
+        { field: 'status', value: 'paid' },
+        { field: 'total', value: 0 },
+      ],
+      limit: 1,
+    });
+
+    if (first) {
+      events.push(
+        ...invoiceCreatedEvents(first, await getCustomerById(first.customerId)),
+      );
+    }
   }
 
   /**
@@ -2911,6 +3592,14 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     const periodEnd = nextPeriodEnd(anchor, interval, periodStart);
     const customer = await getCustomerById(subscription.customerId);
     const reserved = await reserveInvoice();
+    const period = periodInvoiceLines(
+      subscription.discount,
+      plan,
+      interval,
+      price,
+      periodStart,
+      periodEnd,
+    );
 
     const result = await withTransaction(async (tx) => {
       const renewed = await tx.update(
@@ -2932,6 +3621,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
           currentPeriodEnd: periodEnd,
           scheduledPlanId: null,
           scheduledInterval: null,
+          discount: period.discount,
           updatedAt: nextUpdatedAt(subscription),
         },
       );
@@ -2946,15 +3636,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
           reason: 'subscription_cycle',
           collectionMethod: subscription.collectionMethod,
           currency: price.currency,
-          lines: [
-            subscriptionLine(
-              plan,
-              interval,
-              price.amount,
-              periodStart,
-              periodEnd,
-            ),
-          ],
+          lines: period.lines,
           periodStart,
           periodEnd,
           billingKey: `${subscription.id}:cycle:${periodStart.toISOString()}`,
@@ -2970,7 +3652,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
 
     await emit([
       { type: 'subscription.renewed', subscription: result.renewed },
-      { type: 'invoice.created', invoice: result.invoice, customer },
+      ...invoiceCreatedEvents(result.invoice, customer),
     ]);
 
     // charged by step 3 of the same `runDue` (the invoice is due now)
@@ -3231,12 +3913,15 @@ export function createSubscriptions(options: SubscriptionsOptions) {
 
   return {
     plans: options.plans,
+    coupons,
     settings: {
       defaultPlanId: options.defaultPlanId,
       invoiceDueDays: dueDays,
       tax: options.tax ?? null,
     },
     getPlan: (planId: string) => plansById.get(planId) ?? null,
+    getCoupon: (couponId: string) => couponsById.get(couponId) ?? null,
+    nextPeriodAmount,
     /** The engine's clock (`options.now`). */
     now,
     upsertCustomer,
@@ -3249,6 +3934,11 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     listInvoices,
     getInvoice,
     subscribe,
+    previewPromotionCode,
+    createPromotionCode,
+    getPromotionCode,
+    listPromotionCodes,
+    deactivatePromotionCode,
     changePlan,
     cancel,
     resume,

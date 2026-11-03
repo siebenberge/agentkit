@@ -26,6 +26,10 @@ export const fr: Messages = {
         'Une facture précédente est en retard. Merci de la régler d’abord – tu pourras ensuite te réabonner.',
       RATE_LIMITED:
         'Trop de tentatives en peu de temps. Merci de patienter un moment avant de réessayer.',
+      PROMOTION_CODE_INVALID: 'Ce code promo n’est pas valable.',
+      PROMOTION_CODE_EXPIRED: 'Ce code promo a expiré ou a déjà été utilisé.',
+      PROMOTION_CODE_NOT_APPLICABLE:
+        'Ce code promo ne s’applique pas à cette formule.',
     },
     toasts: {
       changeUndone: 'Le changement prévu a été annulé.',
@@ -59,6 +63,15 @@ export const fr: Messages = {
       trialEndsOn: 'Essai jusqu’au {{date}}, ensuite {{amount}} {{interval}}.',
       endsOn: 'Résilié – ta formule reste active jusqu’au {{date}}.',
       scheduledChange: 'Dès le {{date}}, tu passes à {{plan}} ({{interval}}).',
+      discount: 'Code promo « {{name}} » : {{discount}}, {{duration}}.',
+    },
+    discount: {
+      percent: '−{{percent}} %',
+      amount: '−{{amount}}',
+      forever: 'tant que l’abonnement court',
+      periodsLeft: 'encore {{count}} facturations',
+      onePeriodLeft: 'encore une facturation',
+      lastPeriod: 'jusqu’au {{date}}',
     },
     status: {
       free: 'Gratuit',
@@ -143,6 +156,16 @@ export const fr: Messages = {
         'L’abonnement se renouvelle automatiquement et peut être résilié en tout temps pour la fin de la période.',
       continueToPayment: 'Continuer vers le paiement',
       subscribeWithInvoice: 'Souscrire avec obligation de payer',
+      promotionCode: 'Code promo',
+      addPromotionCode: 'Saisir un code promo',
+      applyPromotionCode: 'Appliquer',
+      removePromotionCode: 'Retirer',
+      promotionApplied:
+        '{{name}} : {{amount}} au lieu de {{price}} {{interval}}, {{duration}}.',
+      promotionOnce: 'pour la première facturation',
+      promotionPeriods: 'pour les {{count}} premières facturations',
+      promotionForever: 'tant que l’abonnement court',
+      promotionAfterTrial: 'La réduction commence après l’essai.',
     },
     changeDialog: {
       title: 'Passer à {{plan}}',

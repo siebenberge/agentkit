@@ -24,6 +24,11 @@ export const de = {
         'Eine frühere Rechnung ist überfällig. Bitte bezahle sie zuerst – danach kannst du wieder ein Abo abschliessen.',
       RATE_LIMITED:
         'Zu viele Versuche in kurzer Zeit. Bitte warte etwas und versuche es dann erneut.',
+      PROMOTION_CODE_INVALID: 'Dieser Gutscheincode ist nicht gültig.',
+      PROMOTION_CODE_EXPIRED:
+        'Dieser Gutscheincode ist abgelaufen oder wurde bereits eingelöst.',
+      PROMOTION_CODE_NOT_APPLICABLE:
+        'Dieser Gutscheincode gilt nicht für diesen Plan.',
     },
     toasts: {
       changeUndone: 'Der geplante Wechsel wurde zurückgenommen.',
@@ -59,6 +64,15 @@ export const de = {
       endsOn: 'Gekündigt – dein Plan bleibt bis am {{date}} aktiv.',
       scheduledChange:
         'Ab dem {{date}} wechselst du auf {{plan}} ({{interval}}).',
+      discount: 'Gutschein «{{name}}»: {{discount}}, {{duration}}.',
+    },
+    discount: {
+      percent: '−{{percent}} %',
+      amount: '−{{amount}}',
+      forever: 'solange das Abo läuft',
+      periodsLeft: 'noch {{count}} weitere Abrechnungen',
+      onePeriodLeft: 'noch eine weitere Abrechnung',
+      lastPeriod: 'bis am {{date}}',
     },
     status: {
       free: 'Kostenlos',
@@ -144,6 +158,16 @@ export const de = {
         'Das Abo verlängert sich automatisch und kann jederzeit auf Ende der Laufzeit gekündigt werden.',
       continueToPayment: 'Weiter zur Zahlung',
       subscribeWithInvoice: 'Kostenpflichtig buchen',
+      promotionCode: 'Gutscheincode',
+      addPromotionCode: 'Gutscheincode eingeben',
+      applyPromotionCode: 'Einlösen',
+      removePromotionCode: 'Entfernen',
+      promotionApplied:
+        '{{name}}: {{amount}} statt {{price}} {{interval}}, {{duration}}.',
+      promotionOnce: 'für die erste Abrechnung',
+      promotionPeriods: 'für die ersten {{count}} Abrechnungen',
+      promotionForever: 'solange das Abo läuft',
+      promotionAfterTrial: 'Der Rabatt beginnt nach der Testphase.',
     },
     changeDialog: {
       title: 'Zu {{plan}} wechseln',

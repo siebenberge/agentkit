@@ -322,7 +322,7 @@ export const en: Dict = {
         items: [
           {
             title: 'Plans & trials',
-            text: 'Monthly or yearly, with a trial and a free plan. Hidden plans stay with their subscribers but are no longer sold.',
+            text: 'Monthly or yearly, with a trial, a free plan and promotion codes, say 50 % off the first three months. Hidden plans stay with their subscribers but are no longer sold.',
           },
           {
             title: 'Proration to the Rappen',
@@ -616,6 +616,31 @@ export const en: Dict = {
         cause:
           'This payment option (card / TWINT or invoice) is not enabled in `collectionMethods` of the handler.',
         fix: 'Add it to `collectionMethods`, or offer only the enabled options.',
+      },
+      'subkit.COUPON_NOT_FOUND': {
+        cause:
+          'No coupon with this id in `coupons` of `createSubscriptions()`.',
+        fix: 'Check the id or add the coupon to `coupons`.',
+      },
+      'subkit.PROMOTION_CODE_INVALID': {
+        cause:
+          'The promotion code does not exist, was deactivated or is for another email address. For `createPromotionCode`, the code has an invalid form.',
+        fix: 'Check the code (3–40 letters, digits, - or _). Redeem a personal code with the email it was created for.',
+      },
+      'subkit.PROMOTION_CODE_EXPIRED': {
+        cause:
+          'The promotion code\'s end date has passed, or it was redeemed as often as allowed (`maxRedemptions`).',
+        fix: 'Create a new code (`createPromotionCode`) or subscribe without one.',
+      },
+      'subkit.PROMOTION_CODE_NOT_APPLICABLE': {
+        cause:
+          'The coupon is not for this plan, interval or currency – or only for a first subscription, and the customer had one.',
+        fix: 'Choose a plan and interval the coupon is for (`planIds`, `intervals`), or subscribe without the code.',
+      },
+      'subkit.PROMOTION_CODE_EXISTS': {
+        cause:
+          '`createPromotionCode` with a code that exists already.',
+        fix: 'Choose another code, or leave out `code` to have one generated.',
       },
       'shopkit.PRODUCT_NOT_FOUND': {
         cause: 'No product with this id or slug.',

@@ -72,9 +72,13 @@ cancel immediately.'`.
 | `switch_to_invoice` | `externalId` | no | idempotent |
 | `mark_invoice_paid` | `invoiceId`, `transactionId?` | no | idempotent |
 | `void_invoice` | `invoiceId` | no | destructive, idempotent |
+| `list_coupons` | – | yes | |
+| `list_promotion_codes` | `couponId?`, `email?` | yes | |
+| `create_promotion_code` | `couponId`, `code?`, `email?`, `maxRedemptions?`, `expiresAt?` | no | |
+| `deactivate_promotion_code` | `code` | no | destructive, idempotent |
 
 Text inputs are trimmed, 1–200 characters (`email` up to 320,
-`transactionId` up to 500); the input schemas set
+`transactionId` up to 500, `code` up to 40); the input schemas set
 `additionalProperties: false`.
 Results are JSON with dates as ISO strings, in `structuredContent` and as
 text. Payment tokens are never returned.
@@ -140,6 +144,26 @@ receipt email goes out, a paused plan unlocks. Returns `{ invoice }`.
 Input: `invoiceId`. Cancels an open or written-off invoice; cannot be
 undone. Returns `{ invoice }`, or `{ invoice: null, note }` when there is no
 open or written-off invoice with that id.
+
+### `list_coupons`
+
+The configured coupons (`subscriptions.coupons`).
+
+### `list_promotion_codes`
+
+`listPromotionCodes()`: the newest 50 codes, filtered by `couponId` and / or
+`email`, with redemptions and end date.
+
+### `create_promotion_code`
+
+`createPromotionCode()`. `expiresAt` is an ISO 8601 date-time (else
+`INVALID_INPUT`), `maxRedemptions` a whole number from 1. Without `code` one
+is generated.
+
+### `deactivate_promotion_code`
+
+`deactivatePromotionCode()`: the code cannot be redeemed any more;
+subscriptions that started with it keep their discount.
 
 ### Tool errors
 
