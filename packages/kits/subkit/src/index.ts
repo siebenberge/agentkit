@@ -6,6 +6,7 @@ export {
   type ChangePlanResult,
   type LineContext,
   type Logger,
+  type PromotionPreview,
   type RateLimitDecision,
   type RedirectUrls,
   type RunDueSummary,

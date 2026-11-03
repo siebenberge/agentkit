@@ -123,7 +123,11 @@ Called before every request that can cost a provider API call. Return
 type RateLimitCheck<C> =
   | { route: 'webhook'; request: Request }
   | { route: 'webhook-reference'; request: Request; reference: WebhookReference }
-  | { route: 'subscribe' | 'payment-method'; request: Request; customer: C };
+  | {
+      route: 'subscribe' | 'payment-method' | 'promotion-code';
+      request: Request;
+      customer: C;
+    };
 
 type RateLimitDecision = { allowed: boolean; retryAfterSeconds?: number };
 ```
@@ -133,6 +137,7 @@ type RateLimitDecision = { allowed: boolean; retryAfterSeconds?: number };
 | `webhook` | Every webhook request, before anything is parsed | IP |
 | `webhook-reference` | Before a known checkout / invoice is verified with the provider's API | `reference.kind` + `reference.id` (all attempts of one invoice share it) |
 | `subscribe`, `payment-method` | Each creates a checkout and a hosted payment page, after `authorize` | `customer.externalId` |
+| `promotion-code` | Each check of a promotion code the customer typed (`/promotion-code`, and `/subscribe` with a code) – keep it tight so codes cannot be guessed | `customer.externalId` (and the IP) |
 
 Unknown references never reach `webhook-reference` – they cost no API
 call. Keep the counters in shared storage (database, Redis) when the app
@@ -163,7 +168,8 @@ Paths are relative to `basePath`. All responses except the webhook's carry
 |---|---|---|---|
 | `POST` | `/webhook` | Provider payload | `{ received, events }` |
 | `GET` | `/overview` | – | `BillingOverviewDto` |
-| `POST` | `/subscribe` | `{ planId, interval, collectionMethod }` | `{ type: 'redirect', url }` or `{ type: 'subscribed' }` |
+| `POST` | `/subscribe` | `{ planId, interval, collectionMethod, promotionCode? }` | `{ type: 'redirect', url }` or `{ type: 'subscribed' }` |
+| `POST` | `/promotion-code` | `{ code, planId, interval }` | `PromotionPreviewDto` |
 | `POST` | `/change-plan` | `{ planId, interval }` | `{ type, effectiveAt }` |
 | `POST` | `/cancel` | `{}` | `{ success: true }` |
 | `POST` | `/resume` | `{}` | `{ success: true }` |
@@ -208,6 +214,7 @@ type BillingOverviewDto = {
   collectionMethods: CollectionMethod[];
   invoiceDueDays: number;
   trialEligible: boolean;
+  promotionCodes: boolean;        // coupons are configured: offer a code field
   tax: { rateBps: number; inclusive: boolean } | null;
 };
 
@@ -218,6 +225,15 @@ type BillingSubscriptionDto = {
   currentPeriodStart: string; currentPeriodEnd: string; trialEnd: string | null;
   cancelAtPeriodEnd: boolean;
   scheduledPlanId: string | null; scheduledInterval: 'month' | 'year' | null;
+  discount: BillingDiscountDto | null;
+};
+
+type BillingDiscountDto = {
+  name: string;
+  percentOff: number | null;
+  amountOff: number | null; currency: string | null;
+  periodsLeft: number | null; // discounted periods still to come, null = forever
+  currentPeriod: boolean;     // the current period is discounted
 };
 
 type BillingInvoiceDto = {
@@ -236,15 +252,44 @@ Dates are ISO strings, amounts in Rappen. The payment token is never sent.
 Body: `{ "planId": "pro", "interval": "year", "collectionMethod": "send_invoice" }`.
 `planId` is a string of 1–200 characters, `interval` `month` or `year`,
 `collectionMethod` one of `collectionMethods` (else 400
-`COLLECTION_METHOD_UNAVAILABLE`). Runs `rateLimit({ route: 'subscribe' })`,
-upserts the customer and calls `subscriptions.subscribe()`.
+`COLLECTION_METHOD_UNAVAILABLE`), the optional `promotionCode` a string of
+up to 100 characters (blank = none). Runs `rateLimit({ route: 'subscribe' })`
+(with a code also `promotion-code`), upserts the customer and calls
+`subscriptions.subscribe()`.
 
 - Card: `{ "type": "redirect", "url": "https://…" }` – send the browser
   there.
 - Invoice: `{ "type": "subscribed" }`.
 
 Errors: `PLAN_NOT_FOUND` (404), `PLAN_NOT_PURCHASABLE`,
-`SUBSCRIPTION_EXISTS` (400), `OVERDUE_INVOICE` (402), `RATE_LIMITED` (429).
+`SUBSCRIPTION_EXISTS`, `PROMOTION_CODE_INVALID`, `PROMOTION_CODE_EXPIRED`,
+`PROMOTION_CODE_NOT_APPLICABLE` (400), `OVERDUE_INVOICE` (402),
+`RATE_LIMITED` (429).
+
+### `POST /promotion-code`
+
+Body: `{ "code": "WELCOME", "planId": "pro", "interval": "month" }`. Runs
+`rateLimit({ route: 'promotion-code' })` and
+`subscriptions.previewPromotionCode()` for the authorized customer (their
+email, whether they subscribed before).
+
+```ts
+type PromotionPreviewDto = {
+  code: string;                 // as stored (upper case)
+  name: string;                 // the coupon's name
+  percentOff: number | null;
+  amountOff: number | null;
+  price: { amount: number; currency: string }; // list price of one period
+  discountAmount: number;
+  discountedAmount: number;
+  periods: number | null;       // null = forever
+  trial: boolean;               // the discount starts after the trial
+};
+```
+
+Errors: `INVALID_INPUT` (no code), `PLAN_NOT_FOUND` (404),
+`PLAN_NOT_PURCHASABLE`, `PROMOTION_CODE_INVALID`, `PROMOTION_CODE_EXPIRED`,
+`PROMOTION_CODE_NOT_APPLICABLE` (400), `RATE_LIMITED` (429).
 
 ### `POST /change-plan`
 
@@ -300,10 +345,10 @@ Errors answer `{ "error": "<CODE>", "docs": "https://agentkit.ch/errors#subkit-<
 
 | Status | Codes |
 |---|---|
-| 400 | `INVALID_JSON`, `INVALID_INPUT`, `COLLECTION_METHOD_UNAVAILABLE`, `PLAN_NOT_PURCHASABLE`, `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `INVALID_STATE`, `PAYMENT_METHOD_REQUIRED`, `PAYMENT_FAILED` |
+| 400 | `INVALID_JSON`, `INVALID_INPUT`, `COLLECTION_METHOD_UNAVAILABLE`, `PLAN_NOT_PURCHASABLE`, `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `INVALID_STATE`, `PAYMENT_METHOD_REQUIRED`, `PAYMENT_FAILED`, `PROMOTION_CODE_INVALID`, `PROMOTION_CODE_EXPIRED`, `PROMOTION_CODE_NOT_APPLICABLE` |
 | 401 | `UNAUTHORIZED` |
 | 402 | `OVERDUE_INVOICE` |
-| 404 | `NOT_FOUND`, `PLAN_NOT_FOUND`, `INVOICE_NOT_FOUND`, `CUSTOMER_NOT_FOUND` |
+| 404 | `NOT_FOUND`, `PLAN_NOT_FOUND`, `INVOICE_NOT_FOUND`, `CUSTOMER_NOT_FOUND`, `COUPON_NOT_FOUND` |
 | 409 | `BUSY` |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` |
 | 503 | `PROVIDER_UNAVAILABLE` |
@@ -414,7 +459,8 @@ const overview = await billing.overview();
 | Method | Route | Returns |
 |---|---|---|
 | `overview()` | `GET /overview` | `BillingOverviewDto` |
-| `subscribe({ planId, interval, collectionMethod })` | `POST /subscribe` | `SubscribeResultDto` |
+| `subscribe({ planId, interval, collectionMethod, promotionCode? })` | `POST /subscribe` | `SubscribeResultDto` |
+| `previewPromotionCode({ code, planId, interval })` | `POST /promotion-code` | `PromotionPreviewDto` |
 | `changePlan({ planId, interval })` | `POST /change-plan` | `ChangePlanResultDto` |
 | `cancel()` | `POST /cancel` | `{ success: true }` |
 | `resume()` | `POST /resume` | `{ success: true }` |
@@ -440,6 +486,6 @@ try {
 ```
 
 The DTO types (`BillingOverviewDto`, `BillingSubscriptionDto`,
-`BillingInvoiceDto`, `SubscribeResultDto`, `ChangePlanResultDto`,
-`BillingErrorDto`) are exported from `@agentkit.ch/subkit/http` and
+`BillingDiscountDto`, `BillingInvoiceDto`, `PromotionPreviewDto`,
+`SubscribeResultDto`, `ChangePlanResultDto`, `BillingErrorDto`) are exported from `@agentkit.ch/subkit/http` and
 `/react`.

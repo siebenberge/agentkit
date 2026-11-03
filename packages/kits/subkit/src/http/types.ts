@@ -10,6 +10,19 @@ import type {
  * JSON contract between `createSubscriptionsHandler` and the React client.
  * Dates are ISO strings.
  */
+/** The coupon of a subscription while it discounts periods. */
+export type BillingDiscountDto = {
+  name: string;
+  percentOff: number | null;
+  amountOff: number | null;
+  /** Currency of `amountOff`. */
+  currency: string | null;
+  /** Discounted periods still to come; `null` = forever. */
+  periodsLeft: number | null;
+  /** The current period is discounted. */
+  currentPeriod: boolean;
+};
+
 export type BillingSubscriptionDto = {
   id: string;
   planId: string;
@@ -24,6 +37,7 @@ export type BillingSubscriptionDto = {
   cancelAtPeriodEnd: boolean;
   scheduledPlanId: string | null;
   scheduledInterval: BillingInterval | null;
+  discount: BillingDiscountDto | null;
 };
 
 export type BillingInvoiceDto = {
@@ -65,8 +79,26 @@ export type BillingOverviewDto = {
   invoiceDueDays: number;
   /** A new subscription starts with the plan's `trialDays` (first one only). */
   trialEligible: boolean;
+  /** Coupons are configured: the subscribe form offers a code field. */
+  promotionCodes: boolean;
   /** VAT of plan prices; prices without VAT are shown with it added. */
   tax: { rateBps: number; inclusive: boolean } | null;
+};
+
+/** `POST /promotion-code` – what a code gives on a plan. */
+export type PromotionPreviewDto = {
+  code: string;
+  name: string;
+  percentOff: number | null;
+  amountOff: number | null;
+  /** List price of one period. */
+  price: { amount: number; currency: string };
+  discountAmount: number;
+  discountedAmount: number;
+  /** Discounted periods; `null` = forever. */
+  periods: number | null;
+  /** The discount starts after the plan's trial. */
+  trial: boolean;
 };
 
 export type SubscribeResultDto =

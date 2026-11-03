@@ -34,6 +34,9 @@ function setup(access: boolean | 'read-only' = true) {
     provider,
     plans,
     defaultPlanId: 'free',
+    coupons: [
+      { id: 'launch', name: 'Launch', percentOff: 20, duration: 'once' },
+    ],
   });
   const errors: unknown[] = [];
   const handler = createSubscriptionsMcpHandler({
@@ -167,6 +170,10 @@ describe('createSubscriptionsMcpHandler', () => {
       'switch_to_invoice',
       'mark_invoice_paid',
       'void_invoice',
+      'list_coupons',
+      'list_promotion_codes',
+      'create_promotion_code',
+      'deactivate_promotion_code',
     ]);
     expect(list.body.result).not.toHaveProperty('resultType');
   });
@@ -390,6 +397,70 @@ describe('createSubscriptionsMcpHandler', () => {
     expect(
       (invalid.body.result?.structuredContent as { message: string }).message,
     ).toContain('interval');
+  });
+
+  it('creates, lists and deactivates promotion codes', async () => {
+    const { subscriptions, legacy } = setup();
+
+    const created = await legacy('tools/call', {
+      name: 'create_promotion_code',
+      arguments: {
+        couponId: 'launch',
+        code: 'launch20',
+        email: 'Lead@Example.ch',
+        maxRedemptions: 1,
+        expiresAt: '2026-12-31T23:00:00Z',
+      },
+    });
+    expect(created.body.result).toMatchObject({
+      isError: false,
+      structuredContent: {
+        promotionCode: {
+          code: 'LAUNCH20',
+          email: 'lead@example.ch',
+          maxRedemptions: 1,
+          expiresAt: '2026-12-31T23:00:00.000Z',
+        },
+      },
+    });
+
+    const listed = await legacy('tools/call', {
+      name: 'list_promotion_codes',
+      arguments: { couponId: 'launch' },
+    });
+    expect(
+      (
+        listed.body.result?.structuredContent as {
+          promotionCodes: { code: string }[];
+        }
+      ).promotionCodes.map((code) => code.code),
+    ).toEqual(['LAUNCH20']);
+
+    await legacy('tools/call', {
+      name: 'deactivate_promotion_code',
+      arguments: { code: 'launch20' },
+    });
+    expect((await subscriptions.getPromotionCode('LAUNCH20'))?.active).toBe(
+      false,
+    );
+
+    const badDate = await legacy('tools/call', {
+      name: 'create_promotion_code',
+      arguments: { couponId: 'launch', expiresAt: 'soon' },
+    });
+    expect(badDate.body.result).toMatchObject({
+      isError: true,
+      structuredContent: { error: 'INVALID_INPUT' },
+    });
+
+    const unknown = await legacy('tools/call', {
+      name: 'create_promotion_code',
+      arguments: { couponId: 'nope' },
+    });
+    expect(unknown.body.result).toMatchObject({
+      isError: true,
+      structuredContent: { error: 'COUPON_NOT_FOUND' },
+    });
   });
 
   it('hides unexpected errors from the model and reports them', async () => {

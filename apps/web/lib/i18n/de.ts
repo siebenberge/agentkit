@@ -328,7 +328,7 @@ export const de: Dict = {
         items: [
           {
             title: 'Pläne & Testphasen',
-            text: 'Monatlich oder jährlich, mit Testphase und Gratisplan. Versteckte Pläne bleiben bei ihren Abonnenten, werden aber nicht mehr verkauft.',
+            text: 'Monatlich oder jährlich, mit Testphase, Gratisplan und Gutscheincodes, etwa 50 % auf die ersten drei Monate. Versteckte Pläne bleiben bei ihren Abonnenten, werden aber nicht mehr verkauft.',
           },
           {
             title: 'Pro rata auf den Rappen',
@@ -624,6 +624,31 @@ export const de: Dict = {
         cause:
           'Diese Zahlungsart (Karte / TWINT oder Rechnung) ist in `collectionMethods` des Handlers nicht aktiviert.',
         fix: 'Sie in `collectionMethods` aufnehmen oder nur die aktivierten anbieten.',
+      },
+      'subkit.COUPON_NOT_FOUND': {
+        cause:
+          'Kein Coupon mit dieser Id in `coupons` von `createSubscriptions()`.',
+        fix: 'Die Id prüfen oder den Coupon in `coupons` aufnehmen.',
+      },
+      'subkit.PROMOTION_CODE_INVALID': {
+        cause:
+          'Den Gutscheincode gibt es nicht, er wurde deaktiviert oder gilt nur für eine andere E-Mail-Adresse. Bei `createPromotionCode` hat der Code eine ungültige Form.',
+        fix: 'Den Code prüfen (3–40 Buchstaben, Ziffern, - oder _). Persönliche Codes nur mit der E-Mail einlösen, für die sie erstellt wurden.',
+      },
+      'subkit.PROMOTION_CODE_EXPIRED': {
+        cause:
+          'Das Ablaufdatum des Gutscheincodes ist vorbei, oder er wurde so oft eingelöst wie erlaubt (`maxRedemptions`).',
+        fix: 'Einen neuen Code erstellen (`createPromotionCode`) oder ohne Code buchen.',
+      },
+      'subkit.PROMOTION_CODE_NOT_APPLICABLE': {
+        cause:
+          'Der Coupon gilt nicht für diesen Plan, dieses Intervall oder diese Währung – oder nur für ein erstes Abo, und der Kunde hatte schon eines.',
+        fix: 'Einen Plan und ein Intervall wählen, für die der Coupon gilt (`planIds`, `intervals`), oder ohne Code buchen.',
+      },
+      'subkit.PROMOTION_CODE_EXISTS': {
+        cause:
+          '`createPromotionCode` mit einem Code, den es schon gibt.',
+        fix: 'Einen anderen Code wählen oder `code` weglassen, dann wird einer erzeugt.',
       },
       'shopkit.PRODUCT_NOT_FOUND': {
         cause: 'Kein Produkt mit dieser Id oder diesem Slug.',

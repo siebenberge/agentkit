@@ -329,7 +329,7 @@ export const fr: Dict = {
         items: [
           {
             title: 'Plans et périodes d’essai',
-            text: 'Mensuel ou annuel, avec période d’essai et plan gratuit. Les plans masqués restent chez leurs abonnés, mais ne sont plus vendus.',
+            text: 'Mensuel ou annuel, avec période d’essai, plan gratuit et codes promo, par exemple 50 % sur les trois premiers mois. Les plans masqués restent chez leurs abonnés, mais ne sont plus vendus.',
           },
           {
             title: 'Prorata au centime près',
@@ -624,6 +624,31 @@ export const fr: Dict = {
         cause:
           'Ce mode de paiement (carte / TWINT ou facture) n’est pas activé dans `collectionMethods` du handler.',
         fix: 'Ajoutez-le à `collectionMethods`, ou ne proposez que les modes activés.',
+      },
+      'subkit.COUPON_NOT_FOUND': {
+        cause:
+          'Aucun coupon avec cet id dans `coupons` de `createSubscriptions()`.',
+        fix: 'Vérifiez l’id ou ajoutez le coupon à `coupons`.',
+      },
+      'subkit.PROMOTION_CODE_INVALID': {
+        cause:
+          'Le code promo n’existe pas, a été désactivé ou est réservé à une autre adresse e-mail. Pour `createPromotionCode`, le code n’a pas une forme valable.',
+        fix: 'Vérifiez le code (3 à 40 lettres, chiffres, - ou _). Un code personnel s’utilise avec l’e-mail pour lequel il a été créé.',
+      },
+      'subkit.PROMOTION_CODE_EXPIRED': {
+        cause:
+          'La date de fin du code promo est passée, ou il a été utilisé autant de fois que permis (`maxRedemptions`).',
+        fix: 'Créez un nouveau code (`createPromotionCode`) ou souscrivez sans code.',
+      },
+      'subkit.PROMOTION_CODE_NOT_APPLICABLE': {
+        cause:
+          'Le coupon ne vaut pas pour cette formule, cet intervalle ou cette devise – ou seulement pour un premier abonnement, et le client en a déjà eu un.',
+        fix: 'Choisissez une formule et un intervalle couverts par le coupon (`planIds`, `intervals`), ou souscrivez sans code.',
+      },
+      'subkit.PROMOTION_CODE_EXISTS': {
+        cause:
+          '`createPromotionCode` avec un code qui existe déjà.',
+        fix: 'Choisissez un autre code, ou omettez `code` pour en générer un.',
       },
       'shopkit.PRODUCT_NOT_FOUND': {
         cause: 'Aucun produit avec cet identifiant ou ce slug.',

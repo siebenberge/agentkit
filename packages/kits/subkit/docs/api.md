@@ -12,16 +12,18 @@ import { createSubscriptions, type Subscriptions } from '@agentkit.ch/subkit';
 const subscriptions: Subscriptions = createSubscriptions({ … });
 ```
 
-Every method is `async` except `getPlan`. `externalId` is your id of the
+Every method is `async` except `getPlan` and `getCoupon`. `externalId` is your id of the
 billed customer ([concepts](concepts.md#customers-and-externalid)).
 
 ## Plans and settings
 
-### `plans`, `getPlan()`, `settings`, `now()`
+### `plans`, `getPlan()`, `coupons`, `getCoupon()`, `settings`, `now()`
 
 ```ts
 subscriptions.plans: Plan[]
 subscriptions.getPlan(planId: string): Plan | null
+subscriptions.coupons: Coupon[]
+subscriptions.getCoupon(couponId: string): Coupon | null
 subscriptions.now(): Date // the clock (`options.now`)
 subscriptions.settings: {
   defaultPlanId: string;
@@ -164,6 +166,8 @@ subscribe(params: {
   interval: 'month' | 'year';
   collectionMethod: 'charge_automatically' | 'send_invoice';
   urls: RedirectUrls;
+  promotionCode?: string; // a code the customer typed
+  couponId?: string;      // a coupon your app applies – never customer input
 }): Promise<SubscribeResult>
 
 type RedirectUrls = { successUrl: string; cancelUrl: string; failedUrl?: string };
@@ -182,6 +186,14 @@ type SubscribeResult =
 
 Earlier unfinished checkouts of the customer expire.
 
+With `promotionCode` or `couponId` (not both) the subscription starts with
+the coupon: the first invoice gets its discount line (after a trial: the
+first paid one) and `subscription.discount` holds the terms. A first
+invoice with nothing to pay (100 %) is settled on creation; by card the
+checkout then only saves the payment method (`save` mode). A code is
+redeemed when the subscription goes live: at once by invoice, when the
+checkout is paid by card ([concepts](concepts.md#coupons)).
+
 | Error | When |
 |---|---|
 | `CUSTOMER_NOT_FOUND` | No `upsertCustomer` for `externalId` |
@@ -189,12 +201,17 @@ Earlier unfinished checkouts of the customer expire.
 | `PLAN_NOT_PURCHASABLE` | No price for `interval`, or the plan is `hidden` |
 | `SUBSCRIPTION_EXISTS` | A live subscription exists – use `changePlan` |
 | `OVERDUE_INVOICE` | An invoice of the customer is overdue or written off |
+| `PROMOTION_CODE_INVALID` | Unknown or deactivated code, or one bound to another email |
+| `PROMOTION_CODE_EXPIRED` | The code's `expiresAt` passed or it reached `maxRedemptions` |
+| `PROMOTION_CODE_NOT_APPLICABLE` | The coupon is not for this plan, interval or currency, or only for a first subscription |
+| `COUPON_NOT_FOUND` | Unknown `couponId` |
 
 An error of the provider while creating the payment page is thrown as is
 (the new subscription is expired).
 
 Events: `send_invoice` – `subscription.activated`, `invoice.created` (no
-trial). Card – none until the webhook.
+trial; plus `invoice.paid` when it has nothing to pay). Card – none until
+the webhook.
 
 ### `changePlan()`
 
@@ -269,6 +286,104 @@ through `updatePaymentMethod()`.
 Errors: `CUSTOMER_NOT_FOUND`, `NO_SUBSCRIPTION`, `BUSY`. Events:
 `invoice.created` for each moved invoice that was not charged yet, then
 `subscription.updated`.
+
+## Coupons and promotion codes
+
+### `createPromotionCode()`
+
+```ts
+createPromotionCode(params: {
+  couponId: string;
+  code?: string;                 // default: 8 generated characters
+  email?: string | null;         // only this customer email may redeem it
+  maxRedemptions?: number | null;
+  expiresAt?: Date | null;
+}): Promise<PromotionCode>
+
+type PromotionCode = {
+  id: string;
+  code: string;                  // upper case
+  couponId: string;
+  email: string | null;          // lower case
+  maxRedemptions: number | null;
+  timesRedeemed: number;
+  expiresAt: Date | null;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+```
+
+A code the customer types at checkout. `code` has 3–40 letters, digits,
+`-` or `_` and is stored in upper case; customers may type it in any case
+and with spaces around it. A generated code has 8 characters without the
+easily confused `0`, `O`, `1` and `I`.
+
+```ts
+// a personal offer: one email, once, for 14 days
+const { code } = await subscriptions.createPromotionCode({
+  couponId: 'welcome',
+  email: lead.email,
+  maxRedemptions: 1,
+  expiresAt: addDays(new Date(), 14),
+});
+```
+
+| Error | When |
+|---|---|
+| `COUPON_NOT_FOUND` | Unknown `couponId` |
+| `PROMOTION_CODE_INVALID` | `code` does not have the allowed form |
+| `PROMOTION_CODE_EXISTS` | A code with this text exists |
+
+A plain `Error` for a `maxRedemptions` that is not a positive integer.
+
+### `previewPromotionCode()`
+
+```ts
+previewPromotionCode(params: {
+  externalId?: string;  // the customer, when known
+  email?: string;       // defaults to the customer's
+  code: string;
+  planId: string;
+  interval: 'month' | 'year';
+}): Promise<PromotionPreview>
+
+type PromotionPreview = {
+  code: string;
+  coupon: Coupon;
+  price: PlanPrice;          // list price of one period
+  discountAmount: number;    // off one discounted period
+  discountedAmount: number;  // price of a discounted period
+  periods: number | null;    // null = forever
+  trial: boolean;            // the discount starts after the trial
+};
+```
+
+What the code gives on this plan, checked like `subscribe` would, with the
+same errors. For a customer that is not a billing customer yet, pass the
+`email` the code must be for; a `firstSubscriptionOnly` coupon then counts
+as eligible.
+
+### `getPromotionCode()`, `listPromotionCodes()`
+
+```ts
+getPromotionCode(code: string): Promise<PromotionCode | null>
+listPromotionCodes(params?: {
+  couponId?: string;
+  email?: string;
+  limit?: number;    // default 50
+}): Promise<PromotionCode[]>   // newest first
+```
+
+### `deactivatePromotionCode()`
+
+```ts
+deactivatePromotionCode(params: { code: string }): Promise<PromotionCode>
+```
+
+The code cannot be redeemed any more (`PROMOTION_CODE_INVALID`).
+Subscriptions that started with it keep their discount. Throws
+`PROMOTION_CODE_INVALID` for an unknown code.
 
 ## Checkout and payment
 
@@ -541,18 +656,25 @@ The message does not contain the link, so you can show it to customers.
 | [`OVERDUE_INVOICE`](https://agentkit.ch/errors#subkit-OVERDUE_INVOICE) | `subscribe` |
 | [`WEBHOOK_INVALID`](https://agentkit.ch/errors#subkit-WEBHOOK_INVALID) | `applyProviderEvent`, providers' `parseWebhook` |
 | [`RATE_LIMITED`](https://agentkit.ch/errors#subkit-RATE_LIMITED) | Webhook verification refused by `beforeVerify` |
+| [`COUPON_NOT_FOUND`](https://agentkit.ch/errors#subkit-COUPON_NOT_FOUND) | `subscribe`, `createPromotionCode` |
+| [`PROMOTION_CODE_INVALID`](https://agentkit.ch/errors#subkit-PROMOTION_CODE_INVALID) | `subscribe`, `previewPromotionCode`, `createPromotionCode`, `deactivatePromotionCode` |
+| [`PROMOTION_CODE_EXPIRED`](https://agentkit.ch/errors#subkit-PROMOTION_CODE_EXPIRED) | `subscribe`, `previewPromotionCode` |
+| [`PROMOTION_CODE_NOT_APPLICABLE`](https://agentkit.ch/errors#subkit-PROMOTION_CODE_NOT_APPLICABLE) | `subscribe`, `previewPromotionCode` |
+| [`PROMOTION_CODE_EXISTS`](https://agentkit.ch/errors#subkit-PROMOTION_CODE_EXISTS) | `createPromotionCode` |
 
 The HTTP handler adds its own codes ([http](http.md#errors)).
 
 ### Types
 
-Also exported: the domain types (`Plan`, `PlanPrice`, `Customer`,
+Also exported: the domain types (`Plan`, `PlanPrice`, `Coupon`,
+`CouponDuration`, `PromotionCode`, `SubscriptionDiscount`, `Customer`,
 `Address`, `PaymentMethod`, `Subscription`, `SubscriptionStatus`,
 `Invoice`, `InvoiceLine`, `InvoiceStatus`, `InvoiceReason`, `Checkout`,
 `CheckoutPurpose`, `CollectionMethod`, `BillingInterval`, `Entitlements`,
 `SubscriptionEvent`, `ModelMap`, `ModelName`), the option and result types
 (`SubscriptionsOptions`, `Subscriptions`, `TaxConfig`, `Logger`,
 `LineContext`, `RedirectUrls`, `SubscribeResult`, `ChangePlanResult`,
+`PromotionPreview`,
 `RunDueSummary`, `BankReconciliation`, `WebhookReference`,
 `RateLimitDecision`, `BankPayment`), the adapter contract
 (`StorageAdapter`, `Where`, `WhereOperator`, `FindManyOptions`) and the

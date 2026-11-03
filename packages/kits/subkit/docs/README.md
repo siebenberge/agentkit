@@ -7,8 +7,8 @@ event and table.
 
 | Page | Contents |
 |---|---|
-| [Concepts](concepts.md) | Customers, subscriptions and their statuses, periods and renewals, trials, plan changes and proration, card or invoice billing, dunning, `runDue()`, amounts and VAT |
-| [Configuration](configuration.md) | Every option of `createSubscriptions()`: plans, prices, trials, tax, events, logging |
+| [Concepts](concepts.md) | Customers, subscriptions and their statuses, periods and renewals, trials, plan changes and proration, coupons and promotion codes, card or invoice billing, dunning, `runDue()`, amounts and VAT |
+| [Configuration](configuration.md) | Every option of `createSubscriptions()`: plans, prices, trials, coupons, tax, events, logging |
 | [API](api.md) | Every method of the object `createSubscriptions()` returns, and the other exports |
 | [Events](events.md) | What `onEvent` receives, when, with which fields |
 | [HTTP handler](http.md) | `createSubscriptionsHandler()`: options, every route, the webhook, rate limits |

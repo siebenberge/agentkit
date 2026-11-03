@@ -33,6 +33,7 @@ newer.
 | `featureLabel` | `(feature: string) => string` | the key | Display name of a feature key |
 | `limitLabel` | `(limit: string, value: string) => string` | `` `${value} ${limit}` `` | Text of a usage limit; `value` is formatted (`1’000`, `Unlimited`) |
 | `onNotify` | `(type: 'success' \| 'error', message: string) => void` | inline banner | Show success and error messages in your app's toasts |
+| `promotionCode` | `string` | none | A promotion code to fill in when the customer subscribes (e.g. from the link of an offer email); checked when the dialog opens |
 | `className` | `string` | none | Added to the root element (`.sb-root`) |
 
 ```tsx
@@ -52,14 +53,17 @@ newer.
   (`?checkout=success|cancel|failed` on the return URL), "not set up" when
   `collectionMethods` is empty, and a dunning banner for `past_due` /
   `unpaid` with "pay with card or TWINT" and the overdue invoice.
-- Current plan: name, status badge, next billing or end date and amount, a
-  scheduled change with "keep current plan", cancel / withdraw
-  cancellation.
+- Current plan: name, status badge, next billing or end date and amount,
+  the running coupon ("Promotion "Welcome": −50 %, 2 more billing
+  periods"), a scheduled change with "keep current plan", cancel /
+  withdraw cancellation.
 - Plans: month / year toggle (starts on the subscription's interval, else
   yearly) with the yearly saving, price incl. VAT, monthly equivalent of
   yearly prices, trial badge, limits and features. Choosing a plan opens the
-  subscribe dialog (card or invoice, as offered) or the change dialog
-  (upgrade now or at the period end, as the engine decides).
+  subscribe dialog (card or invoice, as offered; with coupons configured a
+  promotion code field that shows what the code gives before the customer
+  subscribes) or the change dialog (upgrade now or at the period end, as
+  the engine decides).
 - Payment method: card / TWINT with last 4 digits and expiry, or invoice
   with the payment term; change payment method, switch to card or to
   invoice.
@@ -198,6 +202,8 @@ variables do not cover.
 | `sb-table-wrap`, `sb-table` | Invoice table (scrolls horizontally) |
 | `sb-dialog` | Native `<dialog>` of subscribe, change and cancel |
 | `sb-options`, `sb-option` | Payment options in the subscribe dialog |
+| `sb-promotion`, `sb-promotion-form`, `sb-promotion-row`, `sb-promotion-applied` | Promotion code field in the subscribe dialog and the applied code |
+| `sb-input`, `sb-error` | Text input and its error message |
 
 ## Texts
 

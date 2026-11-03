@@ -48,7 +48,7 @@ log like any `onEvent` error – they do not undo the billing change.
 | Email (`kind`) | Event | Button links to |
 |---|---|---|
 | `subscriptionActivated` | `subscription.activated` | billing |
-| `invoiceCreated` | `invoice.created` of a `send_invoice` invoice | invoice |
+| `invoiceCreated` | `invoice.created` of an open `send_invoice` invoice | invoice |
 | `paymentSucceeded` | `invoice.paid` (receipt) | invoice |
 | `paymentFailed` | `invoice.payment_failed`, `final: false` | billing |
 | `paymentFailedFinal` | `invoice.payment_failed`, `final: true` | billing |

@@ -17,6 +17,8 @@ import {
   type DemoConfig,
   SUB_DEFAULTS,
   clearConfig,
+  couponPercent,
+  couponPeriods,
   list,
   loadConfig,
   num,
@@ -28,6 +30,7 @@ import { type PayParams, payUrl } from './shop-runtime';
 
 export const SUB_API = '/api/billing';
 export const DECLINE_FLAG = 'declineCards';
+export const DEMO_PROMOTION_CODE = 'WELCOME';
 
 /** The signed-in team of the demo app. */
 export const DEMO_CUSTOMER = {
@@ -169,6 +172,15 @@ async function create(page: string) {
     provider,
     plans,
     defaultPlanId: 'free',
+    coupons: [
+      {
+        id: 'welcome',
+        name: 'Welcome',
+        percentOff: couponPercent(config),
+        duration: { periods: couponPeriods(config) },
+        intervals: ['month'],
+      },
+    ],
     tax: {
       rateBps: Number(config['tax.rateBps']),
       inclusive: config['tax.inclusive'] !== false,
@@ -188,6 +200,14 @@ async function create(page: string) {
   });
 
   await subscriptions.upsertCustomer(DEMO_CUSTOMER);
+
+  // the code visitors can try in the subscribe dialog
+  if (!(await subscriptions.getPromotionCode(DEMO_PROMOTION_CODE))) {
+    await subscriptions.createPromotionCode({
+      couponId: 'welcome',
+      code: DEMO_PROMOTION_CODE,
+    });
+  }
 
   const save = () =>
     sandbox.saveTables(database.tables as unknown as Record<string, unknown[]>);

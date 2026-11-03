@@ -21,7 +21,7 @@ The package ships ES modules with type declarations; peer dependencies
 
 | Import | What you get |
 |---|---|
-| `@agentkit.ch/subkit` | `createSubscriptions()`: plans, customers, subscriptions, invoices, renewals, proration, dunning, invoice collection, entitlements |
+| `@agentkit.ch/subkit` | `createSubscriptions()`: plans, customers, subscriptions, invoices, renewals, proration, dunning, invoice collection, entitlements, coupons and promotion codes |
 | `@agentkit.ch/subkit/drizzle`, `/memory` | Storage adapters (or implement `StorageAdapter`: five methods) |
 | `@agentkit.ch/subkit/zahls` | zahls.ch payment provider (or implement `PaymentProvider`) |
 | `@agentkit.ch/subkit/http` | Self-service API + provider webhook as one fetch handler (`Request` → `Response`) |
@@ -129,6 +129,39 @@ invoice number in the payer's message. A full payment marks the invoice paid
 currency or an unknown reference is reported for booking by hand. Importing
 the same file again changes nothing.
 
+### Coupons and promotion codes
+
+Discounts are configured like plans; customers redeem them with a code at
+checkout (the `<BillingPortal />` shows a code field and what it gives):
+
+```ts
+createSubscriptions({
+  // …
+  coupons: [
+    {
+      id: 'welcome',
+      name: 'Welcome offer',
+      percentOff: 50,              // or amountOff: { amount: 500, currency: 'CHF' }
+      duration: { periods: 3 },    // 'once' | 'forever' | { periods: n }
+      intervals: ['month'],        // optional, like planIds
+      firstSubscriptionOnly: true,
+    },
+  ],
+});
+
+// a personal code: one email, once, valid for 14 days
+const { code } = await subscriptions.createPromotionCode({
+  couponId: 'welcome',
+  email: 'lead@example.ch',
+  maxRedemptions: 1,
+  expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+});
+```
+
+Every discounted period gets a discount line on its invoice; upgrades are
+prorated with the discount. Details:
+[concepts](docs/concepts.md#coupons).
+
 ### Errors
 
 Every `SubscriptionError` has a `code` and `docsUrl`, the link to its cause
@@ -153,7 +186,7 @@ export const POST = createSubscriptionsMcpHandler({
   // staff only – the tools act on every customer
   authorize: (request) =>
     request.headers.get('authorization') === `Bearer ${process.env.BILLING_MCP_TOKEN}`,
-  // or 'read-only': only list_plans, find_customers, get_billing, get_invoice
+  // or 'read-only': only the tools that read (list_plans, get_billing …)
 });
 ```
 
@@ -164,8 +197,9 @@ claude mcp add --transport http billing https://acme.ch/api/billing-mcp \
 
 Tools: `list_plans`, `find_customers` (by email), `get_billing`,
 `get_invoice`, `change_plan`, `cancel_subscription`, `resume_subscription`,
-`switch_to_invoice`, `mark_invoice_paid`, `void_invoice`. Payment tokens are
-never returned. Kit errors come back as tool errors with code and docs link.
+`switch_to_invoice`, `mark_invoice_paid`, `void_invoice`, `list_coupons`,
+`list_promotion_codes`, `create_promotion_code`,
+`deactivate_promotion_code`. Payment tokens are never returned. Kit errors come back as tool errors with code and docs link.
 
 ## Development
 

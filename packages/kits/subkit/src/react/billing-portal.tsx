@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { BillingOverviewDto, BillingSubscriptionDto } from '../http/types';
+import type {
+  BillingDiscountDto,
+  BillingOverviewDto,
+  BillingSubscriptionDto,
+  PromotionPreviewDto,
+} from '../http/types';
 import {
   type MessageOverrides,
   type Messages,
@@ -34,6 +39,11 @@ export type BillingPortalProps = {
   limitLabel?: (limit: string, value: string) => string;
   /** Hook into your app's toasts; default: inline notice. */
   onNotify?: (type: 'success' | 'error', message: string) => void;
+  /**
+   * A promotion code to fill in when the customer subscribes (e.g. from
+   * the link of an offer email). It is checked when the dialog opens.
+   */
+  promotionCode?: string;
   className?: string;
 };
 
@@ -260,7 +270,7 @@ export function BillingPortal(props: BillingPortalProps) {
                 {
                   date: date(subscription.currentPeriodEnd),
                   amount: money(
-                    gross(subscription.unitAmount),
+                    gross(nextPeriodAmount(subscription)),
                     subscription.currency,
                   ),
                   interval: t.interval[subscription.interval],
@@ -268,6 +278,11 @@ export function BillingPortal(props: BillingPortalProps) {
               )
             : t.current.freeDescription}
         </p>
+        {subscription?.discount ? (
+          <p className="sb-muted">
+            {discountText(subscription.discount, subscription, m, locale)}
+          </p>
+        ) : null}
         {subscription?.scheduledPlanId ? (
           <p className="sb-muted">
             {interpolate(t.current.scheduledChange, {
@@ -603,11 +618,13 @@ export function BillingPortal(props: BillingPortalProps) {
           plan={pendingPlan}
           interval={interval}
           data={data}
+          client={client}
+          initialPromotionCode={props.promotionCode}
           messages={m}
           locale={locale}
           pending={pending === 'subscribe'}
           onClose={() => setPendingPlan(null)}
-          onConfirm={(collectionMethod) =>
+          onConfirm={(collectionMethod, promotionCode) =>
             void action(
               'subscribe',
               () =>
@@ -615,6 +632,7 @@ export function BillingPortal(props: BillingPortalProps) {
                   planId: pendingPlan.id,
                   interval,
                   collectionMethod,
+                  ...(promotionCode ? { promotionCode } : {}),
                 }),
               (result) => {
                 if (result.type === 'redirect') return redirect(result.url);
@@ -694,15 +712,79 @@ export function BillingPortal(props: BillingPortalProps) {
   );
 }
 
+/**
+ * What the next period costs: with the coupon while it has periods left
+ * and the plan stays (a scheduled change may not be covered by it).
+ */
+function nextPeriodAmount(subscription: BillingSubscriptionDto) {
+  const discount = subscription.discount;
+  const unit = subscription.unitAmount;
+
+  if (
+    !discount ||
+    !discount.currentPeriod ||
+    discount.periodsLeft === 0 ||
+    subscription.scheduledPlanId
+  ) {
+    return unit;
+  }
+
+  const off =
+    discount.percentOff !== null
+      ? Math.round((unit * discount.percentOff) / 100)
+      : Math.min(unit, discount.amountOff ?? 0);
+
+  return unit - off;
+}
+
+/** «Promotion "Welcome": −50 %, 2 more billing periods.» */
+function discountText(
+  discount: BillingDiscountDto,
+  subscription: BillingSubscriptionDto,
+  messages: Messages,
+  locale: string | undefined,
+) {
+  const t = messages.ui;
+  const off =
+    discount.percentOff !== null
+      ? interpolate(t.discount.percent, { percent: discount.percentOff })
+      : interpolate(t.discount.amount, {
+          amount: formatMoney(
+            discount.amountOff ?? 0,
+            discount.currency ?? subscription.currency,
+            locale,
+          ),
+        });
+  const duration =
+    discount.periodsLeft === null
+      ? t.discount.forever
+      : discount.periodsLeft > 0
+        ? interpolate(t.discount.periodsLeft, { count: discount.periodsLeft })
+        : interpolate(t.discount.lastPeriod, {
+            date: formatDate(subscription.currentPeriodEnd, locale),
+          });
+
+  return interpolate(t.current.discount, {
+    name: discount.name,
+    discount: off,
+    duration,
+  });
+}
+
 function SubscribeDialog(props: {
   plan: Plan;
   interval: BillingInterval;
   data: BillingOverviewDto;
+  client: BillingClient;
+  initialPromotionCode?: string;
   messages: Messages;
   locale?: string;
   pending: boolean;
   onClose: () => void;
-  onConfirm: (collectionMethod: CollectionMethod) => void;
+  onConfirm: (
+    collectionMethod: CollectionMethod,
+    promotionCode: string | null,
+  ) => void;
 }) {
   const t = props.messages.ui;
   const methods = props.data.collectionMethods;
@@ -710,6 +792,70 @@ function SubscribeDialog(props: {
     methods[0] ?? 'charge_automatically',
   );
   const price = props.plan.prices[props.interval];
+  const offersCodes = props.data.promotionCodes;
+  const [codeOpen, setCodeOpen] = useState(Boolean(props.initialPromotionCode));
+  const [code, setCode] = useState(props.initialPromotionCode ?? '');
+  const [promotion, setPromotion] = useState<PromotionPreviewDto | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const checkCode = async (value: string) => {
+    if (!value.trim()) return;
+
+    setChecking(true);
+    setCodeError(null);
+
+    try {
+      setPromotion(
+        await props.client.previewPromotionCode({
+          code: value,
+          planId: props.plan.id,
+          interval: props.interval,
+        }),
+      );
+    } catch (error) {
+      const errors = t.errors as Record<string, string>;
+      const errorCode =
+        error instanceof BillingApiError ? error.code : 'generic';
+
+      setPromotion(null);
+      setCodeError(errors[errorCode] ?? t.errors.generic);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  // a code passed in (offer link) is checked right away
+  useEffect(() => {
+    if (offersCodes && props.initialPromotionCode) {
+      void checkCode(props.initialPromotionCode);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const promotionText = promotion
+    ? interpolate(t.subscribeDialog.promotionApplied, {
+        name: promotion.name,
+        amount: formatMoney(
+          grossAmount(promotion.discountedAmount, props.data.tax),
+          promotion.price.currency,
+          props.locale,
+        ),
+        price: formatMoney(
+          grossAmount(promotion.price.amount, props.data.tax),
+          promotion.price.currency,
+          props.locale,
+        ),
+        interval: t.interval[props.interval],
+        duration:
+          promotion.periods === null
+            ? t.subscribeDialog.promotionForever
+            : promotion.periods === 1
+              ? t.subscribeDialog.promotionOnce
+              : interpolate(t.subscribeDialog.promotionPeriods, {
+                  count: promotion.periods,
+                }),
+      })
+    : null;
 
   return (
     <Dialog
@@ -745,8 +891,8 @@ function SubscribeDialog(props: {
           <button
             type="button"
             className="sb-button sb-button-primary"
-            disabled={props.pending}
-            onClick={() => props.onConfirm(method)}
+            disabled={props.pending || checking}
+            onClick={() => props.onConfirm(method, promotion?.code ?? null)}
           >
             {method === 'charge_automatically'
               ? t.subscribeDialog.continueToPayment
@@ -785,6 +931,82 @@ function SubscribeDialog(props: {
           </label>
         ))}
       </div>
+      {offersCodes ? (
+        <div className="sb-promotion">
+          {promotion ? (
+            <div className="sb-promotion-applied">
+              <p className="sb-small">
+                <span className="sb-strong">{promotion.code}</span> –{' '}
+                {promotionText}
+                {promotion.trial
+                  ? ` ${t.subscribeDialog.promotionAfterTrial}`
+                  : ''}
+              </p>
+              <button
+                type="button"
+                className="sb-button sb-button-ghost sb-button-small"
+                onClick={() => {
+                  setPromotion(null);
+                  setCode('');
+                }}
+              >
+                {t.subscribeDialog.removePromotionCode}
+              </button>
+            </div>
+          ) : codeOpen ? (
+            <form
+              className="sb-promotion-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void checkCode(code);
+              }}
+            >
+              <label className="sb-small sb-strong" htmlFor="sb-promotion">
+                {t.subscribeDialog.promotionCode}
+              </label>
+              <div className="sb-promotion-row">
+                <input
+                  id="sb-promotion"
+                  className="sb-input"
+                  value={code}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  maxLength={40}
+                  aria-invalid={codeError ? true : undefined}
+                  aria-describedby={
+                    codeError ? 'sb-promotion-error' : undefined
+                  }
+                  onChange={(event) => {
+                    setCode(event.target.value);
+                    setCodeError(null);
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="sb-button"
+                  disabled={checking || !code.trim()}
+                >
+                  {t.subscribeDialog.applyPromotionCode}
+                </button>
+              </div>
+              {codeError ? (
+                <p id="sb-promotion-error" className="sb-small sb-error">
+                  {codeError}
+                </p>
+              ) : null}
+            </form>
+          ) : (
+            <button
+              type="button"
+              className="sb-button sb-button-ghost sb-button-small"
+              onClick={() => setCodeOpen(true)}
+            >
+              {t.subscribeDialog.addPromotionCode}
+            </button>
+          )}
+        </div>
+      ) : null}
       <p className="sb-small sb-muted">{t.subscribeDialog.terms}</p>
     </Dialog>
   );

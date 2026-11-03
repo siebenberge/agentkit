@@ -22,7 +22,9 @@ import { subscriptionTables } from './schema';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyPgDatabase = PgDatabase<any, any, any>;
 
-type Tables = typeof subscriptionTables;
+/** `promotionCode` is optional: tables passed before 0.3 had none (no coupons then). */
+type Tables = Omit<typeof subscriptionTables, 'promotionCode'> &
+  Partial<Pick<typeof subscriptionTables, 'promotionCode'>>;
 
 /**
  * PostgreSQL storage through Drizzle. Pass your Drizzle instance; the tables
@@ -33,10 +35,20 @@ export function drizzleAdapter(
   db: AnyPgDatabase,
   tables: Tables = subscriptionTables,
 ): StorageAdapter {
-  const table = (model: ModelName) => tables[model] as unknown as PgTable;
+  const table = (model: ModelName) => {
+    const found = tables[model] as unknown as PgTable | undefined;
+
+    if (!found) {
+      throw new Error(
+        `drizzleAdapter: no table for ${model} – add billing_promotion_codes to your tables`,
+      );
+    }
+
+    return found;
+  };
 
   const column = (model: ModelName, field: PropertyKey) => {
-    const col = (tables[model] as unknown as Record<string, PgColumn>)[
+    const col = (table(model) as unknown as Record<string, PgColumn>)[
       field as string
     ];
 

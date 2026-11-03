@@ -40,7 +40,8 @@ database table and component – is in `docs/` of the package (also in
 ## Kits
 
 - subkit (`@agentkit.ch/subkit`, preview): subscriptions, plans, trials, proration,
-  card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`),
+  coupons and promotion codes (percent or amount off for n periods, personal
+  codes bound to an email), card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`),
   lifecycle emails, printable invoices, Swiss QR-bill, bank reconciliation
   (camt.053 / camt.054), React `<BillingPortal />`.
 - shopkit (`@agentkit.ch/shopkit`, preview): products and variants (physical,
@@ -177,7 +178,7 @@ fix: `https://agentkit.ch/errors#<kit>-<CODE>` (e.g.
   `claude mcp add --transport http agentkit https://agentkit.ch/mcp`.
 - MCP in your app, for your team: `createSubscriptionsMcpHandler` from
   `@agentkit.ch/subkit/mcp` (find customers, billing, change plan, cancel,
-  mark invoices paid, …) and `createShopMcpHandler` from
+  mark invoices paid, promotion codes, …) and `createShopMcpHandler` from
   `@agentkit.ch/shopkit/mcp` (orders, stock, discount codes, gift cards;
   with `hssoft` also `hssoft_sync_order`, `hssoft_set_availability_period`,
   `hssoft_import_products`; with `swisspost` also `swisspost_create_label`,

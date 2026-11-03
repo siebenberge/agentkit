@@ -39,6 +39,8 @@ export const SUB_DEFAULTS: DemoConfig = {
   'plans.pro.trialDays': 14,
   'plans.team.prices.month': 3_900,
   'plans.team.prices.year': 39_000,
+  'coupons.welcome.percentOff': 50,
+  'coupons.welcome.periods': 3,
   'tax.rateBps': '810',
   'tax.inclusive': true,
   'invoices.dueDays': 30,
@@ -102,6 +104,26 @@ export const SUB_SECTIONS: ConfigSection[] = [
           fr: 'Prix annuel de Team.',
           it: 'Prezzo annuale di Team.',
           en: 'Yearly price of Team.',
+        },
+      },
+      {
+        key: 'coupons.welcome.percentOff',
+        type: 'number',
+        hint: {
+          de: 'Rabatt des Gutscheincodes WELCOME in Prozent (1–100) – im Abo-Dialog unter «Gutscheincode eingeben».',
+          fr: 'Réduction du code promo WELCOME en pour cent (1–100) – dans la fenêtre d’abonnement sous « Saisir un code promo ».',
+          it: 'Sconto del codice promozionale WELCOME in percentuale (1–100) – nella finestra d’abbonamento sotto «Inserisci un codice promozionale».',
+          en: 'Discount of the promotion code WELCOME in percent (1–100) – in the subscribe dialog under “Add a promotion code”.',
+        },
+      },
+      {
+        key: 'coupons.welcome.periods',
+        type: 'number',
+        hint: {
+          de: 'So viele Monate gilt der Rabatt; danach der volle Preis. Nur für monatliche Abos.',
+          fr: 'Nombre de mois avec la réduction ; ensuite le prix plein. Seulement pour les abonnements mensuels.',
+          it: 'Per quanti mesi vale lo sconto; poi il prezzo pieno. Solo per abbonamenti mensili.',
+          en: 'For this many months the discount applies, then the full price. Monthly subscriptions only.',
         },
       },
       {
@@ -509,6 +531,18 @@ const strings = (value: ConfigValue) =>
     .map((entry) => `'${entry}'`)
     .join(', ')}]`;
 
+/** The demo coupon's percent off, kept within what subkit accepts. */
+export function couponPercent(c: DemoConfig) {
+  return Math.min(
+    100,
+    Math.max(1, Math.round(num(c['coupons.welcome.percentOff']!, 50))),
+  );
+}
+
+export function couponPeriods(c: DemoConfig) {
+  return Math.max(1, Math.round(num(c['coupons.welcome.periods']!, 3)));
+}
+
 export function subCode(c: DemoConfig): CodeLine[] {
   const price = (key: string, interval: string) => ({
     key,
@@ -556,6 +590,21 @@ export function subCode(c: DemoConfig): CodeLine[] {
     { text: '    },' },
     { text: '  ],' },
     { text: "  defaultPlanId: 'free'," },
+    { text: '  coupons: [' },
+    { text: '    {' },
+    { text: "      id: 'welcome'," },
+    { text: "      name: 'Welcome'," },
+    {
+      key: 'coupons.welcome.percentOff',
+      text: `      percentOff: ${couponPercent(c)},`,
+    },
+    {
+      key: 'coupons.welcome.periods',
+      text: `      duration: { periods: ${couponPeriods(c)} },`,
+    },
+    { text: "      intervals: ['month']," },
+    { text: '    },' },
+    { text: '  ],' },
     { text: '  tax: {' },
     { key: 'tax.rateBps', text: `    rateBps: ${String(c['tax.rateBps'])},` },
     {

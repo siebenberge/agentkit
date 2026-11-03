@@ -21,6 +21,7 @@ import type {
   BillingOverviewDto,
   BillingSubscriptionDto,
   ChangePlanResultDto,
+  PromotionPreviewDto,
   SubscribeResultDto,
 } from './types';
 
@@ -43,6 +44,8 @@ export type AuthorizedCustomer = {
  *   is verified with the provider's API (e.g. per reference)
  * - `subscribe`, `payment-method`: each creates a checkout and a hosted
  *   payment page (e.g. per customer), after `authorize`
+ * - `promotion-code`: each check of a code the customer typed – limit it
+ *   (e.g. per customer and IP) so codes cannot be guessed by trying
  */
 export type RateLimitCheck<C extends AuthorizedCustomer = AuthorizedCustomer> =
   | { route: 'webhook'; request: Request }
@@ -51,7 +54,11 @@ export type RateLimitCheck<C extends AuthorizedCustomer = AuthorizedCustomer> =
       request: Request;
       reference: WebhookReference;
     }
-  | { route: 'subscribe' | 'payment-method'; request: Request; customer: C };
+  | {
+      route: 'subscribe' | 'payment-method' | 'promotion-code';
+      request: Request;
+      customer: C;
+    };
 
 export type SubscriptionsHandlerOptions<
   C extends AuthorizedCustomer = AuthorizedCustomer,
@@ -111,7 +118,8 @@ class HttpError extends Error {
  * Routes (relative to `basePath`):
  * - `POST /webhook` – payment provider webhook (no session, `rateLimit`)
  * - `GET  /overview`
- * - `POST /subscribe` `{ planId, interval, collectionMethod }`
+ * - `POST /subscribe` `{ planId, interval, collectionMethod, promotionCode? }`
+ * - `POST /promotion-code` `{ code, planId, interval }` – what a code gives
  * - `POST /change-plan` `{ planId, interval }`
  * - `POST /cancel`, `POST /resume`
  * - `POST /payment-method` – tokenize a (new) card / TWINT
@@ -211,7 +219,14 @@ export function createSubscriptionsHandler<
             throw new HttpError(400, 'COLLECTION_METHOD_UNAVAILABLE');
           }
 
+          const promotionCode = optionalCode(body.promotionCode);
+
           await limit({ route: 'subscribe', request, customer });
+
+          if (promotionCode !== undefined) {
+            await limit({ route: 'promotion-code', request, customer });
+          }
+
           await subscriptions.upsertCustomer(customerData(customer));
 
           const result = await subscriptions.subscribe({
@@ -220,6 +235,7 @@ export function createSubscriptionsHandler<
             interval: oneOf(body.interval, INTERVALS),
             collectionMethod,
             urls,
+            ...(promotionCode !== undefined ? { promotionCode } : {}),
           });
 
           return json<SubscribeResultDto>(
@@ -227,6 +243,34 @@ export function createSubscriptionsHandler<
               ? { type: 'redirect', url: result.url }
               : { type: 'subscribed' },
           );
+        }
+
+        case '/promotion-code': {
+          const code = optionalCode(body.code);
+
+          if (code === undefined) throw new HttpError(400, 'INVALID_INPUT');
+
+          await limit({ route: 'promotion-code', request, customer });
+
+          const preview = await subscriptions.previewPromotionCode({
+            externalId,
+            email: customer.email,
+            code,
+            planId: text(body.planId),
+            interval: oneOf(body.interval, INTERVALS),
+          });
+
+          return json<PromotionPreviewDto>({
+            code: preview.code,
+            name: preview.coupon.name,
+            percentOff: preview.coupon.percentOff ?? null,
+            amountOff: preview.coupon.amountOff?.amount ?? null,
+            price: preview.price,
+            discountAmount: preview.discountAmount,
+            discountedAmount: preview.discountedAmount,
+            periods: preview.periods,
+            trial: preview.trial,
+          });
         }
 
         case '/change-plan': {
@@ -301,7 +345,9 @@ export function createSubscriptionsHandler<
 
       if (isSubscriptionError(error)) {
         const status =
-          error.code === 'PLAN_NOT_FOUND' || error.code === 'INVOICE_NOT_FOUND'
+          error.code === 'PLAN_NOT_FOUND' ||
+          error.code === 'INVOICE_NOT_FOUND' ||
+          error.code === 'COUPON_NOT_FOUND'
             ? 404
             : error.code === 'CUSTOMER_NOT_FOUND'
               ? 404
@@ -361,6 +407,7 @@ export function createSubscriptionsHandler<
       collectionMethods: allowedMethods(),
       invoiceDueDays: subscriptions.settings.invoiceDueDays,
       trialEligible: data.trialEligible,
+      promotionCodes: subscriptions.coupons.length > 0,
       tax: subscriptions.settings.tax
         ? {
             rateBps: subscriptions.settings.tax.rateBps,
@@ -462,6 +509,17 @@ function text(value: unknown) {
   return value;
 }
 
+/** A promotion code from the body: absent / blank → `undefined`. */
+function optionalCode(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+
+  if (typeof value !== 'string' || value.length > 100) {
+    throw new HttpError(400, 'INVALID_INPUT');
+  }
+
+  return value.trim() || undefined;
+}
+
 function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T {
   if (typeof value !== 'string' || !allowed.includes(value as T)) {
     throw new HttpError(400, 'INVALID_INPUT');
@@ -500,6 +558,16 @@ function subscriptionDto(subscription: Subscription): BillingSubscriptionDto {
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     scheduledPlanId: subscription.scheduledPlanId,
     scheduledInterval: subscription.scheduledInterval,
+    discount: subscription.discount
+      ? {
+          name: subscription.discount.name,
+          percentOff: subscription.discount.percentOff,
+          amountOff: subscription.discount.amountOff,
+          currency: subscription.discount.currency,
+          periodsLeft: subscription.discount.periodsLeft,
+          currentPeriod: subscription.discount.currentPeriod,
+        }
+      : null,
   };
 }
 

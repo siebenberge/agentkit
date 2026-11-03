@@ -5,6 +5,7 @@ const UNIQUE: { [M in ModelName]?: (keyof ModelMap[M])[] } = {
   customer: ['externalId'],
   paymentMethod: ['token'],
   invoice: ['billingKey', 'number'],
+  promotionCode: ['code'],
 };
 
 type Tables = { [M in ModelName]: ModelMap[M][] };
@@ -24,6 +25,7 @@ export function memoryAdapter(): StorageAdapter & { tables: Tables } {
     subscription: [],
     invoice: [],
     checkout: [],
+    promotionCode: [],
   };
 
   const clone = <T>(value: T): T => structuredClone(value);
