@@ -1054,6 +1054,43 @@ describe('card subscriptions', () => {
     );
   });
 
+  it('reminds a trial that was canceled and resumed', async () => {
+    await subscribeWithCard(ctx, 'trial');
+    await ctx.subs.cancel({ externalId: 'acc_1' });
+    await ctx.subs.resume({ externalId: 'acc_1' });
+
+    ctx.advance(12);
+    expect((await ctx.subs.runDue()).trialReminders).toBe(1);
+  });
+
+  it('reminds once when two runs overlap', async () => {
+    await subscribeWithCard(ctx, 'trial');
+
+    ctx.advance(12);
+    const runs = await Promise.all([ctx.subs.runDue(), ctx.subs.runDue()]);
+
+    expect(runs.map((run) => run.trialReminders).sort()).toEqual([0, 1]);
+    expect(
+      ctx.events.filter((e) => e.type === 'subscription.trial_will_end'),
+    ).toHaveLength(1);
+  });
+
+  it('offers the trial only before the first subscription', async () => {
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'a@b.ch',
+      name: 'A',
+    });
+    expect((await ctx.subs.getOverview('acc_1')).trialEligible).toBe(true);
+
+    await subscribeWithCard(ctx, 'trial');
+    await ctx.subs.cancel({ externalId: 'acc_1', immediately: true });
+
+    const overview = await ctx.subs.getOverview('acc_1');
+    expect(overview.subscription).toBe(null);
+    expect(overview.trialEligible).toBe(false);
+  });
+
   it('sends no trial reminders with reminderDays 0', async () => {
     ctx = setup({ trials: { reminderDays: 0 } });
     await subscribeWithCard(ctx, 'trial');
