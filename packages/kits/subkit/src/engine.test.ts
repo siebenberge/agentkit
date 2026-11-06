@@ -996,6 +996,72 @@ describe('card subscriptions', () => {
     );
   });
 
+  it('reminds once before a trial ends', async () => {
+    await subscribeWithCard(ctx, 'trial');
+    const reminders = () =>
+      ctx.events.filter((e) => e.type === 'subscription.trial_will_end');
+
+    ctx.advance(10.5);
+    expect((await ctx.subs.runDue()).trialReminders).toBe(0);
+
+    ctx.advance(0.6);
+    expect((await ctx.subs.runDue()).trialReminders).toBe(1);
+    await ctx.subs.runDue();
+
+    expect(reminders()).toEqual([
+      expect.objectContaining({
+        amount: 2000,
+        subscription: expect.objectContaining({
+          planId: 'trial',
+          status: 'trialing',
+        }),
+      }),
+    ]);
+    expect(ctx.charges).toHaveLength(0);
+  });
+
+  it('adds the tax to the reminded amount when prices exclude it', async () => {
+    ctx = setup({ tax: { rateBps: 810, inclusive: false } });
+    await subscribeWithCard(ctx, 'trial');
+
+    ctx.advance(12);
+    await ctx.subs.runDue();
+
+    expect(
+      ctx.events.find((e) => e.type === 'subscription.trial_will_end'),
+    ).toMatchObject({ amount: 2162 });
+  });
+
+  it('does not remind a canceled trial, nor a trial not longer than the lead', async () => {
+    await subscribeWithCard(ctx, 'trial');
+    await ctx.subs.cancel({ externalId: 'acc_1' });
+
+    ctx.advance(12);
+    expect((await ctx.subs.runDue()).trialReminders).toBe(0);
+
+    const short = setup({ trials: { reminderDays: 14 } });
+    await subscribeWithCard(short, 'trial');
+    short.advance(1);
+    expect((await short.subs.runDue()).trialReminders).toBe(0);
+    short.advance(1);
+    await short.subs.runDue();
+
+    expect(
+      short.events.filter((e) => e.type === 'subscription.trial_will_end'),
+    ).toHaveLength(0);
+    expect(short.database.tables.subscription[0]?.trialReminderAt).not.toBe(
+      null,
+    );
+  });
+
+  it('sends no trial reminders with reminderDays 0', async () => {
+    ctx = setup({ trials: { reminderDays: 0 } });
+    await subscribeWithCard(ctx, 'trial');
+
+    ctx.advance(13.9);
+    expect((await ctx.subs.runDue()).trialReminders).toBe(0);
+  });
+
   it('expires a checkout whose payment failed', async () => {
     await ctx.subs.upsertCustomer({
       externalId: 'acc_1',

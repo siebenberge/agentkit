@@ -213,6 +213,20 @@ export const it: Messages = {
       cta: 'Vedi abbonamento',
       dateLabel: 'Prossima fatturazione',
     },
+    trialStarted: {
+      subject: 'La tua prova di {{productName}} è iniziata',
+      heading: 'Benvenuto in {{productName}} {{planName}}',
+      body: 'Stai provando {{planName}} gratuitamente, tutte le funzioni del piano sono sbloccate. Fino alla fine della prova non ci sono costi e puoi disdire in qualsiasi momento nella gestione dell’abbonamento.',
+      cta: 'Vedi abbonamento',
+      dateLabel: 'Prova fino al',
+    },
+    trialEnding: {
+      subject: 'La tua prova di {{productName}} termina il {{date}}',
+      heading: 'La tua prova termina presto',
+      body: 'La tua prova di {{planName}} termina il {{date}}. Dopo sarà dovuto il primo pagamento di {{amount}}. Se non vuoi continuare, disdici prima nella gestione dell’abbonamento: non ti verrà addebitato nulla.',
+      cta: 'Gestisci abbonamento',
+      dateLabel: 'Prova fino al',
+    },
     invoiceCreated: {
       subject: 'Nuova fattura {{invoiceNumber}} da {{productName}}',
       heading: 'La tua fattura è pronta',

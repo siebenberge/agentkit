@@ -175,6 +175,54 @@ describe('emails', () => {
     expect(sent[0]?.text).toMatch(/We received CHF.0\.00/);
   });
 
+  it('announces the trial and reminds before it ends', async () => {
+    const sent: BillingEmailMessage[] = [];
+    const notify = createEmailNotifier({
+      productName: 'Membear',
+      plans: [
+        {
+          id: 'verein',
+          name: 'Verein',
+          features: [],
+          limits: {},
+          prices: { year: { amount: 9000, currency: 'CHF' } },
+          trialDays: 30,
+        },
+      ],
+      send: (message) => {
+        sent.push(message);
+      },
+      locale: 'de',
+      links: { billing: () => 'https://app.example/billing' },
+    });
+    const subscription = {
+      id: 's1',
+      planId: 'verein',
+      status: 'trialing',
+      currency: 'CHF',
+      currentPeriodEnd: new Date('2026-03-02T10:00:00Z'),
+    } as Extract<
+      SubscriptionEvent,
+      { type: 'subscription.trial_will_end' }
+    >['subscription'];
+
+    await notify({ type: 'subscription.activated', subscription, customer });
+    await notify({
+      type: 'subscription.trial_will_end',
+      subscription,
+      customer,
+      amount: 9000,
+    });
+
+    expect(sent.map((message) => message.subject)).toEqual([
+      'Deine Membear-Testphase läuft',
+      'Deine Membear-Testphase endet am 02.03.2026',
+    ]);
+    expect(sent[1]?.text).toContain('Verein');
+    expect(sent[1]?.text).toMatch(/CHF.90\.00/);
+    expect(sent[1]?.text).toContain('Testphase bis: 02.03.2026');
+  });
+
   it('skips emails when the app returns no link', async () => {
     const sent: BillingEmailMessage[] = [];
     const notify = createEmailNotifier({

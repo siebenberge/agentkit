@@ -214,6 +214,20 @@ export const fr: Messages = {
       cta: 'Voir l’abonnement',
       dateLabel: 'Prochaine facturation',
     },
+    trialStarted: {
+      subject: 'Ton essai {{productName}} a commencé',
+      heading: 'Bienvenue dans {{productName}} {{planName}}',
+      body: 'Tu testes {{planName}} gratuitement, toutes les fonctions de la formule sont débloquées. Rien n’est facturé avant la fin de l’essai, et tu peux résilier à tout moment dans la gestion de l’abonnement.',
+      cta: 'Voir l’abonnement',
+      dateLabel: 'Essai jusqu’au',
+    },
+    trialEnding: {
+      subject: 'Ton essai {{productName}} se termine le {{date}}',
+      heading: 'Ton essai se termine bientôt',
+      body: 'Ton essai de {{planName}} se termine le {{date}}. Ensuite, le premier paiement de {{amount}} sera dû. Si tu ne veux pas continuer, résilie avant dans la gestion de l’abonnement : rien ne sera facturé.',
+      cta: 'Gérer l’abonnement',
+      dateLabel: 'Essai jusqu’au',
+    },
     invoiceCreated: {
       subject: 'Nouvelle facture {{invoiceNumber}} de {{productName}}',
       heading: 'Ta facture est prête',

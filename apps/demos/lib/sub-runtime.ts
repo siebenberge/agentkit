@@ -193,6 +193,7 @@ async function create(page: string) {
       finalAction:
         config['dunning.finalAction'] === 'cancel' ? 'cancel' : 'unpaid',
     },
+    trials: { reminderDays: num(config['trials.reminderDays']!, 3) },
     onEvent: async (event) => {
       sandbox.logEvent(event.type, event);
       await notify(event);

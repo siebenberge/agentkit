@@ -566,6 +566,7 @@ type RunDueSummary = {
   charged: number;   // invoices paid by a charge or a status check
   failed: number;    // declined charges
   overdue: number;   // invoice reminders / final steps
+  trialReminders: number; // subscription.trial_will_end emitted
   postponed: number; // provider unavailable, retried in an hour
   saturated: boolean; // a batch hit `limit` – run again soon
 };

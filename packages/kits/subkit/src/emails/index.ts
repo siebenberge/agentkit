@@ -137,8 +137,8 @@ export type EmailNotifierOptions = Omit<RenderEmailOptions, 'locale'> & {
 
 /**
  * `onEvent` handler that emails the customer about their subscription:
- * activation, new invoice (invoice collection), receipt, failed payment,
- * reminder, pause and end.
+ * activation (or trial start), trial ending, new invoice (invoice
+ * collection), receipt, failed payment, reminder, pause and end.
  *
  * ```ts
  * createSubscriptions({ …, onEvent: createEmailNotifier({ productName, send, links }) })
@@ -156,9 +156,11 @@ export function createEmailNotifier(options: EmailNotifierOptions) {
 
     const money = (invoice: Invoice) =>
       formatMoney(invoice.total, invoice.currency, locale);
+    const amount = (value: number, currency: string) =>
+      formatMoney(value, currency, locale);
     const date = (value: Date) => formatDate(value, locale);
 
-    const email = toEmail(event, { money, date, planName });
+    const email = toEmail(event, { money, amount, date, planName });
 
     if (!email) return;
 
@@ -191,6 +193,7 @@ function toEmail(
   event: SubscriptionEvent,
   format: {
     money: (invoice: Invoice) => string;
+    amount: (value: number, currency: string) => string;
     date: (value: Date) => string;
     planName: (planId: string) => string;
   },
@@ -204,8 +207,19 @@ function toEmail(
   switch (event.type) {
     case 'subscription.activated':
       return {
-        kind: 'subscriptionActivated',
+        kind:
+          event.subscription.status === 'trialing'
+            ? 'trialStarted'
+            : 'subscriptionActivated',
         planName: format.planName(event.subscription.planId),
+        date: format.date(event.subscription.currentPeriodEnd),
+      };
+
+    case 'subscription.trial_will_end':
+      return {
+        kind: 'trialEnding',
+        planName: format.planName(event.subscription.planId),
+        amount: format.amount(event.amount, event.subscription.currency),
         date: format.date(event.subscription.currentPeriodEnd),
       };
 

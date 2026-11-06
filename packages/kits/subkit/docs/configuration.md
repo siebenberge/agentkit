@@ -18,6 +18,7 @@ export const subscriptions = createSubscriptions({
   tax: { rateBps: 810 },
   invoices: { dueDays: 30 },
   dunning: { retryDays: [1, 3, 5], invoiceGraceDays: 14, finalAction: 'unpaid' },
+  trials: { reminderDays: 3 },
   checkout: { expiresInHours: 24, verificationAmount: 100 },
   onEvent,
   logger,
@@ -34,6 +35,7 @@ export const subscriptions = createSubscriptions({
 | `tax` | `TaxConfig` | none (no VAT) | VAT rate and whether plan prices include it |
 | `invoices` | object | see below | Payment term, invoice numbers, line texts |
 | `dunning` | object | see below | Card retries, grace days, what happens when dunning is over |
+| `trials` | object | see below | Reminder before a trial ends ([trials](#trials)) |
 | `checkout` | object | see below | Expiry of hosted checkouts, verification amount |
 | `onEvent` | `(event) => void \| Promise<void>` | none | Called after every state change ([events](events.md)) |
 | `logger` | `Logger` | `console.error` for errors | Operational log lines |
@@ -126,6 +128,15 @@ not count.
 
 At the trial end `runDue()` renews the subscription: it becomes `active`, the
 first invoice is created and charged (card) or sent (invoice).
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `trials.reminderDays` | `number` | `3` | Days before the trial end that `runDue()` emits `subscription.trial_will_end` (email `trialEnding`); `0` = no reminder |
+
+The reminder goes out once per subscription (`trialReminderAt`), not for a
+trial canceled for its end and not for a trial that is not longer than
+`reminderDays` (the start email already says when it ends). A trial
+resumed after its cancellation is reminded by the next run.
 
 ### Hidden plans
 
