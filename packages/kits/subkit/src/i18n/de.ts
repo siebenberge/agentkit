@@ -33,6 +33,8 @@ export const de = {
     toasts: {
       changeUndone: 'Der geplante Wechsel wurde zurückgenommen.',
       subscribed: 'Dein Abo ist aktiv. Die Rechnung findest du unten.',
+      trialStarted:
+        'Deine Testphase läuft. Bis zu ihrem Ende entstehen keine Kosten.',
       changed: 'Dein Plan wurde gewechselt.',
       scheduled: 'Der Wechsel gilt ab dem {{date}}.',
       canceled: 'Dein Abo wurde gekündigt.',

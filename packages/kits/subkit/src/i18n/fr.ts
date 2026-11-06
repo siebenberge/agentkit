@@ -34,6 +34,8 @@ export const fr: Messages = {
     toasts: {
       changeUndone: 'Le changement prévu a été annulé.',
       subscribed: 'Ton abonnement est actif. La facture se trouve ci-dessous.',
+      trialStarted:
+        'Ta période d’essai a commencé. Elle ne coûte rien jusqu’à sa fin.',
       changed: 'Ta formule a été modifiée.',
       scheduled: 'Le changement s’applique dès le {{date}}.',
       canceled: 'Ton abonnement a été résilié.',

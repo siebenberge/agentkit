@@ -34,6 +34,7 @@ export const en: Messages = {
     toasts: {
       changeUndone: 'The scheduled change was withdrawn.',
       subscribed: 'Your subscription is active. Find the invoice below.',
+      trialStarted: 'Your trial has started. It costs nothing until it ends.',
       changed: 'Your plan was changed.',
       scheduled: 'The change applies from {{date}}.',
       canceled: 'Your subscription was canceled.',

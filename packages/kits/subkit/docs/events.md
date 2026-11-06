@@ -94,7 +94,9 @@ end of a trial), a scheduled plan or interval change is applied. Followed by
 
 `runDue()` found a `trialing` subscription whose trial ends within
 `trials.reminderDays` (default 3). Once per subscription
-(`trialReminderAt`), not when it is canceled for the period end.
+(`trialReminderAt`), not when it is canceled for the period end and not
+when the first paid period costs nothing (full discount). A plan change
+during the trial sends it again with the new amount.
 `subscription.currentPeriodEnd` is the trial end, `amount` what the first
 paid period costs (minor units, tax included, coupon applied). New in 0.4.
 

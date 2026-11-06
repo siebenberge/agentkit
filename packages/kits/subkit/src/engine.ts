@@ -1787,6 +1787,9 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         interval: params.interval,
         unitAmount: price.amount,
         currency: price.currency,
+        // a reminder already sent named the old amount: the next run sends
+        // one with the new amount
+        trialReminderAt: null,
       });
 
       await emit([{ type: 'subscription.updated', subscription: updated }]);
@@ -3577,7 +3580,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
   /**
    * Marks the trial reminder as done (compare-and-set, so concurrent runs
    * send it once) and emits `subscription.trial_will_end` – unless the trial
-   * is not longer than the reminder lead or ends before the next run sees it.
+   * is not longer than the reminder lead, ends before the next run sees it or
+   * its first paid period costs nothing.
    */
   async function remindTrialEnd(subscription: Subscription) {
     const date = now();
@@ -3603,11 +3607,16 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       return false;
     }
 
+    const amount = grossAmount(nextPeriodAmount(marked), options.tax);
+
+    // nothing to pay at the end (a full discount): nothing to remind of
+    if (amount === 0) return false;
+
     await emit([
       {
         type: 'subscription.trial_will_end',
         subscription: marked,
-        amount: grossAmount(nextPeriodAmount(marked), options.tax),
+        amount,
       },
     ]);
 

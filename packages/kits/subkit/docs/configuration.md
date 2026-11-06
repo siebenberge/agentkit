@@ -136,7 +136,9 @@ first invoice is created and charged (card) or sent (invoice).
 The reminder goes out once per subscription (`trialReminderAt`), not for a
 trial canceled for its end and not for a trial that is not longer than
 `reminderDays` (the start email already says when it ends). A trial
-resumed after its cancellation is reminded by the next run.
+resumed after its cancellation is reminded by the next run, a plan change
+during the trial sends it again with the new amount, and a first period
+that costs nothing (full discount) gets none.
 
 ### Hidden plans
 

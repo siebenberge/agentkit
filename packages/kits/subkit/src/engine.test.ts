@@ -1063,6 +1063,25 @@ describe('card subscriptions', () => {
     expect((await ctx.subs.runDue()).trialReminders).toBe(1);
   });
 
+  it('reminds again with the new amount after a plan change in the trial', async () => {
+    await subscribeWithCard(ctx, 'trial');
+
+    ctx.advance(12);
+    await ctx.subs.runDue();
+    await ctx.subs.changePlan({
+      externalId: 'acc_1',
+      planId: 'pro',
+      interval: 'month',
+    });
+    await ctx.subs.runDue();
+
+    expect(
+      ctx.events
+        .filter((e) => e.type === 'subscription.trial_will_end')
+        .map((e) => ('amount' in e ? e.amount : null)),
+    ).toEqual([2000, 3000]);
+  });
+
   it('reminds once when two runs overlap', async () => {
     await subscribeWithCard(ctx, 'trial');
 
@@ -2811,6 +2830,27 @@ describe('coupons – review fixes', () => {
       }),
     ).rejects.toMatchObject({ code: 'PROMOTION_CODE_INVALID' });
     expect(await ctx.subs.listPromotionCodes()).toEqual([]);
+  });
+
+  it('sends no trial reminder when the first period costs nothing', async () => {
+    const ctx = setup({ coupons });
+
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'a@b.ch',
+      name: 'A',
+    });
+    await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'trial',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+      urls,
+      couponId: 'free-month',
+    });
+
+    ctx.advance(12);
+    expect((await ctx.subs.runDue()).trialReminders).toBe(0);
   });
 
   it('prices the period after a trial with the coupon', async () => {
