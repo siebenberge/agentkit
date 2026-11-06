@@ -34,6 +34,8 @@ export const fr: Messages = {
     toasts: {
       changeUndone: 'Le changement prévu a été annulé.',
       subscribed: 'Ton abonnement est actif. La facture se trouve ci-dessous.',
+      trialStarted:
+        'Ta période d’essai a commencé. Elle ne coûte rien jusqu’à sa fin.',
       changed: 'Ta formule a été modifiée.',
       scheduled: 'Le changement s’applique dès le {{date}}.',
       canceled: 'Ton abonnement a été résilié.',
@@ -213,6 +215,20 @@ export const fr: Messages = {
       body: 'Merci ! Ton abonnement est actif et toutes les fonctions de ta formule sont débloquées.',
       cta: 'Voir l’abonnement',
       dateLabel: 'Prochaine facturation',
+    },
+    trialStarted: {
+      subject: 'Ton essai {{productName}} a commencé',
+      heading: 'Bienvenue dans {{productName}} {{planName}}',
+      body: 'Tu testes {{planName}} gratuitement, toutes les fonctions de la formule sont débloquées. Rien n’est facturé avant la fin de l’essai, et tu peux résilier à tout moment dans la gestion de l’abonnement.',
+      cta: 'Voir l’abonnement',
+      dateLabel: 'Essai jusqu’au',
+    },
+    trialEnding: {
+      subject: 'Ton essai {{productName}} se termine le {{date}}',
+      heading: 'Ton essai se termine bientôt',
+      body: 'Ton essai de {{planName}} se termine le {{date}}. Ensuite, le premier paiement de {{amount}} sera dû. Si tu ne veux pas continuer, résilie avant dans la gestion de l’abonnement : rien ne sera facturé.',
+      cta: 'Gérer l’abonnement',
+      dateLabel: 'Essai jusqu’au',
     },
     invoiceCreated: {
       subject: 'Nouvelle facture {{invoiceNumber}} de {{productName}}',

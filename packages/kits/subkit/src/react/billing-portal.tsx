@@ -646,7 +646,12 @@ export function BillingPortal(props: BillingPortalProps) {
                 if (result.type === 'redirect') return redirect(result.url);
 
                 setPendingPlan(null);
-                notify('success', t.toasts.subscribed);
+                notify(
+                  'success',
+                  pendingPlan.trialDays && data.trialEligible
+                    ? t.toasts.trialStarted
+                    : t.toasts.subscribed,
+                );
               },
             )
           }

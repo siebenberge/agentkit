@@ -30,10 +30,11 @@ onEvent: async (event: SubscriptionEvent) => {
 
 | Type | Payload besides `customer` | Email (`createEmailNotifier`) |
 |---|---|---|
-| `subscription.activated` | `subscription` | `subscriptionActivated` |
+| `subscription.activated` | `subscription` | `subscriptionActivated` / `trialStarted` (status `trialing`) |
 | `subscription.updated` | `subscription` | – |
 | `subscription.renewed` | `subscription` | – |
 | `subscription.cancel_scheduled` | `subscription` | – |
+| `subscription.trial_will_end` | `subscription`, `amount` | `trialEnding` |
 | `subscription.past_due` | `subscription` | – |
 | `subscription.unpaid` | `subscription` | – |
 | `subscription.canceled` | `subscription`, `reason?: 'unpaid'` | `subscriptionCanceled` / `subscriptionCanceledUnpaid` |
@@ -88,6 +89,16 @@ end of a trial), a scheduled plan or interval change is applied. Followed by
 
 `cancel()` without `immediately`: `cancelAtPeriodEnd` is `true`,
 `canceledAt` is set. The plan stays until `currentPeriodEnd`.
+
+### `subscription.trial_will_end`
+
+`runDue()` found a `trialing` subscription whose trial ends within
+`trials.reminderDays` (default 3). Once per subscription
+(`trialReminderAt`), not when it is canceled for the period end and not
+when the first paid period costs nothing (full discount). A plan change
+during the trial sends it again with the new amount.
+`subscription.currentPeriodEnd` is the trial end, `amount` what the first
+paid period costs (minor units, tax included, coupon applied). New in 0.4.
 
 ### `subscription.past_due`
 

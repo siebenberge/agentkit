@@ -186,6 +186,11 @@ export type Subscription = {
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
   trialEnd: Date | null;
+  /**
+   * When `runDue` handled the reminder before the trial end (`null` until
+   * then, or missing in rows written before 0.4).
+   */
+  trialReminderAt: Date | null;
   cancelAtPeriodEnd: boolean;
   canceledAt: Date | null;
   endedAt: Date | null;
@@ -291,6 +296,12 @@ type EventPayload =
   | { type: 'subscription.updated'; subscription: Subscription }
   | { type: 'subscription.renewed'; subscription: Subscription }
   | { type: 'subscription.cancel_scheduled'; subscription: Subscription }
+  | {
+      type: 'subscription.trial_will_end';
+      subscription: Subscription;
+      /** What the first paid period costs (tax included). */
+      amount: number;
+    }
   | { type: 'subscription.past_due'; subscription: Subscription }
   | { type: 'subscription.unpaid'; subscription: Subscription }
   | {

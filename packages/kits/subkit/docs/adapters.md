@@ -40,7 +40,7 @@ delete: the engine never deletes rows.
 Rows come back with `Date` objects for dates, `null` (not `undefined`) for
 empty fields, and `address` / `lines` / `discount` as plain objects and
 arrays. A subscription row stored without `discount` (before 0.3) is read
-as no discount.
+as no discount, one without `trialReminderAt` (before 0.4) as not reminded.
 
 ### `Where` and operators
 
@@ -205,6 +205,7 @@ All ids are `text` (the engine's ids), dates `timestamptz`, amounts
 | `billing_anchor` | timestamptz | Periods are counted from here |
 | `current_period_start`, `current_period_end` | timestamptz | |
 | `trial_end` | timestamptz, null | |
+| `trial_reminder_at` | timestamptz, null | When `runDue` handled the reminder before the trial end (0.4) |
 | `cancel_at_period_end` | boolean | |
 | `canceled_at`, `ended_at`, `locked_at` | timestamptz, null | Cancellation, end, dunning lock |
 | `scheduled_plan_id`, `scheduled_interval` | text, null | Change at the period end |

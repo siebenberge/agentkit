@@ -34,6 +34,8 @@ export const it: Messages = {
     toasts: {
       changeUndone: 'Il cambio previsto è stato annullato.',
       subscribed: 'Il tuo abbonamento è attivo. Trovi la fattura qui sotto.',
+      trialStarted:
+        'Il tuo periodo di prova è iniziato. Fino alla fine non costa nulla.',
       changed: 'Il tuo piano è stato cambiato.',
       scheduled: 'Il cambio vale dal {{date}}.',
       canceled: 'Il tuo abbonamento è stato disdetto.',
@@ -212,6 +214,20 @@ export const it: Messages = {
       body: 'Grazie! Il tuo abbonamento è attivo e tutte le funzioni del tuo piano sono sbloccate.',
       cta: 'Vedi abbonamento',
       dateLabel: 'Prossima fatturazione',
+    },
+    trialStarted: {
+      subject: 'La tua prova di {{productName}} è iniziata',
+      heading: 'Benvenuto in {{productName}} {{planName}}',
+      body: 'Stai provando {{planName}} gratuitamente, tutte le funzioni del piano sono sbloccate. Fino alla fine della prova non ci sono costi e puoi disdire in qualsiasi momento nella gestione dell’abbonamento.',
+      cta: 'Vedi abbonamento',
+      dateLabel: 'Prova fino al',
+    },
+    trialEnding: {
+      subject: 'La tua prova di {{productName}} termina il {{date}}',
+      heading: 'La tua prova termina presto',
+      body: 'La tua prova di {{planName}} termina il {{date}}. Dopo sarà dovuto il primo pagamento di {{amount}}. Se non vuoi continuare, disdici prima nella gestione dell’abbonamento: non ti verrà addebitato nulla.',
+      cta: 'Gestisci abbonamento',
+      dateLabel: 'Prova fino al',
     },
     invoiceCreated: {
       subject: 'Nuova fattura {{invoiceNumber}} da {{productName}}',

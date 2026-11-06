@@ -103,6 +103,10 @@ invoice. A card trial first saves the payment method on the hosted page.
 At `trialEnd` `runDue()` renews the subscription to `active` with the first
 invoice. A plan change during the trial applies at once without an invoice;
 a cancellation during the trial ends it at `trialEnd` without any charge.
+`trials.reminderDays` (default 3) before `trialEnd`, `runDue()` emits
+`subscription.trial_will_end` once, so the customer can still cancel
+(skipped for canceled trials, trials not longer than the lead and a first
+period that costs nothing; a plan change in the trial sends it again).
 
 ### Plan changes and proration
 

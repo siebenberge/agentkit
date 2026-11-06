@@ -48,6 +48,8 @@ log like any `onEvent` error – they do not undo the billing change.
 | Email (`kind`) | Event | Button links to |
 |---|---|---|
 | `subscriptionActivated` | `subscription.activated` | billing |
+| `trialStarted` | `subscription.activated` of a `trialing` subscription | billing |
+| `trialEnding` | `subscription.trial_will_end` | billing |
 | `invoiceCreated` | `invoice.created` of an open `send_invoice` invoice | invoice |
 | `paymentSucceeded` | `invoice.paid` (receipt) | invoice |
 | `paymentFailed` | `invoice.payment_failed`, `final: false` | billing |
@@ -61,7 +63,7 @@ The final failure and overdue emails are skipped when the invoice was
 written off (`finalAction: 'cancel'`) – `subscriptionCanceledUnpaid` says
 why the subscription ended. Other events send nothing. Each email has a
 details box with plan, invoice number, amount and a date (next billing
-date, due date, paid on, next attempt, ended on).
+date, trial end, due date, paid on, next attempt, ended on).
 
 ### `renderBillingEmail()`
 

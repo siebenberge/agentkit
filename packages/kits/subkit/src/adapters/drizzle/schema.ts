@@ -93,6 +93,7 @@ export const billing_subscriptions = pgTable(
     currentPeriodStart: timestamptz('current_period_start').notNull(),
     currentPeriodEnd: timestamptz('current_period_end').notNull(),
     trialEnd: timestamptz('trial_end'),
+    trialReminderAt: timestamptz('trial_reminder_at'),
     cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull(),
     canceledAt: timestamptz('canceled_at'),
     endedAt: timestamptz('ended_at'),

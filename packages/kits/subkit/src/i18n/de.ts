@@ -33,6 +33,8 @@ export const de = {
     toasts: {
       changeUndone: 'Der geplante Wechsel wurde zurückgenommen.',
       subscribed: 'Dein Abo ist aktiv. Die Rechnung findest du unten.',
+      trialStarted:
+        'Deine Testphase läuft. Bis zu ihrem Ende entstehen keine Kosten.',
       changed: 'Dein Plan wurde gewechselt.',
       scheduled: 'Der Wechsel gilt ab dem {{date}}.',
       canceled: 'Dein Abo wurde gekündigt.',
@@ -215,6 +217,20 @@ export const de = {
       body: 'Vielen Dank! Dein Abo ist ab sofort aktiv und alle Funktionen deines Plans sind freigeschaltet.',
       cta: 'Abo ansehen',
       dateLabel: 'Nächste Abrechnung',
+    },
+    trialStarted: {
+      subject: 'Deine {{productName}}-Testphase läuft',
+      heading: 'Willkommen bei {{productName}} {{planName}}',
+      body: 'Du testest {{planName}} jetzt gratis, alle Funktionen des Plans sind freigeschaltet. Bis zum Ende der Testphase entstehen keine Kosten, und du kannst jederzeit in der Abo-Verwaltung kündigen.',
+      cta: 'Abo ansehen',
+      dateLabel: 'Testphase bis',
+    },
+    trialEnding: {
+      subject: 'Deine {{productName}}-Testphase endet am {{date}}',
+      heading: 'Deine Testphase endet bald',
+      body: 'Am {{date}} endet deine Testphase für {{planName}}. Danach ist die erste Zahlung über {{amount}} fällig. Willst du nicht weitermachen, kündige vorher in der Abo-Verwaltung, dann entstehen keine Kosten.',
+      cta: 'Abo verwalten',
+      dateLabel: 'Testphase bis',
     },
     invoiceCreated: {
       subject: 'Neue Rechnung {{invoiceNumber}} von {{productName}}',

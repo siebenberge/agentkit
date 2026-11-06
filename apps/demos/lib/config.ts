@@ -37,6 +37,7 @@ export const SUB_DEFAULTS: DemoConfig = {
   'plans.pro.prices.month': 1_500,
   'plans.pro.prices.year': 15_000,
   'plans.pro.trialDays': 14,
+  'trials.reminderDays': 3,
   'plans.team.prices.month': 3_900,
   'plans.team.prices.year': 39_000,
   'coupons.welcome.percentOff': 50,
@@ -84,6 +85,16 @@ export const SUB_SECTIONS: ConfigSection[] = [
           fr: 'Essai au premier abonnement, 0 = payer tout de suite.',
           it: 'Prova al primo abbonamento, 0 = pagare subito.',
           en: 'Trial on the first subscription, 0 = pay right away.',
+        },
+      },
+      {
+        key: 'trials.reminderDays',
+        type: 'number',
+        hint: {
+          de: 'So viele Tage vor dem Ende der Testphase kommt die Erinnerung, 0 = keine.',
+          fr: 'Rappel autant de jours avant la fin de l’essai, 0 = aucun.',
+          it: 'Promemoria tanti giorni prima della fine della prova, 0 = nessuno.',
+          en: 'Reminder this many days before the trial ends, 0 = none.',
         },
       },
       {
@@ -630,6 +641,10 @@ export function subCode(c: DemoConfig): CodeLine[] {
       text: `    finalAction: '${String(c['dunning.finalAction'])}',`,
     },
     { text: '  },' },
+    {
+      key: 'trials.reminderDays',
+      text: `  trials: { reminderDays: ${num(c['trials.reminderDays']!, 3)} },`,
+    },
     { text: '  onEvent: sendEmails,' },
     { text: '});' },
     { text: '' },

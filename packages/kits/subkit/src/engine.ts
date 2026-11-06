@@ -12,7 +12,7 @@ import {
   zurichDayKey,
 } from './periods';
 import type { PaymentProvider, ProviderEvent } from './provider';
-import { type TaxConfig, computeTotals } from './tax';
+import { type TaxConfig, computeTotals, grossAmount } from './tax';
 import type {
   Address,
   BillingInterval,
@@ -105,6 +105,14 @@ export type SubscriptionsOptions = {
     /** What happens when dunning is exhausted (default `unpaid` = locked until paid). */
     finalAction?: 'unpaid' | 'cancel';
   };
+  trials?: {
+    /**
+     * Days before a trial ends that `runDue` emits
+     * `subscription.trial_will_end` (default 3, `0` = never). Trials not
+     * longer than this get no reminder.
+     */
+    reminderDays?: number;
+  };
   checkout?: {
     /** Unfinished checkouts expire after this many hours (default 24). */
     expiresInHours?: number;
@@ -176,6 +184,8 @@ export type RunDueSummary = {
   charged: number;
   failed: number;
   overdue: number;
+  /** `subscription.trial_will_end` reminders emitted. */
+  trialReminders: number;
   /** Charges postponed because the payment provider was unavailable. */
   postponed: number;
   /** A batch hit `limit` – more work is waiting, run again sooner. */
@@ -294,6 +304,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
   const finalAction = options.dunning?.finalAction ?? 'unpaid';
   const checkoutHours = options.checkout?.expiresInHours ?? 24;
   const verificationAmount = options.checkout?.verificationAmount ?? 100;
+  const trialReminderDays = options.trials?.reminderDays ?? 3;
   const logger: Logger = options.logger ?? {
     info: () => undefined,
     error: (obj, msg) => console.error(msg, obj),
@@ -1510,6 +1521,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         currentPeriodStart: date,
         currentPeriodEnd: periodEnd,
         trialEnd,
+        trialReminderAt: null,
         cancelAtPeriodEnd: false,
         canceledAt: null,
         endedAt: null,
@@ -1775,6 +1787,9 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         interval: params.interval,
         unitAmount: price.amount,
         currency: price.currency,
+        // a reminder already sent named the old amount: the next run sends
+        // one with the new amount
+        trialReminderAt: null,
       });
 
       await emit([{ type: 'subscription.updated', subscription: updated }]);
@@ -3419,6 +3434,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       charged: 0,
       failed: 0,
       overdue: 0,
+      trialReminders: 0,
       postponed: 0,
       saturated: false,
     };
@@ -3494,7 +3510,37 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       }
     }
 
-    // 3. charges, retries and invoice dunning
+    // 3. reminders before a trial ends (canceled ones end without a charge)
+    const trialsEnding =
+      trialReminderDays > 0
+        ? await db.findMany('subscription', {
+            where: [
+              { field: 'status', value: 'trialing' },
+              { field: 'trialReminderAt', value: null },
+              { field: 'cancelAtPeriodEnd', value: false },
+              {
+                field: 'currentPeriodEnd',
+                operator: 'lte',
+                value: addDays(now(), trialReminderDays),
+              },
+            ],
+            sortBy: { field: 'currentPeriodEnd', direction: 'asc' },
+            limit,
+          })
+        : [];
+
+    for (const subscription of trialsEnding) {
+      try {
+        if (await remindTrialEnd(subscription)) summary.trialReminders += 1;
+      } catch (error) {
+        logger.error(
+          { error, subscriptionId: subscription.id },
+          'subscriptions: trial reminder failed',
+        );
+      }
+    }
+
+    // 4. charges, retries and invoice dunning
     const due = await db.findMany('invoice', {
       where: [
         { field: 'status', value: 'open' },
@@ -3508,6 +3554,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       staleCheckouts,
       renewing,
       endingWhileOverdue,
+      trialsEnding,
       due,
     ].some((batch) => batch.length >= limit);
 
@@ -3528,6 +3575,52 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     }
 
     return summary;
+  }
+
+  /**
+   * Marks the trial reminder as done (compare-and-set, so concurrent runs
+   * send it once) and emits `subscription.trial_will_end` – unless the trial
+   * is not longer than the reminder lead, ends before the next run sees it or
+   * its first paid period costs nothing.
+   */
+  async function remindTrialEnd(subscription: Subscription) {
+    const date = now();
+    const marked = await db.update(
+      'subscription',
+      [
+        { field: 'id', value: subscription.id },
+        { field: 'status', value: 'trialing' },
+        { field: 'trialReminderAt', value: null },
+        { field: 'cancelAtPeriodEnd', value: false },
+      ],
+      { trialReminderAt: date, updatedAt: date },
+    );
+
+    if (!marked) return false;
+
+    const end = marked.currentPeriodEnd.getTime();
+
+    if (
+      end <= addDays(marked.currentPeriodStart, trialReminderDays).getTime() ||
+      end <= date.getTime()
+    ) {
+      return false;
+    }
+
+    const amount = grossAmount(nextPeriodAmount(marked), options.tax);
+
+    // nothing to pay at the end (a full discount): nothing to remind of
+    if (amount === 0) return false;
+
+    await emit([
+      {
+        type: 'subscription.trial_will_end',
+        subscription: marked,
+        amount,
+      },
+    ]);
+
+    return true;
   }
 
   async function renew(

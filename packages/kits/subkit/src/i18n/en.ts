@@ -34,6 +34,7 @@ export const en: Messages = {
     toasts: {
       changeUndone: 'The scheduled change was withdrawn.',
       subscribed: 'Your subscription is active. Find the invoice below.',
+      trialStarted: 'Your trial has started. It costs nothing until it ends.',
       changed: 'Your plan was changed.',
       scheduled: 'The change applies from {{date}}.',
       canceled: 'Your subscription was canceled.',
@@ -213,6 +214,20 @@ export const en: Messages = {
       body: 'Thank you! Your subscription is active and all features of your plan are unlocked.',
       cta: 'View subscription',
       dateLabel: 'Next billing date',
+    },
+    trialStarted: {
+      subject: 'Your {{productName}} trial has started',
+      heading: 'Welcome to {{productName}} {{planName}}',
+      body: 'You are now trying {{planName}} for free, with all features of the plan unlocked. Nothing is charged until the trial ends, and you can cancel any time on the billing page.',
+      cta: 'View subscription',
+      dateLabel: 'Trial until',
+    },
+    trialEnding: {
+      subject: 'Your {{productName}} trial ends on {{date}}',
+      heading: 'Your trial ends soon',
+      body: 'Your trial of {{planName}} ends on {{date}}. After that, the first payment of {{amount}} is due. If you do not want to continue, cancel on the billing page before then and nothing is charged.',
+      cta: 'Manage subscription',
+      dateLabel: 'Trial until',
     },
     invoiceCreated: {
       subject: 'New invoice {{invoiceNumber}} from {{productName}}',
