@@ -72,6 +72,35 @@ export type PromotionPreview = {
   trial: boolean;
 };
 
+/** The period whose usage the `usage` option is asked for. */
+export type UsageContext = {
+  customer: Customer;
+  /** The subscription as it was during the period (plan, status, …). */
+  subscription: Subscription;
+  /** Plan of the period (`null` if it is no longer configured). */
+  plan: Plan | null;
+  /** Start of the period (inclusive). */
+  periodStart: Date;
+  /** End of the period (exclusive). */
+  periodEnd: Date;
+  /**
+   * `renewal`: the period ended and the next one is invoiced; `end`: the
+   * subscription ended (final invoice); `plan_change`: a change of interval
+   * started a new period right away.
+   */
+  reason: 'renewal' | 'end' | 'plan_change';
+};
+
+/** A usage charge of a period, e.g. orders over the plan's included volume. */
+export type UsageCharge = {
+  /** Text of the invoice line, e.g. `12 additional orders at CHF 1.20`. */
+  description: string;
+  /** Whole number, `0` = no line. */
+  quantity: number;
+  /** Price per unit in minor units, tax included or excluded like plan prices. */
+  unitAmount: number;
+};
+
 export type Logger = {
   info(obj: object, msg: string): void;
   error(obj: object, msg: string): void;
@@ -119,6 +148,15 @@ export type SubscriptionsOptions = {
     /** Authorization amount when only saving a payment method (default 100 = 1.00). */
     verificationAmount?: number;
   };
+  /**
+   * Usage-based charges of a period that just ended (e.g. orders over the
+   * included volume). Added to the renewal invoice – charged with the next
+   * period's price – or, when the subscription ends, to a final invoice.
+   * Return `[]` for nothing. A thrown error stops the renewal / end, which
+   * `runDue` retries on its next run: keep the function deterministic for a
+   * period.
+   */
+  usage?: (ctx: UsageContext) => UsageCharge[] | Promise<UsageCharge[]>;
   /** Called after state changes were persisted. Errors are logged, not thrown. */
   onEvent?: (event: SubscriptionEvent) => void | Promise<void>;
   logger?: Logger;
@@ -603,6 +641,44 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         currentPeriod: applies,
       },
     };
+  }
+
+  /** Invoice lines of the `usage` option for a period that ended. */
+  async function usageLines(ctx: UsageContext): Promise<InvoiceLine[]> {
+    if (!options.usage) return [];
+
+    const charges = await options.usage(ctx);
+
+    return charges
+      .map((charge) => {
+        if (!Number.isInteger(charge.quantity) || charge.quantity < 0) {
+          throw new Error(
+            `usage: quantity of "${charge.description}" is not a whole number ≥ 0`,
+          );
+        }
+
+        if (!Number.isInteger(charge.unitAmount) || charge.unitAmount < 0) {
+          throw new Error(
+            `usage: unitAmount of "${charge.description}" is not a whole number ≥ 0 (minor units)`,
+          );
+        }
+
+        const line: InvoiceLine = {
+          description: charge.description,
+          amount: charge.quantity * charge.unitAmount,
+          ...(ctx.plan
+            ? { planId: ctx.plan.id, interval: ctx.subscription.interval }
+            : {}),
+          periodStart: ctx.periodStart.toISOString(),
+          periodEnd: ctx.periodEnd.toISOString(),
+          usage: true,
+          quantity: charge.quantity,
+          unitAmount: charge.unitAmount,
+        };
+
+        return line;
+      })
+      .filter((line) => line.amount > 0);
   }
 
   /**
@@ -1867,7 +1943,8 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     let nextDiscount: SubscriptionDiscount | null;
 
     if (intervalChanged) {
-      // a new period starts now: invoiced (and discounted) like a renewal
+      // a new period starts now: invoiced (and discounted) like a renewal,
+      // with the usage of the period cut short
       const period = periodInvoiceLines(
         discount,
         plan,
@@ -1878,6 +1955,16 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       );
 
       lines.push(...period.lines);
+      lines.push(
+        ...(await usageLines({
+          customer,
+          subscription,
+          plan: plansById.get(subscription.planId) ?? null,
+          periodStart: subscription.currentPeriodStart,
+          periodEnd: date,
+          reason: 'plan_change',
+        })),
+      );
       nextDiscount = period.discount;
     } else {
       lines.push({
@@ -2191,6 +2278,27 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       reason?: 'unpaid';
     } = {},
   ) {
+    // usage of the last (partial) period: asked before anything changes, so
+    // an error leaves the subscription as it was
+    const usageEnd = new Date(
+      Math.min(endedAt.getTime(), subscription.currentPeriodEnd.getTime()),
+    );
+    const customer = options.usage
+      ? await getCustomerById(subscription.customerId)
+      : null;
+    const usage =
+      customer && usageEnd.getTime() > subscription.currentPeriodStart.getTime()
+        ? await usageLines({
+            customer,
+            subscription,
+            plan: plansById.get(subscription.planId) ?? null,
+            periodStart: subscription.currentPeriodStart,
+            periodEnd: usageEnd,
+            reason: 'end',
+          })
+        : [];
+    const reserved = usage.length > 0 ? await reserveInvoice() : undefined;
+
     const updated = await setSubscriptionStatus(
       subscription,
       LIVE_STATUSES,
@@ -2230,12 +2338,35 @@ export function createSubscriptions(options: SubscriptionsOptions) {
       { nextAttemptAt: null, updatedAt: now() },
     );
 
+    // the final invoice: charged (or sent) like any other, although the
+    // subscription has ended
+    const final =
+      customer && usage.length > 0
+        ? await createInvoice(
+            db,
+            {
+              customerId: subscription.customerId,
+              subscriptionId: subscription.id,
+              reason: 'subscription_final',
+              collectionMethod: subscription.collectionMethod,
+              currency: subscription.currency,
+              lines: usage,
+              periodStart: subscription.currentPeriodStart,
+              periodEnd: usageEnd,
+              billingKey: `${subscription.id}:final`,
+              schedule: true,
+            },
+            reserved,
+          )
+        : null;
+
     await emit([
       {
         type: 'subscription.canceled',
         subscription: updated,
         ...(end.reason ? { reason: end.reason } : {}),
       },
+      ...(final && customer ? invoiceCreatedEvents(final, customer) : []),
     ]);
 
     return updated;
@@ -3684,6 +3815,15 @@ export function createSubscriptions(options: SubscriptionsOptions) {
     const periodStart = subscription.currentPeriodEnd;
     const periodEnd = nextPeriodEnd(anchor, interval, periodStart);
     const customer = await getCustomerById(subscription.customerId);
+    // usage of the period that ended, charged with the next one
+    const usage = await usageLines({
+      customer,
+      subscription,
+      plan: plansById.get(subscription.planId) ?? null,
+      periodStart: subscription.currentPeriodStart,
+      periodEnd: subscription.currentPeriodEnd,
+      reason: 'renewal',
+    });
     const reserved = await reserveInvoice();
     const period = periodInvoiceLines(
       subscription.discount,
@@ -3729,7 +3869,7 @@ export function createSubscriptions(options: SubscriptionsOptions) {
           reason: 'subscription_cycle',
           collectionMethod: subscription.collectionMethod,
           currency: price.currency,
-          lines: period.lines,
+          lines: [...period.lines, ...usage],
           periodStart,
           periodEnd,
           billingKey: `${subscription.id}:cycle:${periodStart.toISOString()}`,
@@ -3763,7 +3903,13 @@ export function createSubscriptions(options: SubscriptionsOptions) {
         ])
       : null;
 
-    if (subscription && !LIVE_STATUSES.includes(subscription.status)) {
+    // an ended subscription's invoices are not collected any more – except
+    // its final invoice (usage of the last period)
+    if (
+      subscription &&
+      !LIVE_STATUSES.includes(subscription.status) &&
+      invoice.reason !== 'subscription_final'
+    ) {
       await db.update('invoice', [{ field: 'id', value: invoice.id }], {
         nextAttemptAt: null,
         updatedAt: now(),

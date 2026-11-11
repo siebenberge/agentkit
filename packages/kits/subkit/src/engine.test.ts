@@ -2880,3 +2880,245 @@ describe('coupons – review fixes', () => {
     expect(ctx.subs.nextPeriodAmount(subscription!)).toBe(1000);
   });
 });
+
+describe('usage', () => {
+  const extra = (count: number) => ({
+    description: `${count} additional orders`,
+    quantity: count,
+    unitAmount: 120,
+  });
+
+  it('adds the usage of the ended period to the renewal and charges it with the next period', async () => {
+    const asked: {
+      reason: string;
+      start: string;
+      end: string;
+      plan?: string;
+    }[] = [];
+    const ctx = setup({
+      usage: (usage) => {
+        asked.push({
+          reason: usage.reason,
+          start: usage.periodStart.toISOString(),
+          end: usage.periodEnd.toISOString(),
+          plan: usage.plan?.id,
+        });
+        return [extra(12)];
+      },
+    });
+    await subscribeWithCard(ctx);
+    const first = (await ctx.subs.getOverview('acc_1')).subscription!;
+
+    ctx.advance(31);
+    await Promise.all([ctx.subs.runDue(), ctx.subs.runDue()]);
+    await ctx.subs.runDue();
+
+    expect(ctx.charges).toHaveLength(1);
+    expect(ctx.charges[0]).toMatchObject({ amount: 1000 + 12 * 120 });
+    expect(asked[0]).toEqual({
+      reason: 'renewal',
+      start: first.currentPeriodStart.toISOString(),
+      end: first.currentPeriodEnd.toISOString(),
+      plan: 'basic',
+    });
+
+    const [renewal] = await ctx.subs.listInvoices('acc_1');
+
+    expect(renewal).toMatchObject({
+      reason: 'subscription_cycle',
+      status: 'paid',
+      total: 2440,
+    });
+    expect(renewal!.lines.map((line) => line.description)).toEqual([
+      'Basic (monthly)',
+      '12 additional orders',
+    ]);
+    expect(renewal!.lines[1]).toMatchObject({
+      amount: 1440,
+      usage: true,
+      quantity: 12,
+      unitAmount: 120,
+      periodStart: first.currentPeriodStart.toISOString(),
+      periodEnd: first.currentPeriodEnd.toISOString(),
+    });
+  });
+
+  it('adds no line and no final invoice without usage', async () => {
+    const ctx = setup({ usage: () => [extra(0)] });
+    await subscribeWithCard(ctx);
+
+    ctx.advance(31);
+    await ctx.subs.runDue();
+    await ctx.subs.cancel({ externalId: 'acc_1', immediately: true });
+    await ctx.subs.runDue();
+
+    const invoices = await ctx.subs.listInvoices('acc_1');
+
+    expect(ctx.charges.map((charge) => charge.amount)).toEqual([1000]);
+    expect(invoices).toHaveLength(2);
+    expect(invoices[0]!.lines).toHaveLength(1);
+  });
+
+  it('charges the usage of the last period with a final invoice when the subscription ends at the period end', async () => {
+    const ctx = setup({
+      usage: (usage) => (usage.reason === 'end' ? [extra(5)] : []),
+    });
+    await subscribeWithCard(ctx);
+    const first = (await ctx.subs.getOverview('acc_1')).subscription!;
+
+    await ctx.subs.cancel({ externalId: 'acc_1' });
+    ctx.advance(31);
+    const summary = await ctx.subs.runDue();
+
+    expect(summary).toMatchObject({ canceled: 1, charged: 1 });
+    expect(ctx.charges).toHaveLength(1);
+    expect(ctx.charges[0]).toMatchObject({ token: 'tok_1', amount: 600 });
+
+    const [final] = await ctx.subs.listInvoices('acc_1');
+
+    expect(final).toMatchObject({
+      reason: 'subscription_final',
+      status: 'paid',
+      total: 600,
+      periodStart: first.currentPeriodStart,
+      periodEnd: first.currentPeriodEnd,
+    });
+    expect(
+      ctx.events.filter(
+        (event) =>
+          event.type === 'invoice.created' &&
+          event.invoice.reason === 'subscription_final',
+      ),
+    ).toHaveLength(1);
+    expect((await ctx.subs.getEntitlements('acc_1')).planId).toBe('free');
+  });
+
+  it('invoices the usage up to an immediate cancellation and runs dunning on it', async () => {
+    const periods: [string, string][] = [];
+    const ctx = setup({
+      usage: (usage) => {
+        periods.push([
+          usage.periodStart.toISOString(),
+          usage.periodEnd.toISOString(),
+        ]);
+        return [extra(3)];
+      },
+    });
+    await subscribeWithCard(ctx);
+    const first = (await ctx.subs.getOverview('acc_1')).subscription!;
+
+    ctx.advance(10);
+    const canceledAt = new Date(ctx.clock.now);
+    await ctx.subs.cancel({ externalId: 'acc_1', immediately: true });
+
+    expect(periods).toEqual([
+      [first.currentPeriodStart.toISOString(), canceledAt.toISOString()],
+    ]);
+
+    ctx.results.push({
+      status: 'failed',
+      error: 'Card declined',
+      retryable: true,
+    });
+    await ctx.subs.runDue();
+
+    const failed = ctx.events.find(
+      (event) => event.type === 'invoice.payment_failed',
+    );
+
+    expect(failed).toMatchObject({ invoice: { reason: 'subscription_final' } });
+
+    ctx.advance(1);
+    await ctx.subs.runDue();
+
+    expect(ctx.charges.map((charge) => charge.amount)).toEqual([360, 360]);
+    expect((await ctx.subs.listInvoices('acc_1'))[0]).toMatchObject({
+      reason: 'subscription_final',
+      status: 'paid',
+    });
+    expect((await ctx.subs.getOverview('acc_1')).subscription).toBeNull();
+  });
+
+  it('retries the renewal when the usage cannot be read or is wrong', async () => {
+    let fail: 'throw' | 'fraction' | null = 'throw';
+    const ctx = setup({
+      usage: () => {
+        if (fail === 'throw') throw new Error('usage db down');
+        if (fail === 'fraction') return [{ ...extra(1), quantity: 1.5 }];
+        return [extra(1)];
+      },
+      logger: { info: () => undefined, error: () => undefined },
+    });
+    await subscribeWithCard(ctx);
+    const first = (await ctx.subs.getOverview('acc_1')).subscription!;
+
+    ctx.advance(31);
+    expect((await ctx.subs.runDue()).renewed).toBe(0);
+    fail = 'fraction';
+    expect((await ctx.subs.runDue()).renewed).toBe(0);
+    expect(
+      (await ctx.subs.getOverview('acc_1')).subscription!.currentPeriodEnd,
+    ).toEqual(first.currentPeriodEnd);
+    expect(ctx.charges).toHaveLength(0);
+
+    fail = null;
+    expect((await ctx.subs.runDue()).renewed).toBe(1);
+    expect(ctx.charges[0]).toMatchObject({ amount: 1120 });
+  });
+
+  it('invoices the usage of a period cut short by a change of interval', async () => {
+    const reasons: string[] = [];
+    const ctx = setup({
+      usage: (usage) => {
+        reasons.push(usage.reason);
+        return [extra(4)];
+      },
+    });
+    await subscribeWithCard(ctx);
+
+    ctx.advance(10);
+    const result = await ctx.subs.changePlan({
+      externalId: 'acc_1',
+      planId: 'pro',
+      interval: 'year',
+    });
+
+    expect(reasons).toEqual(['plan_change']);
+    expect(result.type).toBe('changed');
+    if (result.type !== 'changed') return;
+    expect(result.invoice!.lines.at(-1)).toMatchObject({
+      usage: true,
+      amount: 480,
+    });
+    expect(ctx.charges[0]!.amount).toBe(result.invoice!.total);
+  });
+
+  it('adds the usage to the invoice of an invoice subscription', async () => {
+    const ctx = setup({ usage: () => [extra(2)] });
+    await ctx.subs.upsertCustomer({
+      externalId: 'acc_1',
+      email: 'a@b.ch',
+      name: 'A',
+    });
+    await ctx.subs.subscribe({
+      externalId: 'acc_1',
+      planId: 'basic',
+      interval: 'month',
+      collectionMethod: 'send_invoice',
+      urls,
+    });
+
+    ctx.advance(31);
+    await ctx.subs.runDue();
+
+    const [renewal] = await ctx.subs.listInvoices('acc_1');
+
+    expect(renewal).toMatchObject({
+      reason: 'subscription_cycle',
+      collectionMethod: 'send_invoice',
+      status: 'open',
+      total: 1240,
+    });
+    expect(ctx.charges).toHaveLength(0);
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "@agentkit.ch/subkit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Subscription engine for SaaS: tokenize a payment method once, charge it every period. Self-service API, React billing page, emails and invoices included. Database- and framework-agnostic (zahls.ch provider included).",
   "keywords": [
     "subscriptions",

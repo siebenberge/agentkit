@@ -221,7 +221,7 @@ All ids are `text` (the engine's ids), dates `timestamptz`, amounts
 | `customer_id` | text, FK → subscribers (restrict), indexed | Invoices outlive the customer's account |
 | `subscription_id` | text, null, FK → subscriptions (set null), indexed | |
 | `status` | text | `open`, `paid`, `void`, `uncollectible`; index with `next_attempt_at` |
-| `reason` | text | `subscription_create`, `subscription_cycle`, `subscription_update` |
+| `reason` | text | `subscription_create`, `subscription_cycle`, `subscription_update`, `subscription_final` |
 | `collection_method` | text | |
 | `currency` | text | |
 | `subtotal`, `tax`, `total` | integer | Net, VAT, gross |

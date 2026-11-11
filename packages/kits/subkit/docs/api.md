@@ -678,7 +678,7 @@ Also exported: the domain types (`Plan`, `PlanPrice`, `Coupon`,
 `CheckoutPurpose`, `CollectionMethod`, `BillingInterval`, `Entitlements`,
 `SubscriptionEvent`, `ModelMap`, `ModelName`), the option and result types
 (`SubscriptionsOptions`, `Subscriptions`, `TaxConfig`, `Logger`,
-`LineContext`, `RedirectUrls`, `SubscribeResult`, `ChangePlanResult`,
+`LineContext`, `UsageContext`, `UsageCharge`, `RedirectUrls`, `SubscribeResult`, `ChangePlanResult`,
 `PromotionPreview`,
 `RunDueSummary`, `BankReconciliation`, `WebhookReference`,
 `RateLimitDecision`, `BankPayment`), the adapter contract

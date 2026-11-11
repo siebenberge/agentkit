@@ -95,6 +95,10 @@ by a late payment. `past_due` and `unpaid` subscriptions are not renewed
 until their invoice is settled, except when they are canceled for the
 period end.
 
+With the [`usage`](configuration.md#usage) option, the renewal invoice also
+carries the usage of the period that just ended: the next period in
+advance, the last one's usage in arrears, in one charge.
+
 ### Trials
 
 With `trialDays` on the plan and a customer who never had a subscription,
@@ -155,7 +159,9 @@ closes unfinished checkouts of the customer, so a late payment activates
 nothing. An `unpaid` subscription is always ended at once. On ending, open
 invoices for periods that start after the end are voided; invoices of
 periods that were served stay open and owed, without further dunning.
-There are no refunds.
+There are no refunds. With the [`usage`](configuration.md#usage) option,
+the usage of the last period is invoiced on ending (`subscription_final`)
+and collected like any other invoice, dunning included.
 
 ### Collection methods
 
@@ -268,15 +274,18 @@ free invoice is voided like any first invoice.
 Every invoice belongs to a customer and usually to a subscription. Amounts
 are in minor units: `subtotal` (net), `tax`, `total`, `taxRateBps`, and
 `lines` (`description`, `amount`, `planId`, `interval`, `periodStart`,
-`periodEnd` – credit lines are negative). `billingKey` is unique and makes
+`periodEnd` – credit lines are negative; usage lines also `usage`,
+`quantity`, `unitAmount`). `billingKey` is unique and makes
 creation idempotent (`<subscriptionId>:create`,
-`<subscriptionId>:cycle:<periodStart>`, `<subscriptionId>:update:<time>`).
+`<subscriptionId>:cycle:<periodStart>`, `<subscriptionId>:update:<time>`,
+`<subscriptionId>:final`).
 
 | `reason` | Created by |
 |---|---|
 | `subscription_create` | `subscribe()` – the first period (not for a trial) |
 | `subscription_cycle` | `runDue()` – every renewal, including the end of a trial |
 | `subscription_update` | `changePlan()` – the prorated difference of an upgrade |
+| `subscription_final` | The end of a subscription – usage of its last period ([`usage`](configuration.md#usage)); charged or sent although the subscription has ended |
 
 `dueAt`: card invoices are due on creation; `send_invoice` invoices at the
 end of the day `invoices.dueDays` days later (Zurich time). `attemptCount`

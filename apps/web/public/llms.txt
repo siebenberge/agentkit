@@ -41,7 +41,8 @@ database table and component – is in `docs/` of the package (also in
 
 - subkit (`@agentkit.ch/subkit`, preview): subscriptions, plans, trials, proration,
   coupons and promotion codes (percent or amount off for n periods, personal
-  codes bound to an email), card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`),
+  codes bound to an email), usage-based charges per period (`usage` option, e.g.
+  orders over the included volume), card or invoice billing, dunning, entitlements (`hasFeature`, `getLimit`),
   lifecycle emails, printable invoices, Swiss QR-bill, bank reconciliation
   (camt.053 / camt.054), React `<BillingPortal />`.
 - shopkit (`@agentkit.ch/shopkit`, preview): products and variants (physical,
