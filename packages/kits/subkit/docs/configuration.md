@@ -20,6 +20,7 @@ export const subscriptions = createSubscriptions({
   dunning: { retryDays: [1, 3, 5], invoiceGraceDays: 14, finalAction: 'unpaid' },
   trials: { reminderDays: 3 },
   checkout: { expiresInHours: 24, verificationAmount: 100 },
+  usage,          // (ctx) => UsageCharge[] (optional)
   onEvent,
   logger,
 });
@@ -37,6 +38,7 @@ export const subscriptions = createSubscriptions({
 | `dunning` | object | see below | Card retries, grace days, what happens when dunning is over |
 | `trials` | object | see below | Reminder before a trial ends ([trials](#trials)) |
 | `checkout` | object | see below | Expiry of hosted checkouts, verification amount |
+| `usage` | `(ctx: UsageContext) => UsageCharge[] \| Promise<…>` | none | Usage-based charges of a period that ended ([usage](#usage)) |
 | `onEvent` | `(event) => void \| Promise<void>` | none | Called after every state change ([events](events.md)) |
 | `logger` | `Logger` | `console.error` for errors | Operational log lines |
 | `now` | `() => Date` | `() => new Date()` | Clock of the engine (tests) |
@@ -315,6 +317,55 @@ it is paid or voided. Details: [concepts – dunning](concepts.md#dunning).
 `expiresInHours` is also how long a card invoice waits for a checkout or
 payment link of the customer before automatic retries continue (once per
 invoice).
+
+## Usage
+
+### `usage` (usage-based charges)
+
+Charges that depend on what the customer used in a period – orders over
+the plan's included volume, extra seats, sent SMS. subkit does not count
+anything: your app keeps the usage and `usage` says what a period that
+just ended costs. Without the option nothing is asked.
+
+```ts
+usage: async ({ customer, plan, periodStart, periodEnd }) => {
+  const used = await countOrders(customer.externalId, periodStart, periodEnd);
+  const extra = Math.max(0, used - (plan?.limits.included_orders ?? 0));
+  const unitAmount = plan?.limits.overage_rappen ?? 0;
+
+  return [
+    {
+      description: `${extra} zusätzliche Bestellungen à CHF ${(unitAmount / 100).toFixed(2)}`,
+      quantity: extra,
+      unitAmount,
+    },
+  ];
+},
+```
+
+`UsageContext` is `{ customer, subscription, plan, periodStart, periodEnd, reason }`
+– `subscription` as it was during the period, `plan` its plan (`null` if it
+is no longer configured), `periodEnd` exclusive. `UsageCharge` is
+`{ description, quantity, unitAmount }`: `quantity` a whole number, `unitAmount`
+in minor units, tax included or excluded like plan prices (`tax`). The line
+amount is `quantity × unitAmount`; charges of `0` add no line.
+
+| `reason` | When | Where the charges go |
+|---|---|---|
+| `renewal` | `runDue()` renews the subscription | Lines of the renewal invoice (`subscription_cycle`), after the next period's price – one charge for both |
+| `end` | The subscription ends: at the period end (`cancel()`), immediately (`cancel({ immediately: true })`), by dunning or because the plan is gone | A final invoice (`subscription_final`) for the period up to the end, charged by the next `runDue()` |
+| `plan_change` | `changePlan()` changes the interval right away (a new period starts) | Lines of the plan change invoice (`subscription_update`) |
+
+Each period is asked for once it ends – also a trial (`subscription.status`
+is `trialing`: return `[]` if usage in trials is free). Coupons do not
+discount usage lines. The lines carry `usage: true`, `quantity` and
+`unitAmount`, and the usage period in `periodStart` / `periodEnd`.
+
+A thrown error (or a `quantity` / `unitAmount` that is not a whole number
+≥ 0) stops the renewal or the end: the subscription stays as it is and the
+next `runDue()` asks again (`cancel()` throws to its caller). Keep the
+function deterministic for a period – it can be called more than once for
+the same one when a run is retried.
 
 ## Events and logs
 

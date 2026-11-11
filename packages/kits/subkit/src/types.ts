@@ -32,7 +32,11 @@ export type SubscriptionStatus =
 export type InvoiceStatus = 'open' | 'paid' | 'void' | 'uncollectible';
 
 export type InvoiceReason =
-  'subscription_create' | 'subscription_cycle' | 'subscription_update';
+  | 'subscription_create'
+  | 'subscription_cycle'
+  | 'subscription_update'
+  /** Usage of the last period, invoiced when the subscription ended. */
+  | 'subscription_final';
 
 export type PlanPrice = {
   /** Price per interval in minor units, tax included or excluded per `TaxConfig`. */
@@ -218,6 +222,10 @@ export type InvoiceLine = {
   periodEnd?: string;
   /** Set on the discount line of a coupon. */
   couponId?: string;
+  /** Set on a usage line (`usage` option): `amount` = `quantity` × `unitAmount`. */
+  usage?: true;
+  quantity?: number;
+  unitAmount?: number;
 };
 
 export type Invoice = {

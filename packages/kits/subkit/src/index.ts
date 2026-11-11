@@ -13,6 +13,8 @@ export {
   type SubscribeResult,
   type Subscriptions,
   type SubscriptionsOptions,
+  type UsageCharge,
+  type UsageContext,
   type WebhookReference,
 } from './engine';
 export type {

@@ -21,7 +21,7 @@ The package ships ES modules with type declarations; peer dependencies
 
 | Import | What you get |
 |---|---|
-| `@agentkit.ch/subkit` | `createSubscriptions()`: plans, customers, subscriptions, invoices, renewals, proration, dunning, invoice collection, entitlements, coupons and promotion codes |
+| `@agentkit.ch/subkit` | `createSubscriptions()`: plans, customers, subscriptions, invoices, renewals, proration, usage-based charges, dunning, invoice collection, entitlements, coupons and promotion codes |
 | `@agentkit.ch/subkit/drizzle`, `/memory` | Storage adapters (or implement `StorageAdapter`: five methods) |
 | `@agentkit.ch/subkit/zahls` | zahls.ch payment provider (or implement `PaymentProvider`) |
 | `@agentkit.ch/subkit/http` | Self-service API + provider webhook as one fetch handler (`Request` → `Response`) |
